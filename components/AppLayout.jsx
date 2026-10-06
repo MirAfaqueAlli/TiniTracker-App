@@ -25,7 +25,7 @@ export default function AppLayout({ children }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const isBypass = BYPASS_ROUTES.some(r => pathname === r || pathname.startsWith(r + '/'));
+  const isBypass = pathname === '/' || BYPASS_ROUTES.some(r => pathname === r || pathname.startsWith(r + '/'));
 
   // Refresh user data if token is present and hydrated
   useEffect(() => {
