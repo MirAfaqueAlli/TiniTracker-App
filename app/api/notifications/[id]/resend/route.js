@@ -17,10 +17,12 @@ export async function POST(request, { params }) {
 
     let apiUrl = process.env.WHATSAPP_API_URL;
     let apiKey  = process.env.WHATSAPP_API_KEY;
+    let hospitalName = null;
     try {
       const hospital = await Hospital.findByPk(user.hospital_id, {
-        attributes: ['whatsapp_api_url', 'whatsapp_api_key'],
+        attributes: ['name', 'whatsapp_api_url', 'whatsapp_api_key'],
       });
+      if (hospital?.name) hospitalName = hospital.name;
       if (hospital?.whatsapp_api_url && hospital?.whatsapp_api_key) {
         apiUrl = hospital.whatsapp_api_url;
         apiKey  = hospital.whatsapp_api_key;
@@ -31,7 +33,8 @@ export async function POST(request, { params }) {
       return NextResponse.json({ error: 'WhatsApp API credentials not configured' }, { status: 400 });
 
     const phone = notification.whatsapp_number.replace(/[^0-9]/g, '');
-    const body  = notification.message_body || `Hello ${notification.Patient.name}, this is a follow-up from your hospital.`;
+    const hosp = hospitalName || 'your hospital';
+    const body  = notification.message_body || `Hello ${notification.Patient.name}, this is a follow-up from *${hosp}*.\n\n— *${hosp}*`;
 
     let newStatus = 'failed';
     let providerMessageId = null;

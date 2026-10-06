@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { Op } from 'sequelize';
 import { withAuth } from '@/lib/middleware/withAuth';
-import { Patient, PatientStage, StageTemplate, PatientHistory } from '@/lib/db/models/index';
+import { Patient, PatientStage, StageTemplate, PatientHistory, Hospital } from '@/lib/db/models/index';
 import { generateStages } from '@/lib/services/stage.service';
 import { sendWhatsApp } from '@/lib/services/whatsapp.service';
 import { createAppNotif } from '@/lib/services/appNotif.service';
@@ -16,7 +16,9 @@ export async function POST(request, { params }) {
     if (!child_dob) return NextResponse.json({ error: 'child_dob required' }, { status: 400 });
 
     const { id } = await params;
-    const patient = await Patient.findByPk(id);
+    const patient = await Patient.findByPk(id, {
+      include: [{ model: Hospital, attributes: ['name', 'phone'] }]
+    });
     if (!patient) return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
 
     await patient.update({
@@ -70,7 +72,8 @@ export async function POST(request, { params }) {
       patient_name:   patient.name,
       child_name:     child_name || 'your baby',
       first_imm:      firstImmStage?.template?.stage_name || 'At Birth',
-      first_imm_date: firstImmStage?.scheduled_date       || child_dob
+      first_imm_date: firstImmStage?.scheduled_date       || child_dob,
+      hospital_name:  patient.Hospital?.name,
     }, patient.id, null, patient.hospital_id);
 
     // Audit log — fire-and-forget

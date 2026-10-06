@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { Op } from 'sequelize';
 import { withAuth } from '@/lib/middleware/withAuth';
-import { Patient, PatientStage, StageTemplate, PatientHistory } from '@/lib/db/models/index';
+import { Patient, PatientStage, StageTemplate, PatientHistory, Hospital } from '@/lib/db/models/index';
 import { sendWhatsApp } from '@/lib/services/whatsapp.service';
 import { createAppNotif } from '@/lib/services/appNotif.service';
 import { hasPermission } from '@/lib/utils/rbac';
@@ -66,7 +66,9 @@ export async function PUT(request, { params }) {
 
     // Send WhatsApp notification to patient about rescheduled appointment
     try {
-      const patient = await Patient.findByPk(id);
+      const patient = await Patient.findByPk(id, {
+        include: [{ model: Hospital, attributes: ['name', 'phone'] }]
+      });
       if (patient?.whatsapp_number) {
         await sendWhatsApp(
           patient.whatsapp_number,
@@ -75,7 +77,8 @@ export async function PUT(request, { params }) {
             patient_name: patient.name,
             stage_name:   stage.template?.stage_name || 'appointment',
             new_date,
-            reason:       override_reason.trim(),
+            reason:        override_reason.trim(),
+            hospital_name: patient.Hospital?.name,
           },
           patient.id,
           stage.id,

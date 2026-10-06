@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { withAuth } from '@/lib/middleware/withAuth';
-import { Patient } from '@/lib/db/models/index';
+import { Patient, Hospital } from '@/lib/db/models/index';
 import { sendWhatsApp } from '@/lib/services/whatsapp.service';
 
 // POST /api/notifications/send-manual
@@ -13,15 +13,18 @@ export async function POST(request) {
     if (!patient_id || !message)
       return NextResponse.json({ error: 'patient_id and message required' }, { status: 400 });
 
-    const patient = await Patient.findByPk(patient_id);
+    const patient = await Patient.findByPk(patient_id, {
+      include: [{ model: Hospital, attributes: ['name', 'phone'] }]
+    });
     if (!patient) return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
     if (patient.hospital_id !== user.hospital_id)
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
 
     await sendWhatsApp(patient.whatsapp_number, 'manual', {
       patient_name:   patient.name,
-      custom_message: message
-    }, patient.id);
+      custom_message: message,
+      hospital_name:  patient.Hospital?.name,
+    }, patient.id, null, patient.hospital_id);
 
     return NextResponse.json({ message: 'Manual notification sent' });
   } catch (err) {

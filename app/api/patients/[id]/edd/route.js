@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { withAuth } from '@/lib/middleware/withAuth';
-import { Patient, PatientStage, StageTemplate, PatientHistory } from '@/lib/db/models/index';
+import { Patient, PatientStage, StageTemplate, PatientHistory, Hospital } from '@/lib/db/models/index';
 import { recalculateOnEddChange } from '@/lib/services/stage.service';
 import { sendWhatsApp } from '@/lib/services/whatsapp.service';
 import { createAppNotif } from '@/lib/services/appNotif.service';
@@ -15,7 +15,9 @@ export async function PUT(request, { params }) {
     if (!edd) return NextResponse.json({ error: 'edd required' }, { status: 400 });
 
     const { id } = await params;
-    const patient = await Patient.findByPk(id);
+    const patient = await Patient.findByPk(id, {
+      include: [{ model: Hospital, attributes: ['name', 'phone'] }]
+    });
     if (!patient) return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
 
     await patient.update({
@@ -29,9 +31,10 @@ export async function PUT(request, { params }) {
     await recalculateOnEddChange(patient);
 
     await sendWhatsApp(patient.whatsapp_number, 'edd_updated', {
-      patient_name: patient.name,
-      new_edd:      edd,
-      source:       edd_source || 'updated'
+      patient_name:  patient.name,
+      new_edd:       edd,
+      source:        edd_source || 'updated',
+      hospital_name: patient.Hospital?.name,
     }, patient.id, null, patient.hospital_id);
 
     // Audit log — fire-and-forget

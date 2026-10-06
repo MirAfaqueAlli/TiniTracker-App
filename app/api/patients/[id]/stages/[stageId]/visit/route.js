@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { Op } from 'sequelize';
 import { withAuth } from '@/lib/middleware/withAuth';
-import { Patient, PatientStage, StageTemplate, PatientHistory } from '@/lib/db/models/index';
+import { Patient, PatientStage, StageTemplate, PatientHistory, Hospital } from '@/lib/db/models/index';
 import { sendWhatsApp } from '@/lib/services/whatsapp.service';
 import { createAppNotif } from '@/lib/services/appNotif.service';
 import { hasPermission } from '@/lib/utils/rbac';
@@ -44,7 +44,9 @@ export async function PUT(request, { params }) {
       recorded_by:       user.id
     });
 
-    const patient = await Patient.findByPk(id);
+    const patient = await Patient.findByPk(id, {
+      include: [{ model: Hospital, attributes: ['name', 'phone'] }]
+    });
     const nextStage = await PatientStage.findOne({
       where:   { patient_id: id, status: { [Op.in]: ['pending', 'notified'] } },
       include: [{ model: StageTemplate, as: 'template' }],
@@ -56,10 +58,11 @@ export async function PUT(request, { params }) {
     }
 
     await sendWhatsApp(patient.whatsapp_number, 'stage_complete', {
-      patient_name: patient.name,
-      stage_name:   template.stage_name,
-      next_stage:   nextStage?.template?.stage_name || 'Journey complete!',
-      next_date:    nextStage?.scheduled_date       || ''
+      patient_name:  patient.name,
+      stage_name:    template.stage_name,
+      next_stage:    nextStage?.template?.stage_name || 'Journey complete!',
+      next_date:     nextStage?.scheduled_date       || '',
+      hospital_name: patient.Hospital?.name,
     }, patient.id, stage.id, patient.hospital_id);
 
     // Audit log

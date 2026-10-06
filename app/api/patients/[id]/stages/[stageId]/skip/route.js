@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { withAuth } from '@/lib/middleware/withAuth';
-import { Patient, PatientStage, StageTemplate, PatientHistory } from '@/lib/db/models/index';
+import { Patient, PatientStage, StageTemplate, PatientHistory, Hospital } from '@/lib/db/models/index';
 import { Op } from 'sequelize';
 import { sendWhatsApp } from '@/lib/services/whatsapp.service';
 import { createAppNotif } from '@/lib/services/appNotif.service';
@@ -30,7 +30,9 @@ export async function PUT(request, { params }) {
 
     // Send WhatsApp notification to patient
     try {
-      const patient = await Patient.findByPk(id);
+      const patient = await Patient.findByPk(id, {
+        include: [{ model: Hospital, attributes: ['name', 'phone'] }]
+      });
       if (patient?.whatsapp_number) {
         // Find next upcoming appointment
         const nextStage = await PatientStage.findOne({
@@ -48,6 +50,7 @@ export async function PUT(request, { params }) {
             reason:         reason.trim(),
             next_stage:     nextStage?.template?.stage_name || 'No upcoming appointments',
             next_date:      nextStage?.scheduled_date       || '—',
+            hospital_name:  patient.Hospital?.name,
           },
           patient.id,
           stage.id,
