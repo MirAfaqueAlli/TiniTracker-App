@@ -45,17 +45,24 @@ export async function POST(request) {
     // Send OTP email
     const emailResult = await sendOtpEmail(normalizedEmail, otpResult.otp, {
       subject: 'TiniTraker – Password Reset Code',
-      intro: 'You requested a password reset for your TiniTraker account.',
-      bodyLine: 'Use the code below to reset your password. It expires in 5 minutes.',
+      intro: 'Reset Your Password',
+      bodyLine: 'You requested a password reset for your TiniTraker account. Please use the verification code below to reset your password:',
+      instruction: 'Enter this 6-digit code on the reset password screen to proceed.',
     });
+
+    if (!emailResult.success) {
+      return NextResponse.json(
+        { error: emailResult.error || 'Failed to send reset code. Please try again.' },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
       message: `A 6-digit reset code has been sent to ${normalizedEmail}.`,
       expiresInMinutes: 5,
-      ...(emailResult.simulated || process.env.NODE_ENV === 'development'
-        ? { devOtp: otpResult.otp }
-        : {}),
+      // Only include devOtp if SMTP is not configured (simulated mode)
+      ...(emailResult.simulated ? { devOtp: otpResult.otp } : {}),
     });
   } catch (err) {
     console.error('Forgot-password send-OTP error:', err);

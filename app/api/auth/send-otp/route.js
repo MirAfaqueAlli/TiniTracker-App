@@ -40,14 +40,19 @@ export async function POST(request) {
     // Send email via nodemailer
     const emailResult = await sendOtpEmail(normalizedEmail, otpResult.otp);
 
+    if (!emailResult.success) {
+      return NextResponse.json(
+        { error: emailResult.error || 'Failed to send verification code. Please try again.' },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json({
       success: true,
       message: `A 6-digit verification code has been sent to ${normalizedEmail}.`,
       expiresInMinutes: 5,
-      // Provide devOtp if SMTP is not configured or in development mode for easy testing
-      ...(emailResult.simulated || process.env.NODE_ENV === 'development'
-        ? { devOtp: otpResult.otp }
-        : {}),
+      // Only include devOtp if SMTP is not configured (simulated mode)
+      ...(emailResult.simulated ? { devOtp: otpResult.otp } : {}),
     });
   } catch (err) {
     console.error('Send OTP error:', err);
