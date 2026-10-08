@@ -72,7 +72,7 @@ export async function POST(request) {
     console.log(`✅ Setup complete — Hospital: "${hospital_name}" | Admin: ${admin_email}`);
 
     const token = jwt.sign(
-      { id: createdUser.id },
+      { id: createdUser.id, role: createdUser.role, hospital_id: createdHospital.id },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );

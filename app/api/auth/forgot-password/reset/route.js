@@ -68,12 +68,22 @@ export async function POST(request) {
       force_password_change: false,
     };
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       success: true,
       message: 'Password reset successfully. You are now logged in.',
       token,
       user: userData,
     });
+
+    res.cookies.set('tinitracker_token', token, {
+      path: '/',
+      maxAge: 30 * 24 * 60 * 60,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      httpOnly: false,
+    });
+
+    return res;
   } catch (err) {
     console.error('Forgot-password reset error:', err);
     return NextResponse.json({ error: 'Failed to reset password. Please try again.' }, { status: 500 });

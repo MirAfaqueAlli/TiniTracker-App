@@ -371,6 +371,9 @@ export default function ProviderDashboard() {
   function logout() {
     localStorage.removeItem('provider_token');
     localStorage.removeItem('provider_admin');
+    if (typeof document !== 'undefined') {
+      document.cookie = 'provider_token=; path=/; max-age=0; SameSite=Lax';
+    }
     router.push('/provider/login');
   }
 

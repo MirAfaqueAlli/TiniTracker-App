@@ -60,9 +60,13 @@ export async function POST(request) {
     }
     // ─────────────────────────────────────────────────────────────────────────
 
-    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN });
+    const token = jwt.sign(
+      { id: user.id, role: user.role, hospital_id: user.hospital_id },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN }
+    );
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       token,
       user: {
         id:                    user.id,
@@ -78,6 +82,16 @@ export async function POST(request) {
         force_password_change: user.force_password_change ?? false,
       }
     });
+
+    res.cookies.set('tinitracker_token', token, {
+      path: '/',
+      maxAge: 30 * 24 * 60 * 60,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      httpOnly: false,
+    });
+
+    return res;
 
   } catch (err) {
     console.error('Login error:', err);

@@ -20,6 +20,7 @@ export default function ProviderLoginPage() {
       if (typeof window !== 'undefined') {
         localStorage.setItem('provider_token', res.data.token);
         localStorage.setItem('provider_admin', JSON.stringify(res.data.admin));
+        document.cookie = `provider_token=${res.data.token}; path=/; max-age=604800; SameSite=Lax`;
       }
       router.push('/provider/dashboard');
     } catch (err) {

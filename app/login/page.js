@@ -365,6 +365,8 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const fromSetup    = searchParams.get('setupComplete') === '1';
   const prefilled    = searchParams.get('email') || '';
+  // ?next= is set by middleware when redirecting unauthenticated users to /login
+  const nextPath     = searchParams.get('next') || '/dashboard';
 
   // Redirect if already logged in
   useEffect(() => {
@@ -425,7 +427,7 @@ function LoginForm() {
       }
       setAuth(res.data.token, res.data.user, rememberMe);
       if (res.data.user?.force_password_change) router.push('/change-password');
-      else router.push('/dashboard');
+      else router.push(nextPath);
     } catch (err) {
       const apiError = err.response?.data?.error;
       if (apiError === 'subscription_expired') {

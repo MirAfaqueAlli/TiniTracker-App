@@ -47,7 +47,7 @@ export async function POST(request) {
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       token,
       admin: {
         id:    admin.id,
@@ -56,6 +56,16 @@ export async function POST(request) {
         role:  admin.role,
       }
     });
+
+    res.cookies.set('provider_token', token, {
+      path: '/',
+      maxAge: 7 * 24 * 60 * 60,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      httpOnly: false,
+    });
+
+    return res;
   } catch (err) {
     console.error('Provider login error:', err);
     return NextResponse.json({ error: 'Login failed' }, { status: 500 });
