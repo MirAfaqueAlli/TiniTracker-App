@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { Hospital, User, Subscription, sequelize } from '@/lib/db/models/index';
-import { isEmailVerified } from '@/lib/otpStore';
+import { isEmailVerified, deleteOtp } from '@/lib/otpStore';
 import { seedRolesAndPermissionsForHospital } from '@/lib/seeders/roles.seed.js';
 
 export async function POST(request) {
@@ -17,6 +17,7 @@ export async function POST(request) {
       hospital_pincode,
       owner_name,
       email,
+      email_verification_token,
       country_code,
       phone,
       password,
@@ -32,8 +33,38 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Email address is required.' }, { status: 400 });
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
       return NextResponse.json({ error: 'Please enter a valid email address.' }, { status: 400 });
-    if (!isEmailVerified(email.trim()))
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // Verify email verification proof:
+    let verified = false;
+
+    // 1. Primary: Cryptographically signed verification token (stateless & persists across server reloads/lambdas)
+    if (email_verification_token) {
+      try {
+        const jwtSecret = process.env.JWT_SECRET || 'tinitraker_jwt_secret_key_2026';
+        const decoded = jwt.verify(email_verification_token, jwtSecret);
+        if (
+          decoded &&
+          decoded.purpose === 'email_verification' &&
+          decoded.email === normalizedEmail
+        ) {
+          verified = true;
+        }
+      } catch (tokenErr) {
+        console.warn('Verification token validation failed:', tokenErr.message);
+      }
+    }
+
+    // 2. Fallback: In-memory OTP store (for backwards compatibility)
+    if (!verified && isEmailVerified(normalizedEmail)) {
+      verified = true;
+    }
+
+    if (!verified) {
       return NextResponse.json({ error: 'Please verify your email address before continuing.' }, { status: 400 });
+    }
+
     if (!phone?.trim())
       return NextResponse.json({ error: 'Phone number is required.' }, { status: 400 });
     if (!password)
@@ -95,6 +126,9 @@ export async function POST(request) {
         force_password_change: false,
       }, { transaction: t });
     });
+
+    // Cleanup OTP store entry
+    deleteOtp(normalizedEmail);
 
     // Seed default roles, permissions, and system configs for the new hospital
     try {

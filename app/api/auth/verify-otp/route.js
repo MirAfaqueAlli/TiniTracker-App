@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import jwt from 'jsonwebtoken';
 import { verifyOtp } from '@/lib/otpStore';
 
 export async function POST(request) {
@@ -19,15 +20,29 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Please enter a valid 6-digit numeric code.' }, { status: 400 });
     }
 
-    const result = verifyOtp(email, cleanOtp);
+    const normalizedEmail = email.trim().toLowerCase();
+    const result = verifyOtp(normalizedEmail, cleanOtp);
 
     if (!result.success) {
       return NextResponse.json({ error: result.error }, { status: 400 });
     }
 
+    // Generate stateless cryptographic verification token valid for 2 hours
+    const jwtSecret = process.env.JWT_SECRET || 'tinitraker_jwt_secret_key_2026';
+    const verificationToken = jwt.sign(
+      {
+        email: normalizedEmail,
+        purpose: 'email_verification',
+        verifiedAt: Date.now(),
+      },
+      jwtSecret,
+      { expiresIn: '2h' }
+    );
+
     return NextResponse.json({
       success: true,
       message: 'Email verified successfully!',
+      verificationToken,
     });
   } catch (err) {
     console.error('Verify OTP error:', err);

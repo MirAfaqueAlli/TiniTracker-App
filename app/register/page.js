@@ -51,6 +51,7 @@ export default function RegisterPage() {
 
   // ── Email Verification State ──────────────────────────────────────────────
   const [emailVerified, setEmailVerified] = useState(false);
+  const [emailVerificationToken, setEmailVerificationToken] = useState('');
   const [otpBoxOpen, setOtpBoxOpen]       = useState(false);
   const [otpValue, setOtpValue]           = useState('');
   const [otpSending, setOtpSending]       = useState(false);
@@ -121,10 +122,13 @@ export default function RegisterPage() {
     setOtpError('');
 
     try {
-      await api.post('/auth/verify-otp', {
+      const res = await api.post('/auth/verify-otp', {
         email: email.trim(),
         otp: otpValue.trim(),
       });
+      if (res.data?.verificationToken) {
+        setEmailVerificationToken(res.data.verificationToken);
+      }
       setEmailVerified(true);
       setOtpBoxOpen(false);
       setOtpError('');
@@ -151,7 +155,7 @@ export default function RegisterPage() {
     setError('');
     if (!ownerName.trim()) { setError('Full name is required.'); return; }
     if (!email.trim()) { setError('Email address is required.'); return; }
-    if (!emailVerified) {
+    if (!emailVerified && !emailVerificationToken) {
       setError('Please verify your email address before creating your account.');
       if (!otpBoxOpen) {
         handleSendOtp();
@@ -171,15 +175,16 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       const res = await api.post('/auth/register', {
-        hospital_name: hospitalName,
-        hospital_address: hospitalAddress,
-        hospital_city: city,
-        hospital_state: stateName,
-        hospital_pincode: pincode,
-        owner_name: ownerName,
-        email,
+        hospital_name: hospitalName.trim(),
+        hospital_address: hospitalAddress.trim(),
+        hospital_city: city.trim(),
+        hospital_state: stateName.trim(),
+        hospital_pincode: pincode.trim(),
+        owner_name: ownerName.trim(),
+        email: email.trim(),
+        email_verification_token: emailVerificationToken,
         country_code: countryCode,
-        phone,
+        phone: phone.trim(),
         password,
         confirm_password: confirmPassword,
       });
@@ -192,7 +197,14 @@ export default function RegisterPage() {
 
       setSuccess(true);
     } catch (err) {
-      setError(err.response?.data?.error || 'Registration failed. Please try again.');
+      const serverMsg = err.response?.data?.error || 'Registration failed. Please try again.';
+      setError(serverMsg);
+      // Auto-recovery: If server rejected due to unverified email, unblock the user immediately
+      if (serverMsg.toLowerCase().includes('verify your email')) {
+        setEmailVerified(false);
+        setEmailVerificationToken('');
+        setOtpBoxOpen(true);
+      }
     } finally {
       setLoading(false);
     }
@@ -445,8 +457,9 @@ export default function RegisterPage() {
                     value={email}
                     onChange={e => {
                       setEmail(e.target.value);
-                      if (emailVerified) {
+                      if (emailVerified || emailVerificationToken) {
                         setEmailVerified(false);
+                        setEmailVerificationToken('');
                         setOtpBoxOpen(false);
                         setOtpValue('');
                         setOtpSuccess('');
@@ -456,9 +469,34 @@ export default function RegisterPage() {
                     required
                   />
                   {emailVerified ? (
-                    <div className="reg-email-verified-badge">
-                      <CheckCircle2 size={15} />
-                      <span>Verified</span>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', flexShrink: 0 }}>
+                      <div className="reg-email-verified-badge">
+                        <CheckCircle2 size={15} />
+                        <span>Verified</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEmailVerified(false);
+                          setEmailVerificationToken('');
+                          setOtpBoxOpen(false);
+                          setOtpValue('');
+                          setOtpError('');
+                          setOtpSuccess('');
+                        }}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#94a3b8',
+                          fontSize: '0.8rem',
+                          cursor: 'pointer',
+                          textDecoration: 'underline',
+                          padding: '0 4px',
+                        }}
+                        title="Click to change email address or re-verify"
+                      >
+                        Change
+                      </button>
                     </div>
                   ) : (
                     <button
