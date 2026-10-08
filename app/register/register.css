@@ -857,3 +857,90 @@
     width: 100%;
   }
 }
+
+/* ─── Password Strength Meter Dark Styling in Register Page ─── */
+.reg-page-wrapper .password-strength-widget {
+  margin-top: 0.75rem;
+  padding: 0.95rem 1.15rem;
+  background-color: #151518 !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
+}
+
+.reg-page-wrapper .pwd-meter-label {
+  color: #e2e8f0 !important;
+  font-size: 0.785rem;
+  font-weight: 600;
+}
+
+.reg-page-wrapper .pwd-meter-score-text {
+  color: #94a3b8 !important;
+  font-size: 0.75rem;
+}
+
+.reg-page-wrapper .pwd-meter-score-text strong {
+  color: #f1f5f9 !important;
+}
+
+.reg-page-wrapper .pwd-slider-track {
+  background-color: #212126 !important;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.reg-page-wrapper .pwd-slider-thumb {
+  border-color: #151518 !important;
+}
+
+.reg-page-wrapper .pwd-slider-tick {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.reg-page-wrapper .pwd-feedback-success {
+  background: rgba(16, 185, 129, 0.12) !important;
+  border: 1px solid rgba(16, 185, 129, 0.32) !important;
+  color: #34d399 !important;
+  font-weight: 500;
+}
+
+.reg-page-wrapper .pwd-feedback-missing {
+  background: rgba(245, 158, 11, 0.12) !important;
+  border: 1px solid rgba(245, 158, 11, 0.3) !important;
+  color: #fbbf24 !important;
+}
+
+.reg-page-wrapper .pwd-missing-tag {
+  color: #fcd34d !important;
+}
+
+.reg-page-wrapper .pwd-criteria-grid {
+  border-top: 1px dashed rgba(255, 255, 255, 0.1) !important;
+  margin-top: 0.4rem;
+  padding-top: 0.6rem;
+}
+
+.reg-page-wrapper .pwd-criterion-item.met {
+  color: #f1f5f9 !important;
+  font-weight: 500;
+}
+
+.reg-page-wrapper .pwd-criterion-item.unmet {
+  color: #71717a !important;
+}
+
+.reg-page-wrapper .pwd-criterion-icon.met {
+  background: rgba(16, 185, 129, 0.16) !important;
+  color: #34d399 !important;
+  border: 1px solid rgba(16, 185, 129, 0.4) !important;
+}
+
+.reg-page-wrapper .pwd-criterion-icon.unmet {
+  background: rgba(255, 255, 255, 0.04) !important;
+  color: #71717a !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.reg-page-wrapper .pwd-criterion-dot {
+  background: #71717a !important;
+}
+

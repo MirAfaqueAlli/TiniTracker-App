@@ -9776,47 +9776,90 @@ select.rpm-input::-ms-expand {
 }
 
 /* Dark mode adjustments */
-[data-theme="dark"] .password-strength-widget {
-  background: #0f172a;
-  border-color: #334155;
+[data-theme="dark"] .password-strength-widget,
+.password-strength-widget.theme-dark {
+  background: #151518;
+  border-color: rgba(255, 255, 255, 0.09);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
-[data-theme="dark"] .pwd-meter-label {
+[data-theme="dark"] .pwd-meter-label,
+.password-strength-widget.theme-dark .pwd-meter-label {
   color: #e2e8f0;
 }
 
-[data-theme="dark"] .pwd-slider-track {
-  background: #1e293b;
-}
-
-[data-theme="dark"] .pwd-feedback-missing {
-  background: rgba(245, 158, 11, 0.12);
-  border-color: rgba(245, 158, 11, 0.3);
-  color: #fde68a;
-}
-
-[data-theme="dark"] .pwd-missing-tag {
-  color: #fbbf24;
-}
-
-[data-theme="dark"] .pwd-feedback-success {
-  background: rgba(16, 185, 129, 0.12);
-  border-color: rgba(16, 185, 129, 0.3);
-  color: #a7f3d0;
-}
-
-[data-theme="dark"] .pwd-criterion-item.met {
-  color: #f1f5f9;
-}
-
-[data-theme="dark"] .pwd-criterion-item.unmet {
+[data-theme="dark"] .pwd-meter-score-text,
+.password-strength-widget.theme-dark .pwd-meter-score-text {
   color: #94a3b8;
 }
 
-[data-theme="dark"] .pwd-criterion-icon.unmet {
-  background: #1e293b;
-  border-color: #334155;
-  color: #64748b;
+[data-theme="dark"] .pwd-slider-track,
+.password-strength-widget.theme-dark .pwd-slider-track {
+  background: #212126;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .pwd-slider-thumb,
+.password-strength-widget.theme-dark .pwd-slider-thumb {
+  border-color: #151518;
+}
+
+[data-theme="dark"] .pwd-slider-tick,
+.password-strength-widget.theme-dark .pwd-slider-tick {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+[data-theme="dark"] .pwd-feedback-missing,
+.password-strength-widget.theme-dark .pwd-feedback-missing {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: #fbbf24;
+}
+
+[data-theme="dark"] .pwd-missing-tag,
+.password-strength-widget.theme-dark .pwd-missing-tag {
+  color: #fcd34d;
+}
+
+[data-theme="dark"] .pwd-feedback-success,
+.password-strength-widget.theme-dark .pwd-feedback-success {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.32);
+  color: #34d399;
+}
+
+[data-theme="dark"] .pwd-criteria-grid,
+.password-strength-widget.theme-dark .pwd-criteria-grid {
+  border-top: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .pwd-criterion-item.met,
+.password-strength-widget.theme-dark .pwd-criterion-item.met {
+  color: #f1f5f9;
+}
+
+[data-theme="dark"] .pwd-criterion-item.unmet,
+.password-strength-widget.theme-dark .pwd-criterion-item.unmet {
+  color: #71717a;
+}
+
+[data-theme="dark"] .pwd-criterion-icon.met,
+.password-strength-widget.theme-dark .pwd-criterion-icon.met {
+  background: rgba(16, 185, 129, 0.16);
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #34d399;
+}
+
+[data-theme="dark"] .pwd-criterion-icon.unmet,
+.password-strength-widget.theme-dark .pwd-criterion-icon.unmet {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #71717a;
+}
+
+[data-theme="dark"] .pwd-criterion-dot,
+.password-strength-widget.theme-dark .pwd-criterion-dot {
+  background: #71717a;
 }
 
 /* ==========================================================================

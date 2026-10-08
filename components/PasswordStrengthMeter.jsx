@@ -11,6 +11,7 @@ export default function PasswordStrengthMeter({
   showChecklist = true,
   compact = false,
   minRequiredScore = 4,
+  theme = 'dark',
 }) {
   const analysis = useMemo(() => evaluatePassword(password), [password]);
   const hasInput = Boolean(password && password.length > 0);
@@ -20,7 +21,7 @@ export default function PasswordStrengthMeter({
   }
 
   return (
-    <div className={`password-strength-widget ${compact ? 'compact' : ''}`}>
+    <div className={`password-strength-widget ${compact ? 'compact' : ''} ${theme === 'dark' ? 'theme-dark' : ''}`}>
       {/* Header bar: Strength Title, Slider meter, and Rating pill */}
       <div className="pwd-meter-header">
         <div className="pwd-meter-title-wrap">

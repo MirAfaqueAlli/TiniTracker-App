@@ -652,7 +652,7 @@ export default function RegisterPage() {
                   </button>
                 </div>
                 {/* Live Password Strength Meter & Checklist */}
-                <PasswordStrengthMeter password={password} />
+                <PasswordStrengthMeter password={password} theme="dark" />
               </div>
 
               {/* Confirm Password */}
