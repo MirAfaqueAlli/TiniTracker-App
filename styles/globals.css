@@ -9016,11 +9016,17 @@ select.rpm-input::-ms-expand {
   gap: 10px;
 }
 
+/* Universal Save & Action Buttons */
+.btn-discard,
 .floating-save-bar .btn-discard {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   background: #1e293b;
   color: #cbd5e1;
   border: 1px solid #334155;
-  padding: 7px 14px;
+  padding: 8px 16px;
   border-radius: 8px;
   font-size: 13px;
   font-weight: 500;
@@ -9028,35 +9034,57 @@ select.rpm-input::-ms-expand {
   transition: all 0.15s ease;
 }
 
-.floating-save-bar .btn-discard:hover {
+.btn-discard:hover:not(:disabled),
+.floating-save-bar .btn-discard:hover:not(:disabled) {
   background: #334155;
   color: #ffffff;
   border-color: #475569;
 }
 
+.btn-discard:disabled,
+.floating-save-bar .btn-discard:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-save-primary,
 .floating-save-bar .btn-save-primary {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  gap: 8px;
   background: #00857c;
   color: #ffffff;
-  border: none;
-  padding: 7px 16px;
+  border: 1px solid rgba(0, 133, 124, 0.3);
+  padding: 9px 20px;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 600;
+  font-family: inherit;
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(0, 133, 124, 0.3);
-  transition: all 0.15s ease;
+  transition: all 0.18s ease;
 }
 
+.btn-save-primary:hover:not(:disabled),
 .floating-save-bar .btn-save-primary:hover:not(:disabled) {
   background: #006e67;
+  border-color: #006e67;
+  box-shadow: 0 4px 14px rgba(0, 133, 124, 0.4);
+  transform: translateY(-1px);
 }
 
+.btn-save-primary:active:not(:disabled),
+.floating-save-bar .btn-save-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-save-primary:disabled,
 .floating-save-bar .btn-save-primary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 @media (max-width: 640px) {
@@ -9247,7 +9275,15 @@ select.rpm-input::-ms-expand {
 .form-submit-footer {
   display: flex;
   justify-content: flex-end;
-  margin-top: 20px;
+  align-items: center;
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--color-border);
+}
+
+.form-submit-footer .btn-save-primary {
+  padding: 10px 22px;
+  font-size: 14px;
 }
 
 /* Manual Run Box */
