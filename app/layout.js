@@ -4,6 +4,15 @@ import AppLayout from '@/components/AppLayout';
 export const metadata = {
   title: 'TiniTraker — Timeline of care',
   description: 'Maternal and immunization care tracking system for hospitals',
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/icon.png', type: 'image/png', sizes: '512x512' },
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+    ],
+    apple: '/apple-icon.png',
+    shortcut: '/favicon.ico',
+  },
 };
 
 export default function RootLayout({ children }) {
