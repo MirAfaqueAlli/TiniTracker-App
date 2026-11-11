@@ -40,7 +40,7 @@ export async function GET(request) {
       User.count({ where: { is_blocked: false } }),
       Patient.count(),
       PatientStage.count(),
-      PatientStage.count({ where: { status: 'completed' } }),
+      PatientStage.count({ where: { status: 'visited' } }),
       Payment.findOne({
         attributes: [[sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amount')), 0), 'totalRevenue']],
         raw: true,
@@ -92,7 +92,7 @@ export async function GET(request) {
       sequelize.query(`
         SELECT p.hospital_id,
                COUNT(ps.id) AS total_stages,
-               COALESCE(SUM(CASE WHEN ps.status = 'completed' THEN 1 ELSE 0 END), 0) AS completed_stages
+               COALESCE(SUM(CASE WHEN ps.status = 'visited' THEN 1 ELSE 0 END), 0) AS completed_stages
         FROM patient_stages ps
         JOIN patients p ON ps.patient_id = p.id
         GROUP BY p.hospital_id
@@ -137,7 +137,6 @@ export async function GET(request) {
         name: h.name,
         address: h.address,
         phone: h.phone,
-        email: h.email,
         is_blocked: Boolean(h.is_blocked),
         createdAt: h.createdAt,
         plan: sub?.plan ? sub.plan.toUpperCase() : 'NO PLAN',

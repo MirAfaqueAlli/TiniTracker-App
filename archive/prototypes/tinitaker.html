@@ -1,0 +1,1419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><script type="application/json" data-od-external-dependencies>["https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap"]</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TiniTracker — Hospital Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+@layer od-layout {
+  [hidden]:not([hidden="until-found" i]) { display: none !important; }
+  dialog:not([open]) { display: none !important; }
+
+  :where(.od-stack,.od-row,.od-row-top,.od-cluster,.od-grid,.od-field,.od-stat,.od-cell,.od-tile) > :where(*) { min-width: 0; }
+
+  .od-stack   { display: flex; flex-direction: column; gap: var(--od-gap, 8px); }
+  .od-row     { display: flex; align-items: center; gap: var(--od-gap, 8px); }
+  .od-row-top { display: flex; align-items: flex-start; gap: var(--od-gap, 8px); }
+  .od-cluster { display: flex; flex-wrap: wrap; align-items: center; gap: var(--od-gap, 8px); }
+  .od-fill    { flex: 1 1 0; min-width: 0; }
+  .od-fixed   { flex: none; }
+  .od-grid    { display: grid; gap: var(--od-gap, 12px); grid-template-columns: repeat(var(--od-cols, 3), minmax(0, 1fr)); }
+
+  .od-stat, .od-field, .od-cell { display: grid; gap: var(--od-gap, 2px); }
+  :where(.od-stat,.od-field,.od-cell) > :where(*) { display: block; }
+  .od-tile { display: grid; grid-template-rows: auto 1fr; }
+  :where(.od-tile) > :where(*) { display: block; }
+
+  .od-media { display: block; width: 100%; height: auto; aspect-ratio: var(--od-ratio, auto); }
+  .od-media-cover { object-fit: cover; }
+
+  .od-icon { display: inline-block; inline-size: var(--od-icon-size, 1em); block-size: var(--od-icon-size, 1em); flex: none; }
+
+  .od-truncate { display: block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .od-clamp-2, .od-clamp-3 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+  .od-clamp-2 { -webkit-line-clamp: 2; }
+  .od-clamp-3 { -webkit-line-clamp: 3; }
+  .od-lines-2 { min-height: calc(2 * 1.4em); }
+  .od-nowrap  { white-space: nowrap; }
+  .od-keep    { word-break: keep-all; overflow-wrap: anywhere; }
+
+  .od-screen { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; }
+  .od-scroll { overflow-y: auto; overscroll-behavior: contain; min-height: 0; }
+
+  .od-rail { display: flex; gap: var(--od-gap, 8px); overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none;
+             padding-inline: var(--od-rail-pad, 16px); scroll-padding-inline: var(--od-rail-pad, 16px); }
+  .od-rail::-webkit-scrollbar { display: none; }
+  :where(.od-rail) > :where(*) { flex: none; scroll-snap-align: start; }
+  :where(.od-rail) > :where(:last-child) { margin-inline-end: var(--od-rail-pad, 16px); }
+
+  .od-spacer { flex: none; visibility: hidden; pointer-events: none; }
+  .od-touch  { min-width: 44px; min-height: 44px; }
+}
+:root [hidden]:where(:not([hidden="until-found" i])) { display: none; }
+
+:root {
+  --paper: #F3F6F4;
+  --surface: #FFFFFF;
+  --surface-soft: #F7FAF8;
+  --ink: #12201C;
+  --ink-2: #394B45;
+  --muted: #5D716B;
+  --line: #E2EAE6;
+  --line-strong: #D2DFD9;
+  --accent: #0F6B56;
+  --accent-dark: #0A5342;
+  --accent-soft: #E4F1EC;
+  --accent-ink: #0A5342;
+  --blue: #2B5F8F;
+  --blue-soft: #E8F0F8;
+  --amber: #8C5C0E;
+  --amber-soft: #FAF0DF;
+  --rose: #96324A;
+  --rose-soft: #FAE8EC;
+  --sidebar: #0D2A23;
+  --sidebar-ink: #AFC3BC;
+  --sidebar-line: rgba(255,255,255,.08);
+  --shadow: 0 1px 2px rgba(15,38,31,.05), 0 12px 28px -22px rgba(15,38,31,.35);
+  --radius: 16px;
+  --radius-sm: 10px;
+  --font-display: "Instrument Sans", "Segoe UI", sans-serif;
+  --font-body: "Inter", "Segoe UI", system-ui, sans-serif;
+  --ease: cubic-bezier(.2,.7,.2,1);
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+h1, h2, h3, p { margin: 0; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn:focus-visible { outline-offset: 3px; }
+
+.app { display: flex; min-height: 100vh; }
+
+.sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 40;
+  width: 252px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 24px 18px;
+  background: var(--sidebar);
+  color: var(--sidebar-ink);
+}
+.brand { display: flex; align-items: center; gap: 11px; padding: 0 6px; }
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 36px; height: 36px;
+  border-radius: 11px;
+  background: #15846A;
+  color: #EFFAF6;
+  flex: none;
+}
+.brand-text { display: grid; gap: 1px; min-width: 0; }
+.brand-text strong { font-family: var(--font-display); font-size: 16.5px; font-weight: 600; letter-spacing: -.01em; color: #F2F8F5; }
+.brand-text small { font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: #7E9A91; }
+
+.nav { display: flex; flex-direction: column; gap: 4px; }
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--sidebar-ink);
+  font-size: 13.5px;
+  font-weight: 500;
+  text-align: left;
+  transition: background-color .18s var(--ease), color .18s var(--ease);
+}
+.nav-item:hover { background: rgba(255,255,255,.055); color: #E6F1EC; }
+.nav-item .od-icon { color: #7E9A91; transition: color .18s var(--ease); }
+.nav-item:hover .od-icon { color: #BFD5CD; }
+.nav-item.is-active { background: rgba(38,163,130,.16); color: #F0FAF5; }
+.nav-item.is-active .od-icon { color: #56D2AF; }
+.nav-label { min-width: 0; }
+
+.sidebar-foot { margin-top: auto; display: grid; gap: 14px; }
+.facility {
+  display: grid;
+  gap: 3px;
+  padding: 13px 14px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.045);
+  border: 1px solid var(--sidebar-line);
+}
+.facility-label { font-size: 10px; letter-spacing: .13em; text-transform: uppercase; color: #7E9A91; }
+.facility-name { font-size: 12.5px; font-weight: 600; color: #DCEAE4; line-height: 1.35; }
+.facility-meta { font-size: 11px; color: #8DA69E; }
+.staff { display: flex; align-items: center; gap: 10px; padding: 0 4px; }
+.staff .avatar { background: rgba(255,255,255,.1); color: #E3F1EA; }
+.staff-text { display: grid; gap: 1px; min-width: 0; }
+.staff-text strong { font-size: 12.5px; font-weight: 600; color: #E8F2ED; }
+.staff-text small { font-size: 11px; color: #8DA69E; }
+
+.main { flex: 1; min-width: 0; margin-left: 252px; }
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 22px 32px 18px;
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
+}
+.topbar-title { display: grid; gap: 2px; margin-right: auto; }
+.topbar-title h1 { font-family: var(--font-display); font-size: 22px; font-weight: 600; letter-spacing: -.02em; }
+.topbar-title p { font-size: 12.5px; color: var(--muted); }
+.topbar-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--muted);
+  transition: border-color .18s var(--ease);
+}
+.search:focus-within { border-color: var(--accent); }
+.search .od-icon { --od-icon-size: 16px; }
+.search input {
+  width: 196px;
+  border: 0;
+  background: transparent;
+  font-size: 13px;
+  color: var(--ink);
+}
+.search input::placeholder { color: #8A9C96; }
+.search input:focus { outline: none; }
+
+.icon-btn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 38px; height: 38px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink-2);
+  transition: background-color .18s var(--ease), border-color .18s var(--ease);
+}
+.icon-btn:hover { background: var(--surface-soft); border-color: var(--line-strong); }
+.icon-btn .od-icon { --od-icon-size: 18px; }
+.notif-dot {
+  position: absolute;
+  top: 9px; right: 10px;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--rose);
+  border: 1.5px solid var(--surface);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -.005em;
+  transition: background-color .18s var(--ease), border-color .18s var(--ease), color .18s var(--ease), transform .12s var(--ease);
+}
+.btn:active { transform: translateY(1px); }
+.btn-primary { background: var(--accent); color: #FFFFFF; }
+.btn-primary:hover { background: var(--accent-dark); }
+.btn-primary .od-icon { --od-icon-size: 15px; }
+.btn-ghost { background: var(--surface); border-color: var(--line-strong); color: var(--ink-2); }
+.btn-ghost:hover { background: var(--surface-soft); border-color: #C2D2CB; }
+.btn-small { height: 30px; padding: 0 11px; font-size: 12px; border-radius: 8px; font-weight: 600; }
+.btn[disabled] { cursor: default; opacity: 1; }
+.btn-checked { background: var(--accent-soft); border-color: transparent; color: var(--accent-ink); }
+
+.content { padding: 26px 32px 56px; display: grid; gap: 20px; max-width: 1520px; }
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+}
+.kpi {
+  display: grid;
+  gap: 8px;
+  padding: 17px 18px 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(15,38,31,.03);
+  transition: border-color .18s var(--ease), box-shadow .18s var(--ease);
+}
+.kpi:hover { border-color: var(--line-strong); box-shadow: var(--shadow); }
+.kpi-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.kpi-label { font-size: 10.5px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+.kpi-badge {
+  padding: 2px 7px;
+  border-radius: 20px;
+  font-size: 10.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.kpi-badge.warn { background: var(--amber-soft); color: var(--amber); }
+.kpi-badge.neutral { background: #EFF3F1; color: var(--muted); }
+.kpi-value {
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -.03em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+.kpi-value.warn { color: var(--amber); }
+.kpi-sub { font-size: 11.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 3px 6px; }
+.kpi-sub b { font-weight: 600; color: var(--ink-2); }
+
+.board { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px 22px;
+  min-width: 0;
+}
+.panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.panel-head h2 { font-family: var(--font-display); font-size: 15.5px; font-weight: 600; letter-spacing: -.01em; }
+.panel-sub { font-size: 12px; color: var(--muted); margin-top: 1px; }
+.panel-head-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.segmented { display: inline-flex; gap: 2px; padding: 3px; background: #EFF3F1; border-radius: 9px; }
+.segmented button {
+  border: 0;
+  background: transparent;
+  padding: 5px 10px;
+  border-radius: 7px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+  transition: background-color .18s var(--ease), color .18s var(--ease);
+}
+.segmented button:hover { color: var(--ink); }
+.segmented button.is-active { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(15,38,31,.08); }
+
+.clinic-list { margin-top: 8px; }
+.clinic-row {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto 54px 92px;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 0;
+  border-top: 1px solid var(--line);
+}
+.clinic-row:first-child { border-top: 0; }
+.clinic-main { display: grid; gap: 1px; min-width: 0; }
+.row-title { display: block; font-size: 13.5px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-meta { display: block; font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.clinic-time { font-size: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums; text-align: right; }
+.clinic-row.is-done .row-title { color: var(--ink-2); }
+.clinic-row.is-done .avatar { opacity: .7; }
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-family: var(--font-display);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  flex: none;
+}
+.avatar.tag-immunization { background: var(--blue-soft); color: var(--blue); }
+.avatar.tag-postnatal { background: var(--amber-soft); color: var(--amber); }
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 10.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: #EFF3F1;
+  color: var(--muted);
+}
+.tag-antenatal { background: var(--accent-soft); color: var(--accent-ink); }
+.tag-immunization { background: var(--blue-soft); color: var(--blue); }
+.tag-warn { background: var(--amber-soft); color: var(--amber); }
+.tag-ok { background: var(--accent-soft); color: var(--accent-ink); }
+.tag-neutral { background: #EFF3F1; color: var(--muted); }
+.tag-rose { background: var(--rose-soft); color: var(--rose); }
+.tag-milestone { background: #EEEDFA; color: #4D4694; }
+.tag-reminder { background: var(--amber-soft); color: var(--amber); }
+.tag-registration { background: var(--accent-soft); color: var(--accent-ink); }
+.tag-visit { background: var(--blue-soft); color: var(--blue); }
+.tag-missed { background: var(--rose-soft); color: var(--rose); }
+
+.chart-wrap { margin: 10px 0 6px; }
+.chart-wrap svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart-bar { fill: #C4DED5; transition: fill .18s var(--ease); }
+.chart-bar.is-today { fill: var(--accent); }
+.chart-bar:hover { fill: var(--accent-dark); }
+.chart-value { font-family: var(--font-display); font-size: 10.5px; font-weight: 600; fill: var(--ink-2); text-anchor: middle; }
+.chart-value.is-today { fill: var(--accent-ink); }
+.chart-day { font-family: var(--font-body); font-size: 10px; fill: var(--muted); text-anchor: middle; }
+.chart-day.is-today { fill: var(--ink); font-weight: 600; }
+
+.prep-list { display: grid; gap: 0; margin-top: 8px; border-top: 1px solid var(--line); }
+.prep-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.prep-row:last-child { border-bottom: 0; padding-bottom: 2px; }
+.prep-main { display: grid; gap: 1px; min-width: 0; }
+.prep-label { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.prep-meta { font-size: 11px; color: var(--muted); }
+
+.upcoming-list { margin-top: 8px; }
+.up-group { padding-bottom: 4px; }
+.group-label {
+  display: block;
+  padding: 12px 0 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.up-row {
+  display: grid;
+  grid-template-columns: 48px 9px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+}
+.up-time { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.up-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.up-row.tag-immunization .up-dot { background: var(--blue); }
+.up-main { display: grid; gap: 1px; min-width: 0; }
+
+.reg-list { margin-top: 8px; }
+.reg-row {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 0;
+  border-top: 1px solid var(--line);
+}
+.reg-row:first-child { border-top: 0; }
+.reg-main { display: grid; gap: 1px; min-width: 0; }
+.reg-next { display: grid; gap: 0; text-align: right; min-width: 0; }
+.reg-next-label { font-size: 9.5px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.reg-next-value { font-size: 12px; font-weight: 600; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.reg-next-date { font-size: 10.5px; color: var(--muted); }
+.reg-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+}
+.reg-foot div { display: grid; gap: 1px; min-width: 0; }
+.reg-foot strong { font-size: 13px; font-weight: 600; color: var(--accent-ink); }
+.reg-foot span { font-size: 11px; color: #3F7265; }
+.reg-foot .btn { background: var(--surface); color: var(--accent-ink); border-color: transparent; }
+.reg-foot .btn:hover { background: #F4FBF8; }
+
+.live { display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.live-dot { width: 6px; height: 6px; border-radius: 50%; background: #26A37F; box-shadow: 0 0 0 3px rgba(38,163,127,.15); }
+
+.activity-head { align-items: center; }
+.activity-panel .segmented { background: #EFF3F1; }
+.act-list { margin-top: 10px; max-height: 372px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.act-row {
+  display: grid;
+  grid-template-columns: 52px 8px minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 12px;
+  padding: 9px 2px;
+  border-top: 1px solid var(--line);
+}
+.act-row:first-child { border-top: 0; }
+.act-time { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.act-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); align-self: center; }
+.dot-visit { background: var(--blue); }
+.dot-reminder { background: #C08A2E; }
+.dot-registration { background: var(--accent); }
+.dot-milestone { background: #6D65B8; }
+.dot-missed { background: var(--rose); }
+.act-main { font-size: 12.5px; color: var(--ink-2); min-width: 0; }
+.act-lead { font-weight: 600; color: var(--ink); }
+.act-text { color: var(--muted); }
+.act-row .tag { justify-self: end; }
+
+.empty {
+  display: grid;
+  gap: 4px;
+  padding: 26px 12px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12.5px;
+  border-top: 1px solid var(--line);
+}
+.empty strong { font-size: 13px; color: var(--ink-2); font-weight: 600; }
+
+.footnote { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 2px 4px 0; font-size: 11px; color: var(--muted); }
+
+dialog {
+  width: min(460px, calc(100vw - 32px));
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 24px 60px -20px rgba(10,30,24,.45);
+}
+dialog::backdrop { background: rgba(9,24,20,.44); }
+.dialog-body { padding: 24px; display: grid; gap: 18px; }
+.dialog-head { display: grid; gap: 3px; }
+.dialog-head h2 { font-family: var(--font-display); font-size: 18px; font-weight: 600; letter-spacing: -.02em; }
+.dialog-head p { font-size: 12.5px; color: var(--muted); }
+.field { display: grid; gap: 5px; }
+.field label { font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.field input, .field select {
+  height: 40px;
+  padding: 0 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  background: var(--surface);
+  font-size: 13px;
+  color: var(--ink);
+  transition: border-color .18s var(--ease);
+}
+.field input:focus, .field select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(15,107,86,.1); }
+.field input::placeholder { color: #93A49E; }
+.field .err { font-size: 11.5px; color: var(--rose); }
+.field.has-error input { border-color: var(--rose); }
+.dialog-foot { display: flex; justify-content: flex-end; gap: 8px; padding-top: 2px; }
+
+.toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 60;
+  max-width: 320px;
+  padding: 12px 16px;
+  border-radius: 11px;
+  background: var(--ink);
+  color: #F4FAF7;
+  font-size: 12.5px;
+  font-weight: 500;
+  box-shadow: 0 18px 40px -16px rgba(10,30,24,.5);
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity .2s var(--ease), transform .2s var(--ease);
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+
+@media (max-width: 1320px) {
+  .kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 1180px) {
+  .board { grid-template-columns: minmax(0, 1fr); }
+  .search input { width: 164px; }
+}
+@media (max-width: 1080px) {
+  .sidebar { width: 76px; padding: 24px 12px; align-items: center; }
+  .brand { padding: 0; }
+  .brand-text, .nav-label, .facility, .staff { display: none; }
+  .nav { width: 100%; align-items: center; }
+  .nav-item { justify-content: center; padding: 11px 0; }
+  .sidebar-foot { margin-top: auto; }
+  .staff { display: none; }
+  .main { margin-left: 76px; }
+  .content, .topbar { padding-left: 24px; padding-right: 24px; }
+}
+@media (max-width: 900px) {
+  .sidebar {
+    position: sticky;
+    inset: auto;
+    top: 0;
+    width: 100%;
+    height: auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 14px;
+    overflow: hidden;
+  }
+  .brand { flex: none; }
+  .brand-text { display: grid; }
+  .brand-text small { display: none; }
+  .brand-mark { width: 32px; height: 32px; border-radius: 9px; }
+  .nav {
+    flex-direction: row;
+    width: auto;
+    flex: 1;
+    justify-content: flex-start;
+    overflow-x: auto;
+    scrollbar-width: none;
+    gap: 3px;
+  }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav-item { width: auto; justify-content: flex-start; padding: 8px 10px; gap: 8px; }
+  .nav-label { display: inline; font-size: 12.5px; white-space: nowrap; }
+  .sidebar-foot { display: none; }
+  .main { margin-left: 0; }
+  .topbar { position: static; padding: 18px 16px 14px; }
+  .content { padding: 18px 16px 44px; }
+  .topbar-title h1 { font-size: 20px; }
+}
+@media (max-width: 720px) {
+  .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .board { gap: 16px; }
+  .topbar-actions { width: 100%; }
+  .search { flex: 1; min-width: 0; }
+  .search input { width: 100%; min-width: 0; }
+  .clinic-row { grid-template-columns: 34px minmax(0, 1fr) auto 78px; row-gap: 4px; }
+  .clinic-row .tag { display: none; }
+  .clinic-time { grid-column: 3; grid-row: 1; }
+  .clinic-row .btn { grid-column: 4; grid-row: 1 / span 2; }
+  .clinic-row .avatar { grid-row: 1 / span 2; }
+  .clinic-main { grid-row: 1 / span 2; }
+  .up-row { grid-template-columns: 44px 8px minmax(0, 1fr); }
+  .up-row .tag { display: none; }
+  .act-row { grid-template-columns: 44px 7px minmax(0, 1fr); }
+  .act-row .tag { display: none; }
+  .panel { padding: 17px 16px; }
+  .panel-head { gap: 10px; }
+}
+@media (max-width: 480px) {
+  .brand-text { display: none; }
+  .nav-item { padding: 8px; }
+  .nav-label { display: none; }
+  .nav { justify-content: space-between; }
+  .kpi-grid { gap: 10px; }
+  .kpi { padding: 14px 14px 13px; }
+  .kpi-value { font-size: 26px; }
+  .topbar-actions .btn-primary span { display: none; }
+  .reg-row { grid-template-columns: 34px minmax(0, 1fr); row-gap: 2px; }
+  .reg-next { grid-column: 2; text-align: left; grid-auto-flow: column; justify-content: start; gap: 6px; align-items: baseline; }
+  .reg-next-label { display: none; }
+  .toast { left: 16px; right: 16px; max-width: none; bottom: 16px; }
+  .content { gap: 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h4l2.2-5.4L11.6 17l2.6-7.4L16 14h6"/></svg>
+      </span>
+      <span class="brand-text">
+        <strong>TiniTracker</strong>
+        <small>Care Operations</small>
+      </span>
+    </div>
+
+    <nav class="nav" aria-label="Primary navigation">
+      <button type="button" class="nav-item is-active" data-nav="overview" aria-label="Overview" aria-current="page">
+        <svg class="od-icon" style="--od-icon-size:18px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2"/></svg>
+        <span class="nav-label">Overview</span>
+      </button>
+      <button type="button" class="nav-item" data-nav="antenatal" aria-label="Antenatal care">
+        <svg class="od-icon" style="--od-icon-size:18px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.4 5.6a5.1 5.1 0 0 0-7.2 0L12 6.8l-1.2-1.2a5.1 5.1 0 1 0-7.2 7.2L12 21l8.4-8.2a5.1 5.1 0 0 0 0-7.2Z"/><path d="M3.5 12.4h4l1.4-2.8 2 5.4 1.8-4 1.3 2.4h5.5"/></svg>
+        <span class="nav-label">Antenatal care</span>
+      </button>
+      <button type="button" class="nav-item" data-nav="immunization" aria-label="Immunization">
+        <svg class="od-icon" style="--od-icon-size:18px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 5 6v5c0 4.4 3 8.3 7 10 4-1.7 7-5.6 7-10V6l-7-3Z"/><path d="M9 12l2 2 4-4"/></svg>
+        <span class="nav-label">Immunization</span>
+      </button>
+      <button type="button" class="nav-item" data-nav="appointments" aria-label="Appointments">
+        <svg class="od-icon" style="--od-icon-size:18px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="16" rx="2.5"/><path d="M8 3v4M16 3v4M3.5 10h17"/><path d="M8 14h3M13.5 14h2.5M8 17.5h3"/></svg>
+        <span class="nav-label">Appointments</span>
+      </button>
+      <button type="button" class="nav-item" data-nav="patients" aria-label="Patients">
+        <svg class="od-icon" style="--od-icon-size:18px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 20v-1.8a3.6 3.6 0 0 0-3.6-3.6H6.6A3.6 3.6 0 0 0 3 18.2V20"/><circle cx="9.5" cy="7.4" r="3.4"/><path d="M21 20v-1.8a3.6 3.6 0 0 0-2.7-3.5M15.8 4.2a3.4 3.4 0 0 1 0 6.5"/></svg>
+        <span class="nav-label">Patients</span>
+      </button>
+      <button type="button" class="nav-item" data-nav="activity" aria-label="Activity log">
+        <svg class="od-icon" style="--od-icon-size:18px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2.4-5.4L13 17l2.6-7.4L17.4 14H21"/><path d="M3 20h18" opacity=".45"/></svg>
+        <span class="nav-label">Activity log</span>
+      </button>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="facility">
+        <span class="facility-label">Facility</span>
+        <span class="facility-name">St. Mary's Maternity &amp; Children's</span>
+        <span class="facility-meta">Lagos · Main campus</span>
+      </div>
+      <div class="staff">
+        <span class="avatar">AO</span>
+        <span class="staff-text">
+          <strong>Dr. Amara Okafor</strong>
+          <small>Clinical lead</small>
+        </span>
+      </div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar-title">
+        <h1 id="pageTitle">Overview</h1>
+        <p id="pageSub">Monday, 9 November 2026 · All care categories</p>
+      </div>
+      <div class="topbar-actions">
+        <label class="search">
+          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input id="search" type="search" placeholder="Search patients or MRN" aria-label="Search patients or MRN">
+        </label>
+        <button type="button" class="icon-btn" aria-label="Notifications">
+          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8.5a6 6 0 1 0-12 0c0 5-2 6.5-2 6.5h16s-2-1.5-2-6.5Z"/><path d="M10.3 19a2 2 0 0 0 3.4 0"/></svg>
+          <span class="notif-dot" aria-hidden="true"></span>
+        </button>
+        <button type="button" class="btn btn-primary" id="openRegisterTop" data-open-register aria-label="Register patient">
+          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          <span>Register patient</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="content">
+      <section class="kpi-grid" aria-label="Key metrics">
+        <article class="kpi">
+          <div class="kpi-head">
+            <span class="kpi-label">Active patient load</span>
+            <span class="kpi-badge">+4.2%</span>
+          </div>
+          <div class="kpi-value">1,284</div>
+          <div class="kpi-sub"><span><b>742</b> mothers</span><span>·</span><span><b>542</b> children</span></div>
+        </article>
+        <article class="kpi">
+          <div class="kpi-head">
+            <span class="kpi-label">Today's clinic</span>
+            <span class="kpi-badge neutral">46 scheduled</span>
+          </div>
+          <div class="kpi-value">46</div>
+          <div class="kpi-sub" id="kpiTodaySub"><span><b>4</b> attended</span><span>·</span><span><b>42</b> remaining</span></div>
+        </article>
+        <article class="kpi">
+          <div class="kpi-head">
+            <span class="kpi-label">Next 7 days</span>
+            <span class="kpi-badge neutral">Forecast</span>
+          </div>
+          <div class="kpi-value">61</div>
+          <div class="kpi-sub"><span>milestones &amp; doses due</span></div>
+        </article>
+        <article class="kpi">
+          <div class="kpi-head">
+            <span class="kpi-label">At-risk &amp; missed</span>
+            <span class="kpi-badge warn">Needs action</span>
+          </div>
+          <div class="kpi-value warn">23</div>
+          <div class="kpi-sub"><span><b>9</b> missed visits need outreach</span></div>
+        </article>
+        <article class="kpi">
+          <div class="kpi-head">
+            <span class="kpi-label">New this week</span>
+            <span class="kpi-badge">Enrolled</span>
+          </div>
+          <div class="kpi-value" id="kpiNewWeek">63</div>
+          <div class="kpi-sub"><span>mothers and children</span></div>
+        </article>
+      </section>
+
+      <section class="board" aria-label="Clinic operations">
+        <section class="panel" id="clinicPanel" aria-labelledby="clinicTitle">
+          <div class="panel-head">
+            <div>
+              <h2 id="clinicTitle">Today's clinic demand</h2>
+              <p class="panel-sub" id="clinicSub"></p>
+            </div>
+            <div class="segmented" role="group" aria-label="Filter clinic by care type">
+              <button type="button" data-clinic-filter="All" class="is-active" aria-pressed="true">All</button>
+              <button type="button" data-clinic-filter="Antenatal" aria-pressed="false">Antenatal</button>
+              <button type="button" data-clinic-filter="Immunization" aria-pressed="false">Immunization</button>
+            </div>
+          </div>
+          <div class="clinic-list" id="clinicList"></div>
+        </section>
+
+        <section class="panel" aria-labelledby="forecastTitle">
+          <div class="panel-head">
+            <div>
+              <h2 id="forecastTitle">Seven-day forecast</h2>
+              <p class="panel-sub">Milestones and doses due 9–15 Nov</p>
+            </div>
+            <span class="tag tag-neutral">61 due</span>
+          </div>
+          <div class="chart-wrap">
+            <svg viewBox="0 0 360 152" role="img" aria-label="Forecast of due milestones and doses: Monday 12, Tuesday 9, Wednesday 14, Thursday 7, Friday 11, Saturday 5, Sunday 3">
+              <line x1="12" y1="120" x2="348" y2="120" stroke="#E2EAE6" stroke-width="1"/>
+              <g>
+                <title>Monday · 12 due</title>
+                <rect class="chart-bar is-today" x="18" y="48" width="28" height="72" rx="6"></rect>
+              </g>
+              <text class="chart-value is-today" x="32" y="40">12</text>
+              <text class="chart-day is-today" x="32" y="138">Mon</text>
+
+              <g>
+                <title>Tuesday · 9 due</title>
+                <rect class="chart-bar" x="66" y="66" width="28" height="54" rx="6"></rect>
+              </g>
+              <text class="chart-value" x="80" y="58">9</text>
+              <text class="chart-day" x="80" y="138">Tue</text>
+
+              <g>
+                <title>Wednesday · 14 due</title>
+                <rect class="chart-bar" x="114" y="36" width="28" height="84" rx="6"></rect>
+              </g>
+              <text class="chart-value" x="128" y="28">14</text>
+              <text class="chart-day" x="128" y="138">Wed</text>
+
+              <g>
+                <title>Thursday · 7 due</title>
+                <rect class="chart-bar" x="162" y="78" width="28" height="42" rx="6"></rect>
+              </g>
+              <text class="chart-value" x="176" y="70">7</text>
+              <text class="chart-day" x="176" y="138">Thu</text>
+
+              <g>
+                <title>Friday · 11 due</title>
+                <rect class="chart-bar" x="210" y="54" width="28" height="66" rx="6"></rect>
+              </g>
+              <text class="chart-value" x="224" y="46">11</text>
+              <text class="chart-day" x="224" y="138">Fri</text>
+
+              <g>
+                <title>Saturday · 5 due</title>
+                <rect class="chart-bar" x="258" y="90" width="28" height="30" rx="6"></rect>
+              </g>
+              <text class="chart-value" x="272" y="82">5</text>
+              <text class="chart-day" x="272" y="138">Sat</text>
+
+              <g>
+                <title>Sunday · 3 due</title>
+                <rect class="chart-bar" x="306" y="102" width="28" height="18" rx="6"></rect>
+              </g>
+              <text class="chart-value" x="320" y="94">3</text>
+              <text class="chart-day" x="320" y="138">Sun</text>
+            </svg>
+          </div>
+          <div class="prep-list">
+            <div class="prep-row">
+              <span class="prep-main">
+                <span class="prep-label">BCG doses</span>
+                <span class="prep-meta">34 due this week · 28 on hand</span>
+              </span>
+              <span class="tag tag-warn">Restock</span>
+            </div>
+            <div class="prep-row">
+              <span class="prep-main">
+                <span class="prep-label">ANC scans</span>
+                <span class="prep-meta">12 booked · Ultrasound room 2</span>
+              </span>
+              <span class="tag tag-neutral">Scheduled</span>
+            </div>
+            <div class="prep-row">
+              <span class="prep-main">
+                <span class="prep-label">MMR doses</span>
+                <span class="prep-meta">9 due · stock sufficient</span>
+              </span>
+              <span class="tag tag-ok">Ready</span>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <section class="board" aria-label="Schedule and registrations">
+        <section class="panel" id="upcomingPanel" aria-labelledby="upcomingTitle">
+          <div class="panel-head">
+            <div>
+              <h2 id="upcomingTitle">Upcoming schedule</h2>
+              <p class="panel-sub" id="upcomingSub">Next seven days · all care categories</p>
+            </div>
+            <span class="tag tag-neutral">9 appointments shown</span>
+          </div>
+          <div class="upcoming-list" id="upcomingList"></div>
+        </section>
+
+        <section class="panel" id="registrationsPanel" aria-labelledby="regTitle">
+          <div class="panel-head">
+            <div>
+              <h2 id="regTitle">New registrations</h2>
+              <p class="panel-sub">Most recently enrolled mothers and children</p>
+            </div>
+            <span class="tag tag-ok" id="regCount">63 this week</span>
+          </div>
+          <div class="reg-list" id="regList"></div>
+          <div class="reg-foot">
+            <div>
+              <strong id="regFootStrong">63 new this week</strong>
+              <span>Across maternal and child care</span>
+            </div>
+            <button type="button" class="btn btn-small" data-open-register>Enrol patient</button>
+          </div>
+        </section>
+      </section>
+
+      <section class="panel activity-panel" id="activityPanel" aria-labelledby="activityTitle">
+        <div class="panel-head activity-head">
+          <div>
+            <h2 id="activityTitle">Operational activity log</h2>
+            <p class="panel-sub">Live audit stream across the facility</p>
+          </div>
+          <div class="panel-head-actions">
+            <span class="live"><span class="live-dot" aria-hidden="true"></span>Live</span>
+            <div class="segmented" role="group" aria-label="Filter activity log">
+              <button type="button" data-act-filter="All" class="is-active" aria-pressed="true">All</button>
+              <button type="button" data-act-filter="Visit" aria-pressed="false">Visits</button>
+              <button type="button" data-act-filter="Reminder" aria-pressed="false">Reminders</button>
+              <button type="button" data-act-filter="Registration" aria-pressed="false">Registrations</button>
+              <button type="button" data-act-filter="Milestone" aria-pressed="false">Milestones</button>
+              <button type="button" data-act-filter="Missed" aria-pressed="false">Missed</button>
+            </div>
+          </div>
+        </div>
+        <div class="act-list" id="actList"></div>
+      </section>
+
+      <div class="footnote">
+        <span>TiniTracker · Demo workspace with sample clinical data</span>
+        <span>St. Mary's Maternity &amp; Children's Hospital</span>
+      </div>
+    </main>
+  </div>
+</div>
+
+<dialog id="registerDialog" aria-labelledby="dialogTitle">
+  <form id="regForm" novalidate>
+    <div class="dialog-body">
+      <div class="dialog-head">
+        <h2 id="dialogTitle">Register a patient</h2>
+        <p>Enrol a mother or child into a care pathway.</p>
+      </div>
+      <div class="field" id="nameField">
+        <label for="regName">Full name</label>
+        <input id="regName" name="name" type="text" placeholder="e.g. Halima Sani" autocomplete="off" aria-describedby="regNameError" required>
+        <p class="err" id="regNameError" hidden>Enter the patient's full name to continue.</p>
+      </div>
+      <div class="field">
+        <label for="regType">Patient type</label>
+        <select id="regType" name="type">
+          <option>Mother</option>
+          <option>Child</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="regCategory">Care category</label>
+        <select id="regCategory" name="category">
+          <option>Antenatal</option>
+          <option>Postnatal</option>
+          <option>Immunization</option>
+        </select>
+      </div>
+      <div class="dialog-foot">
+        <button type="button" class="btn btn-ghost" id="cancelRegister">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save registration</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+(function () {
+  var state = {
+    careFilter: 'All',
+    search: '',
+    activityFilter: 'All',
+    checked: new Set(),
+    newThisWeek: 63,
+    totalScheduled: 46,
+    baseAttended: 4,
+    appointments: [
+      { id: 'a1', time: '09:00', name: 'Amina Yusuf', mrn: 'MRN-20418', stage: 'Antenatal', detail: 'ANC 32-week check', clinician: 'Dr. Okafor' },
+      { id: 'a2', time: '09:30', name: 'Grace Mensah', mrn: 'MRN-19872', stage: 'Immunization', detail: '18-month MMR', clinician: 'Nurse Adeyemi' },
+      { id: 'a3', time: '10:00', name: 'Priya Raman', mrn: 'MRN-20551', stage: 'Antenatal', detail: 'ANC 28-week check', clinician: 'Dr. Okafor' },
+      { id: 'a4', time: '10:30', name: 'Samuel Boateng', mrn: 'MRN-20119', stage: 'Immunization', detail: '9-month measles', clinician: 'Nurse Bello' },
+      { id: 'a5', time: '11:00', name: 'Fatima Bello', mrn: 'MRN-19704', stage: 'Antenatal', detail: 'ANC 36-week check', clinician: 'Dr. Eze' },
+      { id: 'a6', time: '11:30', name: 'Chidera Nwosu', mrn: 'MRN-20633', stage: 'Immunization', detail: '6-week DTaP dose', clinician: 'Nurse Adeyemi' }
+    ],
+    upcoming: [
+      {
+        label: 'Today · 9 Nov',
+        items: [
+          { id: 'u1', time: '14:00', name: 'Amina Yusuf', stage: 'Antenatal', milestone: 'ANC 32-week check' },
+          { id: 'u2', time: '15:30', name: 'Chidera Nwosu', stage: 'Immunization', milestone: '6-week DTaP dose' },
+          { id: 'u3', time: '16:00', name: 'Ngozi Eze', stage: 'Antenatal', milestone: 'Postnatal discharge review' }
+        ]
+      },
+      {
+        label: 'Tomorrow · 10 Nov',
+        items: [
+          { id: 'u4', time: '09:15', name: 'Mercy Wanjiku', stage: 'Antenatal', milestone: 'ANC 28-week check' },
+          { id: 'u5', time: '10:45', name: 'Emeka Obi', stage: 'Immunization', milestone: '6-week DTaP dose' },
+          { id: 'u6', time: '13:30', name: 'Hauwa Ibrahim', stage: 'Immunization', milestone: '9-month measles' }
+        ]
+      },
+      {
+        label: 'Wednesday · 11 Nov',
+        items: [
+          { id: 'u7', time: '08:45', name: 'Fatima Bello', stage: 'Antenatal', milestone: 'ANC 36-week check' },
+          { id: 'u8', time: '11:00', name: 'Samuel Boateng', stage: 'Immunization', milestone: '18-month MMR booster' },
+          { id: 'u9', time: '14:15', name: 'Lily Chen', stage: 'Antenatal', milestone: '6-week postnatal review' }
+        ]
+      }
+    ],
+    registrations: [
+      { id: 'r1', name: 'Zahra Abdullahi', type: 'Mother', category: 'Antenatal', nextLabel: 'Booking scan', nextDate: '18 Nov' },
+      { id: 'r2', name: 'Emeka Obi', type: 'Child', category: 'Immunization', nextLabel: '6-week DTaP', nextDate: '12 Nov' },
+      { id: 'r3', name: 'Lily Chen', type: 'Mother', category: 'Postnatal', nextLabel: '6-week review', nextDate: '20 Nov' },
+      { id: 'r4', name: 'Tunde Adeyemi', type: 'Child', category: 'Immunization', nextLabel: '9-month measles', nextDate: '24 Nov' }
+    ],
+    activity: [
+      { id: 'e1', time: '09:42', kind: 'Reminder', lead: 'Reminder sent', text: 'SMS to Amina Yusuf for tomorrow\'s ANC visit.' },
+      { id: 'e2', time: '09:31', kind: 'Visit', lead: 'Visit completed', text: 'Grace Mensah · 18-month MMR administered.' },
+      { id: 'e3', time: '09:18', kind: 'Registration', lead: 'New registration', text: 'Zahra Abdullahi enrolled in antenatal care.' },
+      { id: 'e4', time: '08:55', kind: 'Milestone', lead: 'Delivery recorded', text: 'Ngozi Eze · healthy live birth, 3.2 kg.' },
+      { id: 'e5', time: '08:40', kind: 'Missed', lead: 'Missed milestone', text: 'Mercy Wanjiku skipped 28-week ANC check.' },
+      { id: 'e6', time: '08:22', kind: 'Reminder', lead: 'Reminder batch', text: '14 vaccination reminders dispatched.' },
+      { id: 'e7', time: '08:05', kind: 'Registration', lead: 'New registration', text: 'Tunde Adeyemi enrolled with an immunization schedule.' },
+      { id: 'e8', time: '07:58', kind: 'Visit', lead: 'Visit completed', text: 'Priya Raman · ANC 28-week check.' }
+    ]
+  };
+
+  var nextMap = {
+    Antenatal: ['Booking scan', '16 Nov'],
+    Postnatal: ['6-week review', '18 Nov'],
+    Immunization: ['First dose', '20 Nov']
+  };
+
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var clinicList = document.getElementById('clinicList');
+  var upcomingList = document.getElementById('upcomingList');
+  var regList = document.getElementById('regList');
+  var actList = document.getElementById('actList');
+  var searchInput = document.getElementById('search');
+  var dialog = document.getElementById('registerDialog');
+  var regForm = document.getElementById('regForm');
+  var regName = document.getElementById('regName');
+  var regNameError = document.getElementById('regNameError');
+  var nameField = document.getElementById('nameField');
+  var toast = document.getElementById('toast');
+  var toastTimer = null;
+  var lastTrigger = null;
+
+  function initials(name) {
+    return name.trim().split(/\s+/).map(function (part) { return part.charAt(0); }).slice(0, 2).join('').toUpperCase();
+  }
+
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, function (ch) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+    });
+  }
+
+  function matches(text) {
+    if (!state.search) return true;
+    return text.toLowerCase().indexOf(state.search.toLowerCase()) !== -1;
+  }
+
+  function clinicMatches(item) {
+    if (state.careFilter !== 'All' && item.stage !== state.careFilter) return false;
+    return matches(item.name + ' ' + item.mrn + ' ' + item.detail + ' ' + item.clinician);
+  }
+
+  function stageClass(stage) {
+    return stage === 'Immunization' ? 'tag-immunization' : 'tag-antenatal';
+  }
+
+  function renderClinic() {
+    var items = state.appointments.filter(clinicMatches);
+    if (!items.length) {
+      clinicList.innerHTML = '<div class="empty"><strong>No matching patients</strong><span>Adjust the search or care filter to see today\'s clinic.</span></div>';
+      return;
+    }
+    clinicList.innerHTML = items.map(function (item) {
+      var done = state.checked.has(item.id);
+      return '<div class="clinic-row' + (done ? ' is-done' : '') + '">' +
+        '<span class="avatar ' + stageClass(item.stage) + '">' + initials(item.name) + '</span>' +
+        '<span class="clinic-main">' +
+          '<span class="row-title" title="' + escapeHtml(item.name) + '">' + escapeHtml(item.name) + '</span>' +
+          '<span class="row-meta">' + escapeHtml(item.detail) + ' · ' + escapeHtml(item.clinician) + '</span>' +
+        '</span>' +
+        '<span class="tag ' + stageClass(item.stage) + '">' + item.stage + '</span>' +
+        '<span class="clinic-time od-nowrap">' + item.time + '</span>' +
+        '<button type="button" class="btn btn-small ' + (done ? 'btn-checked' : 'btn-ghost') + '" data-checkin="' + item.id + '"' + (done ? ' disabled' : '') + '>' + (done ? 'Attended' : 'Check in') + '</button>' +
+      '</div>';
+    }).join('');
+  }
+
+  function renderUpcoming() {
+    var groups = state.upcoming.map(function (group) {
+      var items = group.items.filter(function (item) {
+        if (state.careFilter !== 'All' && item.stage !== state.careFilter) return false;
+        return matches(item.name + ' ' + item.milestone);
+      });
+      return { label: group.label, items: items };
+    }).filter(function (group) { return group.items.length; });
+
+    if (!groups.length) {
+      upcomingList.innerHTML = '<div class="empty"><strong>No upcoming appointments</strong><span>Nothing matches the current filters for the next seven days.</span></div>';
+      return;
+    }
+
+    upcomingList.innerHTML = groups.map(function (group) {
+      return '<div class="up-group">' +
+        '<span class="group-label">' + group.label + '</span>' +
+        '<div class="up-list">' + group.items.map(function (item) {
+          return '<div class="up-row ' + stageClass(item.stage) + '">' +
+            '<span class="up-time od-nowrap">' + item.time + '</span>' +
+            '<span class="up-dot" aria-hidden="true"></span>' +
+            '<span class="up-main">' +
+              '<span class="row-title">' + escapeHtml(item.name) + '</span>' +
+              '<span class="row-meta">' + escapeHtml(item.milestone) + '</span>' +
+            '</span>' +
+            '<span class="tag ' + stageClass(item.stage) + '">' + item.stage + '</span>' +
+          '</div>';
+        }).join('') + '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function renderRegistrations() {
+    var items = state.registrations.filter(function (item) {
+      return matches(item.name + ' ' + item.type + ' ' + item.category);
+    });
+    if (!items.length) {
+      regList.innerHTML = '<div class="empty"><strong>No matching registrations</strong><span>Clear the search to see newly enrolled patients.</span></div>';
+    } else {
+      regList.innerHTML = items.map(function (item) {
+        var cls = item.category === 'Immunization' ? 'tag-immunization' : (item.category === 'Postnatal' ? 'tag-postnatal' : 'tag-antenatal');
+        return '<div class="reg-row">' +
+          '<span class="avatar ' + cls + '">' + initials(item.name) + '</span>' +
+          '<span class="reg-main">' +
+            '<span class="row-title">' + escapeHtml(item.name) + '</span>' +
+            '<span class="row-meta">' + item.type + ' · ' + item.category + '</span>' +
+          '</span>' +
+          '<span class="reg-next">' +
+            '<span class="reg-next-label">Next</span>' +
+            '<span class="reg-next-value">' + escapeHtml(item.nextLabel) + '</span>' +
+            '<span class="reg-next-date">' + escapeHtml(item.nextDate) + '</span>' +
+          '</span>' +
+        '</div>';
+      }).join('');
+    }
+    document.getElementById('regCount').textContent = state.newThisWeek + ' this week';
+    document.getElementById('kpiNewWeek').textContent = state.newThisWeek;
+    document.getElementById('regFootStrong').textContent = state.newThisWeek + ' new this week';
+  }
+
+  function renderActivity() {
+    var items = state.activity.filter(function (item) {
+      return state.activityFilter === 'All' || item.kind === state.activityFilter;
+    });
+    if (!items.length) {
+      actList.innerHTML = '<div class="empty"><strong>No activity in this category</strong><span>Select another filter to review the audit stream.</span></div>';
+      return;
+    }
+    actList.innerHTML = items.map(function (item) {
+      return '<div class="act-row">' +
+        '<span class="act-time od-nowrap">' + item.time + '</span>' +
+        '<span class="act-dot dot-' + item.kind.toLowerCase() + '" aria-hidden="true"></span>' +
+        '<span class="act-main"><span class="act-lead">' + escapeHtml(item.lead) + '</span> <span class="act-text">' + escapeHtml(item.text) + '</span></span>' +
+        '<span class="tag tag-' + item.kind.toLowerCase() + '">' + item.kind + '</span>' +
+      '</div>';
+    }).join('');
+  }
+
+  function updateCounts() {
+    var attended = state.baseAttended + state.checked.size;
+    var remaining = state.totalScheduled - attended;
+    var sub = '<span><b>' + attended + '</b> attended</span><span>·</span><span><b>' + remaining + '</b> remaining</span>';
+    document.getElementById('kpiTodaySub').innerHTML = sub;
+    document.getElementById('clinicSub').textContent = state.totalScheduled + ' scheduled · ' + attended + ' attended · ' + remaining + ' remaining';
+  }
+
+  function currentTime() {
+    var now = new Date();
+    var h = String(now.getHours()).padStart(2, '0');
+    var m = String(now.getMinutes()).padStart(2, '0');
+    return h + ':' + m;
+  }
+
+  function showToast(message) {
+    window.clearTimeout(toastTimer);
+    toast.textContent = message;
+    toast.hidden = false;
+    requestAnimationFrame(function () { toast.classList.add('show'); });
+    toastTimer = window.setTimeout(function () {
+      toast.classList.remove('show');
+      window.setTimeout(function () { toast.hidden = true; }, 220);
+    }, 3200);
+  }
+
+  function checkIn(id) {
+    var item = state.appointments.filter(function (row) { return row.id === id; })[0];
+    if (!item || state.checked.has(id)) return;
+    state.checked.add(id);
+    state.activity.unshift({
+      id: 'e' + Date.now(),
+      time: currentTime(),
+      kind: 'Visit',
+      lead: 'Visit completed',
+      text: item.name + ' · ' + item.detail + ' attended.'
+    });
+    renderClinic();
+    renderActivity();
+    updateCounts();
+    showToast('Visit marked as attended for ' + item.name);
+    var next = clinicList.querySelector('[data-checkin]:not([disabled])');
+    if (next) {
+      next.focus({ preventScroll: true });
+    } else {
+      document.getElementById('openRegisterTop').focus({ preventScroll: true });
+    }
+  }
+
+  function setCareFilter(value) {
+    state.careFilter = value;
+    document.querySelectorAll('[data-clinic-filter]').forEach(function (btn) {
+      var active = btn.getAttribute('data-clinic-filter') === value;
+      btn.classList.toggle('is-active', active);
+      btn.setAttribute('aria-pressed', String(active));
+    });
+    var navName = value === 'Antenatal' ? 'antenatal' : (value === 'Immunization' ? 'immunization' : 'overview');
+    setActiveNav(navName);
+    document.getElementById('pageSub').textContent = 'Monday, 9 November 2026 · ' + (value === 'All' ? 'All care categories' : value + ' care');
+    document.getElementById('upcomingSub').textContent = 'Next seven days · ' + (value === 'All' ? 'all care categories' : value.toLowerCase() + ' care');
+    renderClinic();
+    renderUpcoming();
+  }
+
+  function setActiveNav(name) {
+    document.querySelectorAll('[data-nav]').forEach(function (btn) {
+      var active = btn.getAttribute('data-nav') === name;
+      btn.classList.toggle('is-active', active);
+      if (active) {
+        btn.setAttribute('aria-current', 'page');
+      } else {
+        btn.removeAttribute('aria-current');
+      }
+    });
+  }
+
+  function scrollToId(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+  }
+
+  document.querySelector('.nav').addEventListener('click', function (event) {
+    var btn = event.target.closest('[data-nav]');
+    if (!btn) return;
+    var name = btn.getAttribute('data-nav');
+    if (name === 'overview') {
+      setCareFilter('All');
+      document.getElementById('pageTitle').textContent = 'Overview';
+      window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
+    } else if (name === 'antenatal') {
+      setCareFilter('Antenatal');
+      document.getElementById('pageTitle').textContent = 'Antenatal care';
+      scrollToId('clinicPanel');
+    } else if (name === 'immunization') {
+      setCareFilter('Immunization');
+      document.getElementById('pageTitle').textContent = 'Immunization';
+      scrollToId('clinicPanel');
+    } else if (name === 'appointments') {
+      setActiveNav('appointments');
+      document.getElementById('pageTitle').textContent = 'Appointments';
+      scrollToId('upcomingPanel');
+    } else if (name === 'patients') {
+      setActiveNav('patients');
+      document.getElementById('pageTitle').textContent = 'Patients';
+      scrollToId('registrationsPanel');
+      searchInput.focus({ preventScroll: true });
+    } else if (name === 'activity') {
+      setActiveNav('activity');
+      document.getElementById('pageTitle').textContent = 'Activity log';
+      scrollToId('activityPanel');
+    }
+  });
+
+  document.querySelectorAll('[data-clinic-filter]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      setCareFilter(btn.getAttribute('data-clinic-filter'));
+      document.getElementById('pageTitle').textContent = state.careFilter === 'All' ? 'Overview' : (state.careFilter === 'Antenatal' ? 'Antenatal care' : 'Immunization');
+    });
+  });
+
+  document.querySelectorAll('[data-act-filter]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      state.activityFilter = btn.getAttribute('data-act-filter');
+      document.querySelectorAll('[data-act-filter]').forEach(function (other) {
+        var active = other === btn;
+        other.classList.toggle('is-active', active);
+        other.setAttribute('aria-pressed', String(active));
+      });
+      renderActivity();
+    });
+  });
+
+  clinicList.addEventListener('click', function (event) {
+    var btn = event.target.closest('[data-checkin]');
+    if (!btn) return;
+    checkIn(btn.getAttribute('data-checkin'));
+  });
+
+  searchInput.addEventListener('input', function () {
+    state.search = searchInput.value.trim();
+    renderClinic();
+    renderUpcoming();
+    renderRegistrations();
+  });
+
+  function openDialog(trigger) {
+    lastTrigger = trigger || null;
+    regForm.reset();
+    clearNameError();
+    dialog.showModal();
+    requestAnimationFrame(function () { regName.focus({ preventScroll: true }); });
+  }
+
+  document.querySelectorAll('[data-open-register]').forEach(function (btn) {
+    btn.addEventListener('click', function () { openDialog(btn); });
+  });
+
+  document.getElementById('cancelRegister').addEventListener('click', function () { dialog.close(); });
+
+  dialog.addEventListener('click', function (event) {
+    if (event.target !== dialog) return;
+    var rect = dialog.getBoundingClientRect();
+    var outside = event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom;
+    if (outside) dialog.close();
+  });
+
+  dialog.addEventListener('close', function () {
+    if (lastTrigger && document.body.contains(lastTrigger)) {
+      lastTrigger.focus({ preventScroll: true });
+    }
+  });
+
+  function clearNameError() {
+    nameField.classList.remove('has-error');
+    regNameError.hidden = true;
+    regName.removeAttribute('aria-invalid');
+  }
+
+  regName.addEventListener('input', clearNameError);
+
+  regForm.addEventListener('submit', function (event) {
+    event.preventDefault();
+    var name = regName.value.trim();
+    if (!name) {
+      nameField.classList.add('has-error');
+      regNameError.hidden = false;
+      regName.setAttribute('aria-invalid', 'true');
+      regName.focus();
+      return;
+    }
+    var type = document.getElementById('regType').value;
+    var category = document.getElementById('regCategory').value;
+    var next = nextMap[category] || ['First review', '20 Nov'];
+    state.registrations.unshift({
+      id: 'r' + Date.now(),
+      name: name,
+      type: type,
+      category: category,
+      nextLabel: next[0],
+      nextDate: next[1]
+    });
+    state.newThisWeek += 1;
+    state.activity.unshift({
+      id: 'e' + Date.now(),
+      time: currentTime(),
+      kind: 'Registration',
+      lead: 'New registration',
+      text: name + ' enrolled in ' + category.toLowerCase() + ' care.'
+    });
+    renderRegistrations();
+    renderActivity();
+    dialog.close();
+    showToast('Registration saved for ' + name);
+    if (lastTrigger && document.body.contains(lastTrigger)) {
+      lastTrigger.focus({ preventScroll: true });
+    } else {
+      document.getElementById('openRegisterTop').focus({ preventScroll: true });
+    }
+  });
+
+  renderClinic();
+  renderUpcoming();
+  renderRegistrations();
+  renderActivity();
+  updateCounts();
+})();
+</script>
+</body>
+</html>

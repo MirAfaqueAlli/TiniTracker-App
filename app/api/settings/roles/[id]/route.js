@@ -1,11 +1,16 @@
 import { NextResponse } from 'next/server';
 import { withAuth } from '@/lib/middleware/withAuth';
 import { Role, RolePermission, User } from '@/lib/db/models/index';
+import { hasPermission } from '@/lib/utils/rbac';
 
 // PATCH /api/settings/roles/[id] — Update role metadata
 export async function PATCH(request, { params }) {
-  const { user, errorResponse } = await withAuth(request, 'admin');
+  const { user, errorResponse } = await withAuth(request);
   if (errorResponse) return errorResponse;
+
+  if (!(await hasPermission(user, 'settings.manage_roles'))) {
+    return NextResponse.json({ error: 'Access denied: settings.manage_roles required' }, { status: 403 });
+  }
 
   try {
     const { id } = await params;
@@ -37,8 +42,12 @@ export async function PATCH(request, { params }) {
 
 // DELETE /api/settings/roles/[id] — Delete custom role
 export async function DELETE(request, { params }) {
-  const { user, errorResponse } = await withAuth(request, 'admin');
+  const { user, errorResponse } = await withAuth(request);
   if (errorResponse) return errorResponse;
+
+  if (!(await hasPermission(user, 'settings.manage_roles'))) {
+    return NextResponse.json({ error: 'Access denied: settings.manage_roles required' }, { status: 403 });
+  }
 
   try {
     const { id } = await params;

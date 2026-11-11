@@ -1,119 +1,94 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Activity, UserPlus, Baby, CheckCircle, SkipForward,
   Calendar, Bell, ChevronLeft, ChevronRight, Search,
-  Filter, RefreshCw, X, User,
+  X, RefreshCw, User,
 } from 'lucide-react';
 import Link from 'next/link';
 import api from '@/lib/api';
-import { useAuthStore } from '@/store/authStore';
-import { useThemeStore } from '@/store/themeStore';
 
-// ── Event Type config ─────────────────────────────────────────────────────────
 const TYPE_CFG = {
-  mother_registered:  { icon: UserPlus,    bg: '#fff1f2', color: '#e11d48', label: 'Mother Registered' },
-  child_registered:   { icon: Baby,        bg: '#eff6ff', color: '#0284c7', label: 'Child Registered'  },
-  delivery_recorded:  { icon: Baby,        bg: '#f0fdf4', color: '#16a34a', label: 'Delivery Recorded' },
-  stage_visited:      { icon: CheckCircle, bg: '#f0fdf4', color: '#16a34a', label: 'Visit Completed'   },
-  stage_skipped:      { icon: SkipForward, bg: '#f1f5f9', color: '#64748b', label: 'Stage Skipped'     },
-  stage_rescheduled:  { icon: Calendar,    bg: '#fefce8', color: '#ca8a04', label: 'Rescheduled'       },
-  stage_complete:     { icon: CheckCircle, bg: '#f0fdf4', color: '#16a34a', label: 'Visit Completed'   },
-  reminder_7d:        { icon: Bell,        bg: '#f5f3ff', color: '#7c3aed', label: 'Reminder (7d)'     },
-  reminder_1d:        { icon: Bell,        bg: '#f5f3ff', color: '#7c3aed', label: 'Reminder (1d)'     },
-  reminder_today:     { icon: Bell,        bg: '#f5f3ff', color: '#7c3aed', label: 'Reminder Today'    },
-  missed:             { icon: Bell,        bg: '#fff1f2', color: '#e11d48', label: 'Missed Visit'       },
-  edd_updated:        { icon: Calendar,    bg: '#fefce8', color: '#ca8a04', label: 'EDD Updated'       },
-  manual:             { icon: Bell,        bg: '#f5f3ff', color: '#7c3aed', label: 'Manual Message'    },
+  mother_registered:  { icon: UserPlus,    category: 'registration', label: 'Mother Registered' },
+  child_registered:   { icon: Baby,        category: 'registration', label: 'Child Registered' },
+  delivery_recorded:  { icon: Baby,        category: 'delivery',     label: 'Delivery Recorded' },
+  stage_visited:      { icon: CheckCircle, category: 'stage',        label: 'Visit Completed' },
+  stage_skipped:      { icon: SkipForward, category: 'stage',        label: 'Stage Skipped' },
+  stage_rescheduled:  { icon: Calendar,    category: 'stage',        label: 'Rescheduled' },
+  stage_complete:     { icon: CheckCircle, category: 'stage',        label: 'Visit Completed' },
+  reminder_7d:        { icon: Bell,        category: 'notification', label: 'Reminder (7d)' },
+  reminder_1d:        { icon: Bell,        category: 'notification', label: 'Reminder (1d)' },
+  reminder_today:     { icon: Bell,        category: 'notification', label: 'Reminder Today' },
+  missed:             { icon: Bell,        category: 'notification', label: 'Missed Visit' },
+  edd_updated:        { icon: Calendar,    category: 'stage',        label: 'EDD Updated' },
+  patient_edited:     { icon: User,        category: 'stage',        label: 'Patient Edited' },
+  hospital_transferred:{ icon: Activity,   category: 'stage',        label: 'Hospital Transfer' },
+  patient_status_changed:{ icon: User,     category: 'stage',        label: 'Status Changed' },
+  manual:             { icon: Bell,        category: 'notification', label: 'Manual Message' },
 };
 
-function LogIcon({ subtype }) {
-  const cfg = TYPE_CFG[subtype] || { icon: Activity, bg: '#f1f5f9', color: '#64748b' };
-  const Icon = cfg.icon;
-  return (
-    <div style={{
-      width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
-      background: cfg.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
-      boxShadow: `0 0 0 4px ${cfg.bg}cc`,
-    }}>
-      <Icon size={16} color={cfg.color} strokeWidth={2} />
-    </div>
-  );
+const FILTER_TABS = [
+  { key: 'all',          label: 'All',           category: 'all' },
+  { key: 'registration', label: 'Registrations', category: 'registration' },
+  { key: 'delivery',     label: 'Deliveries',    category: 'delivery' },
+  { key: 'stage',        label: 'Stage Actions', category: 'stage' },
+  { key: 'notification', label: 'Notifications', category: 'notification' },
+];
+
+function formatDay(date) {
+  const now = new Date();
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const sameDay = (a, b) =>
+    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  if (sameDay(date, now)) return 'Today';
+  if (sameDay(date, yesterday)) return 'Yesterday';
+  return date.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' });
 }
 
-function TypeBadge({ subtype }) {
-  const cfg = TYPE_CFG[subtype];
-  if (!cfg) return null;
+function formatLongDate(date) {
+  return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function formatTime(value) {
+  if (!value) return '—';
+  return new Date(value).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+function dayKey(value) {
+  return new Date(value).toISOString().slice(0, 10);
+}
+
+function LogIcon({ category }) {
+  const cfg = Object.values(TYPE_CFG).find((item) => item.category === category);
+  const Icon = cfg?.icon || Activity;
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center',
-      padding: '0.18rem 0.55rem', borderRadius: 20,
-      background: cfg.bg, color: cfg.color,
-      fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.02em', flexShrink: 0,
-    }}>
-      {cfg.label}
+    <span className={`audit-icon cat-${category || 'all'}`} aria-hidden="true">
+      <Icon size={16} />
     </span>
   );
 }
 
-function formatDateTime(isoString) {
-  if (!isoString) return '—';
-  const d   = new Date(isoString);
-  const now = new Date();
-  const diffH = (now - d) / (1000 * 60 * 60);
-  if (diffH < 1)  return `${Math.floor((now - d) / 60000)}m ago`;
-  if (diffH < 24) return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) + ' today';
-  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) +
-         ' · ' + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-}
-
-const FILTER_TABS = [
-  { key: 'all',          label: 'All',           icon: Activity   },
-  { key: 'registration', label: 'Registrations', icon: UserPlus   },
-  { key: 'delivery',     label: 'Deliveries',    icon: Baby       },
-  { key: 'stage',        label: 'Stage Actions', icon: CheckCircle },
-  { key: 'notification', label: 'Notifications', icon: Bell       },
-];
-
 export default function ActivityLogsTab() {
-  const { user } = useAuthStore();
-  const { theme } = useThemeStore();
-  const dk = theme === 'dark';
-  const th = {
-    cardBg:     dk ? '#1a2332' : '#ffffff',
-    inputBg:    dk ? '#141c26' : '#f8fafc',
-    border:     dk ? '#2a3a4a' : '#e2e8f0',
-    text:       dk ? '#e2e8f0' : '#0f172a',
-    textMuted:  dk ? '#7a8fa8' : '#475569',
-    pageBtnBg:  dk ? '#141c26' : '#ffffff',
-    pageBtnTxt: dk ? '#7a8fa8' : '#475569',
-    pageBtnDis: dk ? '#253040' : '#f8fafc',
-    pageBtnDisTxt: dk ? '#3a4a5a' : '#cbd5e1',
-    rowBg:      dk ? '#1a2332' : '#ffffff',
-    rowBorder:  dk ? '#243040' : '#f1f5f9',
-    emptyBg:    dk ? '#1a2332' : '#ffffff',
-    chipBg:     dk ? '#141c26' : '#f8fafc',
-    paginatBg:  dk ? '#1a2332' : '#ffffff',
-  };
-
-  const [logs,    setLogs]    = useState([]);
-  const [total,   setTotal]   = useState(0);
-  const [pages,   setPages]   = useState(1);
-  const [page,    setPage]    = useState(1);
+  const [logs, setLogs] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [pages, setPages] = useState(1);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState('');
+  const [error, setError] = useState('');
 
   const [typeFilter, setTypeFilter] = useState('all');
-  const [fromDate,   setFromDate]   = useState('');
-  const [toDate,     setToDate]     = useState('');
-  const [search,     setSearch]     = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const [search, setSearch] = useState('');
 
   async function load(p = 1) {
-    setLoading(true); setError('');
+    setLoading(true);
+    setError('');
     try {
       const params = new URLSearchParams({ page: String(p), limit: '20', type: typeFilter });
       if (fromDate) params.set('from', fromDate);
-      if (toDate)   params.set('to',   toDate);
+      if (toDate) params.set('to', toDate);
       const res = await api.get(`/activity?${params}`);
       setLogs(res.data.logs || []);
       setTotal(res.data.total || 0);
@@ -126,272 +101,204 @@ export default function ActivityLogsTab() {
     }
   }
 
-  // Reset to page 1 on any filter change
-  useEffect(() => { load(1); }, [typeFilter, fromDate, toDate]);
+  useEffect(() => {
+    const timer = setTimeout(() => load(1), 0);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [typeFilter, fromDate, toDate]);
 
-  // Client-side search (within current page)
-  const filtered = search.trim()
-    ? logs.filter(l =>
-        l.patient?.toLowerCase().includes(search.toLowerCase()) ||
-        l.description?.toLowerCase().includes(search.toLowerCase()) ||
-        l.performedBy?.toLowerCase().includes(search.toLowerCase())
-      )
-    : logs;
+  const filtered = useMemo(() => {
+    if (!search.trim()) return logs;
+    const q = search.toLowerCase();
+    return logs.filter((log) =>
+      log.patient?.toLowerCase().includes(q) ||
+      log.description?.toLowerCase().includes(q) ||
+      log.performedBy?.toLowerCase().includes(q)
+    );
+  }, [logs, search]);
+
+  const groups = useMemo(() => {
+    const result = [];
+    filtered.forEach((log) => {
+      const key = dayKey(log.time);
+      let group = result[result.length - 1];
+      if (!group || group.key !== key) {
+        group = { key, date: new Date(log.time), items: [] };
+        result.push(group);
+      }
+      group.items.push(log);
+    });
+    return result;
+  }, [filtered]);
 
   function clearFilters() {
-    setTypeFilter('all'); setFromDate(''); setToDate(''); setSearch('');
+    setTypeFilter('all');
+    setFromDate('');
+    setToDate('');
+    setSearch('');
   }
 
-  const hasFilters = fromDate || toDate || search || typeFilter !== 'all';
+  const hasFilters = Boolean(fromDate || toDate || search || typeFilter !== 'all');
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', paddingBottom: '2.5rem', width: '100%' }}>
+    <section className="setting-panel" aria-labelledby="logs-title">
+      <div className="panel-head">
+        <div>
+          <h2 className="setting-title" id="logs-title">Activity logs</h2>
 
-      {/* ── Header ── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div style={{
-            width: 42, height: 42, borderRadius: 12,
-            background: 'linear-gradient(135deg, var(--teal, #00857c), #00a896)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 4px 12px rgba(0,133,124,0.25)',
-          }}>
-            <Activity size={20} color="#fff" strokeWidth={2} />
-          </div>
-          <div>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-text)', margin: 0 }}>Hospital Activity Logs</h2>
-            <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', margin: 0 }}>
-              {loading ? 'Loading…' : `${total} total events recorded across all medical staff`}
-            </p>
-          </div>
         </div>
-        <button
-          onClick={() => load(page)}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '0.4rem',
-            padding: '0.5rem 0.875rem', borderRadius: 8,
-            border: `1px solid ${th.border}`, background: th.cardBg,
-            color: th.textMuted, fontSize: '0.8rem', cursor: 'pointer',
-            fontWeight: 500,
-          }}
-        >
-          <RefreshCw size={13} /> Refresh
-        </button>
-      </div>
-
-      {/* ── Filter Card ── */}
-      <div style={{
-        background: th.cardBg, borderRadius: 14, border: `1px solid ${th.border}`,
-        padding: '1rem 1.125rem', display: 'flex', flexDirection: 'column', gap: '0.875rem',
-        boxShadow: dk ? '0 1px 4px rgba(0,0,0,0.3)' : '0 1px 4px rgba(0,0,0,0.05)',
-      }}>
-        {/* Search + date range */}
-        <div style={{ display: 'flex', gap: '0.625rem', flexWrap: 'wrap', alignItems: 'center' }}>
-          <div style={{ position: 'relative', flex: '1 1 200px', minWidth: 180 }}>
-            <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none' }} />
-            <input
-              type="text"
-              placeholder="Search patient, action, user…"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              style={{
-                width: '100%', boxSizing: 'border-box',
-                paddingLeft: 30, paddingRight: 12, paddingTop: 8, paddingBottom: 8,
-                border: `1.5px solid ${th.border}`, borderRadius: 8, fontSize: '0.8125rem',
-                color: th.text, background: th.inputBg, outline: 'none',
-              }}
-            />
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-            <Filter size={13} color="#94a3b8" />
-            <label style={{ fontSize: '0.76rem', color: '#94a3b8' }}>From</label>
-            <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
-              style={{ padding: '0.45rem 0.6rem', border: `1.5px solid ${th.border}`, borderRadius: 8, fontSize: '0.8rem', background: th.inputBg, color: th.textMuted, outline: 'none' }}
-            />
-            <label style={{ fontSize: '0.76rem', color: th.textMuted }}>to</label>
-            <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
-              style={{ padding: '0.45rem 0.6rem', border: `1.5px solid ${th.border}`, borderRadius: 8, fontSize: '0.8rem', background: th.inputBg, color: th.textMuted, outline: 'none' }}
-            />
-            {hasFilters && (
-              <button onClick={clearFilters} style={{
-                display: 'flex', alignItems: 'center', gap: '0.3rem',
-                padding: '0.42rem 0.65rem', borderRadius: 8,
-                border: '1.5px solid #fecdd3', background: '#fff1f2',
-                color: '#e11d48', fontSize: '0.78rem', cursor: 'pointer', fontWeight: 500,
-              }}>
-                <X size={11} /> Clear
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Type tabs */}
-        <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
-          {FILTER_TABS.map(({ key, label, icon: Icon }) => {
-            const active = typeFilter === key;
-            return (
-              <button
-                key={key}
-                onClick={() => setTypeFilter(key)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '0.35rem',
-                  padding: '0.38rem 0.8rem', borderRadius: 20,
-                  border: active ? '1.5px solid var(--teal, #00857c)' : `1.5px solid ${th.border}`,
-                  background: active ? 'rgba(0,133,124,0.09)' : th.chipBg,
-                  color: active ? 'var(--teal, #00857c)' : th.textMuted,
-                  fontSize: '0.78rem', fontWeight: active ? 700 : 400,
-                  cursor: 'pointer', transition: 'all 0.15s',
-                }}
-              >
-                <Icon size={12} strokeWidth={2} />
-                {label}
-              </button>
-            );
-          })}
+        <div className="panel-actions">
+          <button type="button" className="btn btn-outline btn-sm" onClick={() => load(page)} disabled={loading}>
+            <RefreshCw size={15} style={loading ? { animation: 'spin 1s linear infinite' } : undefined} />
+            Refresh
+          </button>
         </div>
       </div>
 
-      {/* ── Error ── */}
-      {error && (
-        <div style={{ padding: '0.75rem 1rem', background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: 10, color: '#e11d48', fontSize: '0.8125rem' }}>
-          {error}
+      <div className="audit-toolbar">
+        <div className="tool-search">
+          <Search size={14} />
+          <input
+            type="search"
+            placeholder="Search activity"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            autoComplete="off"
+            aria-label="Search activity by patient, action or staff"
+          />
         </div>
-      )}
 
-      {/* ── Log List ── */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        <div className="date-range">
+          <label htmlFor="audit-from">From</label>
+          <input id="audit-from" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+          <label htmlFor="audit-to">to</label>
+          <input id="audit-to" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+        </div>
+
+        <span className="result-count">
+          Showing <b>{filtered.length}</b> of {total} events
+        </span>
+
+        {hasFilters && (
+          <button type="button" className="btn btn-ghost btn-sm" onClick={clearFilters}>
+            <X size={13} />
+            Clear
+          </button>
+        )}
+      </div>
+
+      <div className="audit-cats" role="group" aria-label="Filter activity by category">
+        {FILTER_TABS.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            className="chipfilter"
+            data-cat={tab.category}
+            aria-pressed={typeFilter === tab.key}
+            onClick={() => setTypeFilter(tab.key)}
+          >
+            {tab.label}
+            {tab.key === 'all' && <span className="n">{total}</span>}
+          </button>
+        ))}
+      </div>
+
+      {error && <div style={{ padding: '12px 16px' }}><div className="form-summary">{error}</div></div>}
+
+      <div>
         {loading ? (
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', paddingTop: '3rem', paddingBottom: '3rem' }}>
-            <div className="spinner" style={{ width: 28, height: 28 }} />
+          <div className="loading-block">
+            <RefreshCw size={26} style={{ animation: 'spin 1s linear infinite' }} />
+            <p>Loading activity logs...</p>
           </div>
         ) : filtered.length === 0 ? (
-          <div style={{
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem',
-            padding: '3.5rem 1rem', background: th.emptyBg, borderRadius: 14, border: `1px solid ${th.border}`,
-            color: th.textMuted,
-          }}>
-            <Activity size={44} strokeWidth={1.5} />
-            <span style={{ fontSize: '0.95rem', fontWeight: 600, color: th.textMuted }}>No activity found</span>
-            <span style={{ fontSize: '0.8rem', color: th.textMuted }}>Try adjusting your filters or date range</span>
+          <div className="empty">
+            <Activity size={28} />
+            <strong>No activity matches</strong>
+            <span>Try a different category, date range or search term.</span>
+            <button type="button" className="btn btn-outline btn-sm" onClick={clearFilters}>
+              Reset filters
+            </button>
           </div>
         ) : (
-          filtered.map((log) => (
-            <div
-              key={log.id}
-              style={{
-                display: 'flex', alignItems: 'flex-start', gap: '1rem',
-                background: th.rowBg, borderRadius: 12, padding: '0.875rem 1.125rem',
-                border: `1px solid ${th.rowBorder}`,
-                boxShadow: dk ? '0 1px 3px rgba(0,0,0,0.25)' : '0 1px 3px rgba(0,0,0,0.04)',
-              }}
-            >
-              <LogIcon subtype={log.subtype} />
-
-              <div style={{ flex: 1, minWidth: 0 }}>
-                {/* Top row: badge + timestamp */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.3rem' }}>
-                  <TypeBadge subtype={log.subtype} />
-                  <span style={{ fontSize: '0.71rem', color: '#94a3b8', marginLeft: 'auto' }}>
-                    {formatDateTime(log.time)}
-                  </span>
-                </div>
-
-                {/* Description */}
-                <div style={{ fontSize: '0.84rem', fontWeight: 600, color: th.text, lineHeight: 1.45, marginBottom: '0.3rem' }}>
-                  {log.description}
-                </div>
-
-                {/* Meta row: patient + performed by */}
-                <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap', marginTop: '0.2rem' }}>
-                  {log.patient && log.patient !== '—' && (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.775rem', color: th.textMuted }}>
-                      <Baby size={11} color={th.textMuted} />
-                      {log.patientId ? (
-                        <Link href={`/patients/${log.patientId}`} style={{ color: 'var(--teal, #00857c)', textDecoration: 'none', fontWeight: 600 }}>
-                          {log.patient}
-                        </Link>
-                      ) : (
-                        <span style={{ fontWeight: 500 }}>{log.patient}</span>
-                      )}
-                    </span>
-                  )}
-                  {log.performedBy && (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.775rem', color: th.textMuted }}>
-                      <User size={11} color={th.textMuted} />
-                      {log.performedBy}
-                    </span>
-                  )}
-                </div>
+          groups.map((group) => (
+            <section key={group.key} className="audit-day">
+              <div className="audit-day-head">
+                <span><b>{formatDay(group.date)}</b> · {formatLongDate(group.date)}</span>
+                <span>{group.items.length} event{group.items.length === 1 ? '' : 's'}</span>
               </div>
-            </div>
+              {group.items.map((log) => {
+                const cfg = TYPE_CFG[log.subtype] || { category: 'all', label: 'Activity', icon: Activity };
+                return (
+                  <div key={log.id} className={`audit-event cat-${cfg.category}`}>
+                    <LogIcon category={cfg.category} />
+                    <div className="audit-main">
+                      <div className="audit-line">
+                        <span className="audit-action">{cfg.label}</span>
+                        <span className={`cat-tag cat-${cfg.category}`}>{FILTER_TABS.find((t) => t.category === cfg.category)?.label || 'Activity'}</span>
+                      </div>
+                      <p className="audit-detail">{log.description}</p>
+                      <div className="audit-meta">
+                        {log.patient && log.patient !== '—' && (
+                          <span>
+                            <Baby size={11} style={{ marginRight: 4, verticalAlign: '-1px' }} />
+                            {log.patientId ? (
+                              <Link href={`/patients/${log.patientId}`}>{log.patient}</Link>
+                            ) : (
+                              log.patient
+                            )}
+                          </span>
+                        )}
+                        {log.performedBy && (
+                          <>
+                            <span className="sep">·</span>
+                            <span>
+                              <User size={11} style={{ marginRight: 4, verticalAlign: '-1px' }} />
+                              {log.performedBy}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <span className="audit-time">{formatTime(log.time)}</span>
+                  </div>
+                );
+              })}
+            </section>
           ))
         )}
       </div>
 
-      {/* ── Pagination ── */}
-      {!loading && pages > 1 && (
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '0.875rem 1rem', background: th.paginatBg, borderRadius: 12,
-          border: `1px solid ${th.border}`, flexWrap: 'wrap', gap: '0.5rem',
-        }}>
-          <span style={{ fontSize: '0.8rem', color: th.textMuted }}>
-            Page <strong>{page}</strong> of <strong>{pages}</strong> — {total} total events
-          </span>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button
-              onClick={() => load(page - 1)}
-              disabled={page <= 1}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '0.3rem',
-                padding: '0.45rem 1rem', borderRadius: 8,
-                border: `1.5px solid ${th.border}`,
-                background: page <= 1 ? th.pageBtnDis : th.pageBtnBg,
-                color: page <= 1 ? th.pageBtnDisTxt : th.pageBtnTxt,
-                fontSize: '0.8rem', fontWeight: 500,
-                cursor: page <= 1 ? 'not-allowed' : 'pointer',
-              }}
-            >
-              <ChevronLeft size={14} /> Prev
+      <div className="audit-foot">
+        <span>
+          {filtered.length
+            ? <>Newest activity first · <b>{filtered.length}</b> event{filtered.length === 1 ? '' : 's'} on this page</>
+            : 'Newest activity first · all times clinic local'}
+        </span>
+        {pages > 1 && (
+          <div className="pagination">
+            <button type="button" className="page-btn" onClick={() => load(page - 1)} disabled={page <= 1} aria-label="Previous page">
+              <ChevronLeft size={13} />
             </button>
-
-            {/* Page number chips */}
             {Array.from({ length: Math.min(pages, 5) }, (_, i) => {
               const p = Math.max(1, Math.min(pages - 4, page - 2)) + i;
               return (
-                <button key={p} onClick={() => load(p)} style={{
-                  width: 34, height: 34, borderRadius: 8,
-                  border: '1.5px solid',
-                  borderColor: p === page ? 'var(--teal, #00857c)' : th.border,
-                  background: p === page ? 'var(--teal, #00857c)' : th.pageBtnBg,
-                  color: p === page ? '#fff' : th.pageBtnTxt,
-                  fontSize: '0.8rem', fontWeight: p === page ? 700 : 400,
-                  cursor: 'pointer',
-                }}>
+                <button
+                  key={p}
+                  type="button"
+                  className={`page-btn${p === page ? ' active' : ''}`}
+                  onClick={() => load(p)}
+                >
                   {p}
                 </button>
               );
             })}
-
-            <button
-              onClick={() => load(page + 1)}
-              disabled={page >= pages}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '0.3rem',
-                padding: '0.45rem 1rem', borderRadius: 8,
-                border: `1.5px solid ${th.border}`,
-                background: page >= pages ? th.pageBtnDis : th.pageBtnBg,
-                color: page >= pages ? th.pageBtnDisTxt : th.pageBtnTxt,
-                fontSize: '0.8rem', fontWeight: 500,
-                cursor: page >= pages ? 'not-allowed' : 'pointer',
-              }}
-            >
-              Next <ChevronRight size={14} />
+            <button type="button" className="page-btn" onClick={() => load(page + 1)} disabled={page >= pages} aria-label="Next page">
+              <ChevronRight size={13} />
             </button>
           </div>
-        </div>
-      )}
-
-    </div>
+        )}
+      </div>
+    </section>
   );
 }

@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
 import { withAuth } from '@/lib/middleware/withAuth';
-import { Patient, PatientStage, StageTemplate, PatientHistory, Hospital } from '@/lib/db/models/index';
-import { recalculateOnEddChange } from '@/lib/services/stage.service';
-import { sendWhatsApp } from '@/lib/services/whatsapp.service';
-import { createAppNotif } from '@/lib/services/appNotif.service';
+import { Patient, Hospital } from '@/lib/db/models/index';
+import { applyEddUpdate } from '@/lib/services/edd.service';
+import { hasPermission, canAccessPatientAsync } from '@/lib/utils/rbac';
 
 // PUT /api/patients/[id]/edd
 export async function PUT(request, { params }) {
@@ -11,57 +10,48 @@ export async function PUT(request, { params }) {
   if (errorResponse) return errorResponse;
 
   try {
-    const { edd, edd_source, lmp_date, ultrasound_scan_date } = await request.json();
-    if (!edd) return NextResponse.json({ error: 'edd required' }, { status: 400 });
+    const body = await request.json();
+    const { edd, edd_source, lmp_date, ultrasound_scan_date, reason } = body || {};
 
     const { id } = await params;
     const patient = await Patient.findByPk(id, {
-      include: [{ model: Hospital, attributes: ['name', 'phone'] }]
+      include: [{ model: Hospital, attributes: ['name', 'phone'] }],
     });
     if (!patient) return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
 
-    await patient.update({
+    // ── Tenant isolation, patient-type access & permission ────────────────
+    if (patient.hospital_id !== user.hospital_id)
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    if (!(await canAccessPatientAsync(user, patient.patient_type)))
+      return NextResponse.json({ error: 'Access denied — patient type mismatch' }, { status: 403 });
+    if (!(patient.patient_type === 'pregnant' || patient.patient_type === 'both'))
+      return NextResponse.json({ error: 'EDD can only be updated for pregnant patients' }, { status: 400 });
+
+    const canEditEdd = (await hasPermission(user, 'patients.edit'))
+      || (await hasPermission(user, 'stages.reschedule'));
+    if (!canEditEdd)
+      return NextResponse.json({ error: 'Access denied: you do not have permission to update the EDD' }, { status: 403 });
+
+    const result = await applyEddUpdate({
+      patient,
+      user,
       edd,
       edd_source,
-      lmp_date:             lmp_date             || patient.lmp_date,
-      ultrasound_scan_date: ultrasound_scan_date || patient.ultrasound_scan_date,
-      edd_last_updated:     new Date()
+      lmp_date,
+      ultrasound_scan_date,
+      reason,
     });
 
-    await recalculateOnEddChange(patient);
+    if (!result) {
+      return NextResponse.json({ error: 'EDD or LMP date is required' }, { status: 400 });
+    }
 
-    await sendWhatsApp(patient.whatsapp_number, 'edd_updated', {
-      patient_name:  patient.name,
-      new_edd:       edd,
-      source:        edd_source || 'updated',
-      hospital_name: patient.Hospital?.name,
-    }, patient.id, null, patient.hospital_id);
-
-    // Audit log — fire-and-forget
-    PatientHistory.create({
-      patient_id:        patient.id,
-      hospital_id:       patient.hospital_id,
-      event_type:        'edd_updated',
-      event_data:        { old_edd: patient.edd, new_edd: edd, source: edd_source },
-      performed_by:      user.id,
-      performed_by_role: user.role,
-    }).catch(e => console.error('[History] edd_updated log failed:', e.message));
-
-    // In-app notification
-    createAppNotif({
-      hospital_id:  patient.hospital_id,
-      event_type:   'edd_updated',
-      title:        `EDD updated: ${patient.name}`,
-      body:         `Expected delivery date updated to ${edd} by ${user.name || 'staff'}`,
-      patient_id:   patient.id,
-      patient_name: patient.name,
-      actor_id:     user.id,
-      actor_name:   user.name || null,
-      meta:         { old_edd: patient.edd, new_edd: edd, source: edd_source },
+    return NextResponse.json({
+      message: 'EDD updated and stages recalculated',
+      ...result,
     });
-
-    return NextResponse.json({ message: 'EDD updated and stages recalculated' });
   } catch (err) {
+    if (err.status) return NextResponse.json({ error: err.message }, { status: err.status });
     console.error('Update EDD error:', err);
     return NextResponse.json({ error: 'Failed to update EDD' }, { status: 500 });
   }

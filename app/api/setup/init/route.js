@@ -1,9 +1,20 @@
 import { NextResponse } from 'next/server';
+import { timingSafeEqual } from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { Hospital, User, Subscription, sequelize } from '@/lib/db/models/index';
 import { seedRolesAndPermissionsForHospital } from '@/lib/seeders/roles.seed.js';
 
+function safeEqual(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const aBuf = Buffer.from(a);
+  const bBuf = Buffer.from(b);
+  if (aBuf.length !== bBuf.length) return false;
+  return timingSafeEqual(aBuf, bBuf);
+}
+
+// POST /api/setup/init
+// One-time initial hospital setup. Rate-limited by proxy.js (AUTH_REGISTER tier).
 export async function POST(request) {
   try {
     const count = await Hospital.count();
@@ -14,10 +25,30 @@ export async function POST(request) {
       );
     }
 
+    const body = await request.json();
     const {
       hospital_name, hospital_address, hospital_phone,
       admin_name, admin_email, admin_password,
-    } = await request.json();
+    } = body;
+
+    // ── One-time setup authorization ────────────────────────────────────────
+    // Prefer an explicit SETUP_TOKEN. If it is not configured, allow setup only
+    // in non-production environments so a random internet caller cannot claim
+    // an uninitialised deployment.
+    const configuredToken = process.env.SETUP_TOKEN;
+    const providedToken = request.headers.get('x-setup-token') || body?.setup_token;
+
+    if (configuredToken) {
+      if (!safeEqual(providedToken || '', configuredToken)) {
+        return NextResponse.json({ error: 'Invalid setup token.' }, { status: 403 });
+      }
+    } else if (process.env.NODE_ENV === 'production') {
+      console.error('[setup/init] SETUP_TOKEN is not configured; refusing setup in production.');
+      return NextResponse.json(
+        { error: 'Setup is disabled. Configure SETUP_TOKEN on the server.' },
+        { status: 403 }
+      );
+    }
 
     if (!hospital_name)  return NextResponse.json({ error: 'Hospital name is required' }, { status: 400 });
     if (!admin_name)     return NextResponse.json({ error: 'Admin name is required' }, { status: 400 });
@@ -46,6 +77,7 @@ export async function POST(request) {
       await Subscription.create({
         hospital_id: createdHospital.id,
         plan:        'enterprise',
+        billing_cycle: 'yearly',
         starts_at:   toDateStr(today),
         ends_at:     toDateStr(nextYear),
         is_active:   true,
@@ -72,7 +104,7 @@ export async function POST(request) {
     console.log(`✅ Setup complete — Hospital: "${hospital_name}" | Admin: ${admin_email}`);
 
     const token = jwt.sign(
-      { id: createdUser.id, role: createdUser.role, hospital_id: createdHospital.id },
+      { id: createdUser.id, type: 'user', role: createdUser.role, hospital_id: createdHospital.id },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
@@ -102,6 +134,8 @@ export async function POST(request) {
       path: '/',
       maxAge: 30 * 24 * 60 * 60,
       sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      httpOnly: true,
     });
 
     return res;

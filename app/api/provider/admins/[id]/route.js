@@ -54,8 +54,8 @@ export async function PATCH(request, { params }) {
     }
 
     if (password) {
-      if (password.length < 6) {
-        return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 });
+      if (password.length < 8) {
+        return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 });
       }
       targetAdmin.password_hash = await bcrypt.hash(password, 10);
     }

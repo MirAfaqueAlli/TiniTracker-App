@@ -360,7 +360,7 @@ function ForgotPasswordModal({ onClose, onSuccess }) {
    Main Login Form
 ───────────────────────────────────────────────────────────── */
 function LoginForm() {
-  const { token, setAuth, isHydrated } = useAuthStore();
+  const { isAuthenticated, setAuth, isHydrated } = useAuthStore();
   const router       = useRouter();
   const searchParams = useSearchParams();
   const fromSetup    = searchParams.get('setupComplete') === '1';
@@ -370,8 +370,8 @@ function LoginForm() {
 
   // Redirect if already logged in
   useEffect(() => {
-    if (isHydrated && token) router.replace('/dashboard');
-  }, [isHydrated, token, router]);
+    if (isHydrated && isAuthenticated) router.replace('/dashboard');
+  }, [isHydrated, isAuthenticated, router]);
 
   const [identifier, setIdentifier] = useState(prefilled);
   const [password, setPassword]     = useState('');
@@ -430,8 +430,9 @@ function LoginForm() {
       else router.push(nextPath);
     } catch (err) {
       const apiError = err.response?.data?.error;
-      if (apiError === 'subscription_expired') {
-        setError(err.response.data.message || 'Your hospital subscription has expired. Please contact TiniTracker support.');
+      const blockCodes = ['subscription_expired', 'hospital_blocked', 'user_blocked'];
+      if (blockCodes.includes(apiError)) {
+        setError(err.response.data.message || 'Your account or hospital is not permitted to sign in. Please contact support.');
       } else {
         setError(apiError || 'Login failed. Please verify your credentials.');
       }
@@ -448,7 +449,7 @@ function LoginForm() {
     else router.push('/dashboard');
   }
 
-  if (isHydrated && token) {
+  if (isHydrated && isAuthenticated) {
     return (
       <div style={{ minHeight: '100vh', backgroundColor: '#0a0e14', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ width: 36, height: 36, border: '3px solid rgba(0,133,124,0.25)', borderTopColor: '#00857c', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
@@ -507,7 +508,7 @@ function LoginForm() {
         {/* Form Card */}
         <div className="login-card-content">
           <h2 className="login-console-title">Sign in to Your Console</h2>
-          <p className="login-console-subtitle">Let's get you logged in.</p>
+          <p className="login-console-subtitle">Let&apos;s get you logged in.</p>
 
           {fromSetup && (
             <div className="login-alert login-alert-success">
@@ -594,7 +595,7 @@ function LoginForm() {
                 onChange={(e) => setAgreedTerms(e.target.checked)}
               />
               <span className="login-terms-text">
-                By continuing to TiniTraker, you agree to TiniTraker's{' '}
+                By continuing to TiniTraker, you agree to TiniTraker&apos;s{' '}
                 <span className="term-link" onClick={(e) => { e.preventDefault(); setInfoModal('terms'); }}>Terms of Service</span> and{' '}
                 <span className="term-link" onClick={(e) => { e.preventDefault(); setInfoModal('privacy'); }}>Privacy Policy</span>.
               </span>

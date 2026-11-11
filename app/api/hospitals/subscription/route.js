@@ -1,60 +1,10 @@
 import { NextResponse } from 'next/server';
 import { withAuth } from '@/lib/middleware/withAuth';
-import { Subscription, SubscriptionRequest, ProviderNotification, Hospital } from '@/lib/db/models/index';
+import { Subscription, SubscriptionRequest, ProviderNotification, Hospital, Patient, Notification, User } from '@/lib/db/models/index';
 import { isAdmin } from '@/lib/utils/rbac';
 import { Op } from 'sequelize';
-
-export const AVAILABLE_PLANS = [
-  {
-    key: 'starter',
-    name: 'Starter Clinic',
-    tagline: 'Ideal for independent maternity clinics and pediatric practices',
-    monthlyPrice: 1999,
-    annualPrice: 19990,
-    badge: 'Essential',
-    features: [
-      'Up to 250 active patient registrations',
-      'Automated WhatsApp 7-day & 1-day reminders',
-      'Maternal pregnancy & child immunization timeline',
-      'Up to 3 staff & doctor accounts',
-      'Standard email & chat support',
-    ],
-  },
-  {
-    key: 'professional',
-    name: 'Professional Hospital',
-    tagline: 'Comprehensive clinical care for growing maternity hospitals',
-    monthlyPrice: 4499,
-    annualPrice: 44990,
-    badge: 'Most Popular ⭐',
-    popular: true,
-    features: [
-      'Unlimited patient registrations',
-      'Full automated WhatsApp reminders (7d, 1d, same-day, and missed flags)',
-      'Role-based permissions & customizable clinical staff access',
-      'Complete activity audit trails and logging',
-      'Unlimited doctor, nurse, and admin accounts',
-      'Newborn delivery auto-transition to immunization protocol',
-      'Priority WhatsApp gateway route',
-    ],
-  },
-  {
-    key: 'enterprise',
-    name: 'Enterprise Network',
-    tagline: 'For multi-branch hospital chains and enterprise healthcare systems',
-    monthlyPrice: 8999,
-    annualPrice: 89990,
-    badge: 'Full Suite',
-    features: [
-      'Everything in Professional Hospital',
-      'Multi-branch centralized hospital management',
-      'Custom WhatsApp Sender ID & Official Green Tick branding',
-      'Dedicated Account Manager & 24/7 priority SLA support',
-      'Custom clinical stage templates & care plans',
-      'Automated data backup & custom reports',
-    ],
-  },
-];
+import { getPlatformSettings, getPlanPrices } from '@/lib/services/platformSettings.service';
+import { buildPlanCatalog, normalizeBillingCycle, BILLING_CYCLE_KEYS } from '@/lib/utils/plans';
 
 // GET /api/hospitals/subscription — get current subscription details & available plans
 export async function GET(request) {
@@ -94,6 +44,18 @@ export async function GET(request) {
       order: [['createdAt', 'DESC']],
     });
 
+    // Query live usage metrics
+    const [patientCount, reminderCount, staffCount] = await Promise.all([
+      Patient.count({ where: { hospital_id: user.hospital_id } }),
+      Notification.count({
+        include: [{ model: Patient, required: true, where: { hospital_id: user.hospital_id } }],
+      }),
+      User.count({ where: { hospital_id: user.hospital_id } }),
+    ]);
+
+    const settings = await getPlatformSettings();
+    const availablePlans = buildPlanCatalog(await getPlanPrices(settings));
+
     return NextResponse.json({
       subscription: activeSub ? {
         id: activeSub.id,
@@ -106,8 +68,14 @@ export async function GET(request) {
         days_remaining: daysRemaining,
         is_expired: isExpired,
       } : null,
+      usage: {
+        patients: patientCount,
+        reminders_sent: reminderCount,
+        staff_count: staffCount,
+      },
       pending_request: pendingRequest,
-      available_plans: AVAILABLE_PLANS,
+      available_plans: availablePlans,
+      billing_cycles: BILLING_CYCLE_KEYS,
     });
   } catch (err) {
     console.error('Fetch subscription error:', err);
@@ -127,10 +95,16 @@ export async function POST(request) {
   try {
     const { requested_plan, billing_cycle = 'monthly', notes, contact_phone } = await request.json();
 
-    const validPlan = AVAILABLE_PLANS.find(p => p.key === requested_plan);
+    if (billing_cycle && !['monthly', 'quarterly', 'yearly', 'annual'].includes(String(billing_cycle).toLowerCase())) {
+      return NextResponse.json({ error: 'billing_cycle must be monthly, quarterly, or yearly' }, { status: 400 });
+    }
+
+    const availablePlans = buildPlanCatalog(await getPlanPrices());
+    const validPlan = availablePlans.find((p) => p.key === requested_plan);
     if (!validPlan) {
       return NextResponse.json({ error: 'Please select a valid subscription plan' }, { status: 400 });
     }
+    const normalizedCycle = normalizeBillingCycle(billing_cycle);
 
     // Get current subscription
     const currentSub = await Subscription.findOne({
@@ -149,7 +123,7 @@ export async function POST(request) {
       hospital_name: hospital?.name || user.Hospital?.name || 'Hospital',
       current_plan: currentSub?.plan || 'free_trial',
       requested_plan: validPlan.key,
-      billing_cycle: ['monthly', 'annual'].includes(billing_cycle) ? billing_cycle : 'monthly',
+      billing_cycle: normalizedCycle,
       notes: notes?.trim() || null,
       contact_phone: contact_phone?.trim() || hospital?.phone || null,
       status: 'pending',
@@ -159,7 +133,7 @@ export async function POST(request) {
     await ProviderNotification.create({
       type: 'upgrade_request',
       title: `Plan Upgrade Request: ${hospital?.name || 'Hospital'}`,
-      message: `${user.name} (${user.email}) requested an upgrade from ${currentSub?.plan || 'Free Trial'} to the ${validPlan.name} (${billing_cycle} billing).`,
+      message: `${user.name} (${user.email}) requested an upgrade from ${currentSub?.plan || 'Free Trial'} to the ${validPlan.name} (${normalizedCycle} billing).`,
       hospital_id: user.hospital_id,
       hospital_name: hospital?.name || 'Hospital',
       action_url: `/subscriptions`,
@@ -167,7 +141,7 @@ export async function POST(request) {
         requestId: newRequest.id,
         requestedPlan: validPlan.key,
         planName: validPlan.name,
-        billingCycle: billing_cycle,
+        billingCycle: normalizedCycle,
         userEmail: user.email,
         phone: contact_phone?.trim() || hospital?.phone || null,
       },

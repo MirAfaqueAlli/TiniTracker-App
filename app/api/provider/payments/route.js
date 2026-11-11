@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { Op } from 'sequelize';
 import { withProviderAuth } from '@/lib/middleware/withProviderAuth';
 import { Payment, Hospital, Subscription } from '@/lib/db/models/index';
+import { isValidPaymentAmount, handleApiError, parsePagination } from '@/lib/utils/validation';
 
 // GET /api/provider/payments — list all payments across all hospitals
 export async function GET(request) {
@@ -14,6 +15,7 @@ export async function GET(request) {
     const method = searchParams.get('method');
     const fromDate = searchParams.get('from_date');
     const toDate = searchParams.get('to_date');
+    const { limit, offset } = parsePagination(searchParams, 100, 500);
 
     const where = {};
     if (hospitalId && hospitalId !== 'ALL') {
@@ -43,6 +45,8 @@ export async function GET(request) {
         }
       ],
       order: [['payment_date', 'DESC'], ['createdAt', 'DESC']],
+      limit,
+      offset,
     });
 
     return NextResponse.json({ payments });
@@ -73,6 +77,10 @@ export async function POST(request) {
       return NextResponse.json({ error: 'hospital_id, amount, and payment_date are required' }, { status: 400 });
     }
 
+    if (!isValidPaymentAmount(amount)) {
+      return NextResponse.json({ error: 'Payment amount must be a positive number' }, { status: 400 });
+    }
+
     const hospital = await Hospital.findByPk(hospital_id);
     if (!hospital) {
       return NextResponse.json({ error: 'Hospital not found' }, { status: 404 });
@@ -95,7 +103,6 @@ export async function POST(request) {
       payment,
     }, { status: 201 });
   } catch (err) {
-    console.error('Record payment error:', err);
-    return NextResponse.json({ error: 'Failed to record payment' }, { status: 500 });
+    return handleApiError(err, 'Failed to record payment', '[POST /provider/payments]');
   }
 }

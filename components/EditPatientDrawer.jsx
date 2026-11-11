@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Pencil,
@@ -15,18 +16,14 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import api from '@/lib/api';
-
-const AVATAR_PALETTES = [
-  { bg: '#ffe4e6', color: '#be185d' },
-  { bg: '#ccfbf1', color: '#0f766e' },
-  { bg: '#e0f2fe', color: '#0369a1' },
-  { bg: '#fef9c3', color: '#854d0e' },
-  { bg: '#f3e8ff', color: '#7e22ce' },
-  { bg: '#dcfce7', color: '#15803d' },
-  { bg: '#ffedd5', color: '#9a3412' },
-];
+import { useAuthStore, hasUserPermission } from '@/store/authStore';
+import { normalizeWhatsappNumber } from '@/lib/utils/phone';
 
 export default function EditPatientDrawer({ patient, onClose, onSuccess }) {
+  const { user } = useAuthStore();
+  const canEdit = hasUserPermission(user, 'patients.edit');
+  const canDelete = hasUserPermission(user, 'patients.delete');
+  const canToggleStatus = patient?.status === 'inactive' ? canEdit : canDelete;
   const [isClosing, setIsClosing] = useState(false);
 
   const isPregnant = patient?.patient_type === 'pregnant' || patient?.patient_type === 'both';
@@ -43,9 +40,11 @@ export default function EditPatientDrawer({ patient, onClose, onSuccess }) {
     edd_source:      patient?.edd_source || 'direct_entry',
     child_name:      patient?.child_name || '',
     child_gender:    patient?.child_gender || '',
+    reason:          '',
   });
 
   const [loading, setLoading] = useState(false);
+  const [statusLoading, setStatusLoading] = useState(false);
   const [error, setError] = useState('');
 
   // Smooth closing transition
@@ -89,25 +88,50 @@ export default function EditPatientDrawer({ patient, onClose, onSuccess }) {
       return;
     }
 
+    const normalizedPhone = normalizeWhatsappNumber(form.whatsapp_number);
+    if (!normalizedPhone) {
+      setError('Enter a valid 10-digit WhatsApp number');
+      return;
+    }
+
     setLoading(true);
     try {
       const payload = {
         name:            form.name.trim(),
-        whatsapp_number: form.whatsapp_number.trim(),
+        whatsapp_number: normalizedPhone,
         age:             form.age !== '' ? parseInt(form.age, 10) : null,
         address:         form.address.trim(),
         notes:           form.notes.trim(),
-        lmp_date:        form.lmp_date || null,
       };
 
+      if (form.reason.trim()) payload.reason = form.reason.trim();
+
       if (isPregnant) {
-        payload.edd = form.edd || null;
-        payload.edd_source = form.edd_source || 'direct_entry';
+        const originalLmp = patient.lmp_date ? String(patient.lmp_date).split('T')[0] : '';
+        const originalEdd = patient.edd ? String(patient.edd).split('T')[0] : '';
+        const lmpChanged = form.lmp_date !== originalLmp;
+        const eddChanged = form.edd !== originalEdd;
+        const sourceChanged = (form.edd_source || '') !== (patient.edd_source || '');
+
+        if (lmpChanged) payload.lmp_date = form.lmp_date || null;
+        if (sourceChanged) payload.edd_source = form.edd_source;
+
+        // If LMP drives the EDD, let the backend recompute it. Do not send a
+        // stale EDD value alongside the new LMP.
+        if (lmpChanged && (payload.edd_source || patient.edd_source) === 'lmp_calculated') {
+          delete payload.edd;
+        } else if (eddChanged) {
+          payload.edd = form.edd || null;
+        }
       }
 
       if (hasChild) {
-        payload.child_name = form.child_name.trim() || null;
-        payload.child_gender = form.child_gender || null;
+        if (form.child_name.trim() !== (patient.child_name || '')) {
+          payload.child_name = form.child_name.trim() || null;
+        }
+        if ((form.child_gender || '') !== (patient.child_gender || '')) {
+          payload.child_gender = form.child_gender || null;
+        }
       }
 
       await api.patch(`/patients/${patient.id}`, payload);
@@ -119,7 +143,33 @@ export default function EditPatientDrawer({ patient, onClose, onSuccess }) {
     }
   }
 
-  const palette = AVATAR_PALETTES[(patient.id || 0) % AVATAR_PALETTES.length];
+  async function handleStatusToggle() {
+    const nextStatus = patient.status === 'inactive' ? 'active' : 'inactive';
+    const action = nextStatus === 'inactive' ? 'deactivate' : 'reactivate';
+    if (typeof window !== 'undefined' && !window.confirm(`Are you sure you want to ${action} this patient?`)) {
+      return;
+    }
+
+    setStatusLoading(true);
+    setError('');
+    try {
+      await api.patch(`/patients/${patient.id}/status`, {
+        status: nextStatus,
+        reason: form.reason.trim() || `manual_${action}`,
+      });
+      onSuccess();
+    } catch (err) {
+      setError(err.response?.data?.error || `Failed to ${action} patient`);
+    } finally {
+      setStatusLoading(false);
+    }
+  }
+
+  const typeTone = isPregnant
+    ? 'is-anc'
+    : patient.patient_type === 'both'
+    ? 'is-both'
+    : 'is-imm';
   const initials = (patient.name || 'P')
     .split(' ')
     .map((w) => w[0])
@@ -127,23 +177,15 @@ export default function EditPatientDrawer({ patient, onClose, onSuccess }) {
     .slice(0, 2)
     .toUpperCase();
 
-  const typeColor = isPregnant
-    ? '#be185d'
-    : patient.patient_type === 'both'
-    ? '#7c3aed'
-    : '#0284c7';
-  const typeBg = isPregnant
-    ? '#fdf2f8'
-    : patient.patient_type === 'both'
-    ? '#f5f3ff'
-    : '#f0f9ff';
   const typeLabel = isPregnant
     ? 'Pregnancy'
     : patient.patient_type === 'both'
     ? 'Pregnancy & Child'
     : 'Immunization';
 
-  return (
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <div
       className={`patient-drawer-backdrop${isClosing ? ' closing' : ''}`}
       onClick={(e) => {
@@ -167,22 +209,7 @@ export default function EditPatientDrawer({ patient, onClose, onSuccess }) {
                 <h2 className="rpm-title" style={{ fontSize: '1.05rem', margin: 0 }}>
                   Edit Patient Details
                 </h2>
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.25rem',
-                    fontSize: '0.675rem',
-                    fontWeight: 700,
-                    padding: '2px 8px',
-                    borderRadius: '999px',
-                    background: typeBg,
-                    color: typeColor,
-                    border: `1px solid ${typeColor}30`,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.04em',
-                  }}
-                >
+                <span className={`drawer-type-badge ${typeTone}`}>
                   {isPregnant ? (
                     <HeartPulse size={10} />
                   ) : patient.patient_type === 'both' ? (
@@ -218,10 +245,7 @@ export default function EditPatientDrawer({ patient, onClose, onSuccess }) {
           <div className="patient-drawer-body">
             {/* Quick Patient Identity Strip */}
             <div className="drawer-patient-summary">
-              <div
-                className="drawer-patient-avatar"
-                style={{ background: palette.bg, color: palette.color }}
-              >
+              <div className={`drawer-patient-avatar ${typeTone}`}>
                 {initials}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -229,7 +253,7 @@ export default function EditPatientDrawer({ patient, onClose, onSuccess }) {
                   style={{
                     fontWeight: 700,
                     fontSize: '0.925rem',
-                    color: 'var(--color-text, #0f172a)',
+                    color: 'var(--ttd-ink)',
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
@@ -240,7 +264,7 @@ export default function EditPatientDrawer({ patient, onClose, onSuccess }) {
                 <div
                   style={{
                     fontSize: '0.765rem',
-                    color: 'var(--color-text-muted, #64748b)',
+                    color: 'var(--ttd-muted)',
                     marginTop: '1px',
                   }}
                 >
@@ -256,7 +280,6 @@ export default function EditPatientDrawer({ patient, onClose, onSuccess }) {
                     ? 'patient-status-active'
                     : 'patient-status-inactive'
                 }`}
-                style={{ fontSize: '0.72rem', padding: '0.2rem 0.65rem' }}
               >
                 <span
                   className={
@@ -293,7 +316,7 @@ export default function EditPatientDrawer({ patient, onClose, onSuccess }) {
                       left: '0.75rem',
                       top: '50%',
                       transform: 'translateY(-50%)',
-                      color: '#94a3b8',
+                      color: 'var(--ttd-muted)',
                     }}
                   />
                   <input
@@ -332,7 +355,7 @@ export default function EditPatientDrawer({ patient, onClose, onSuccess }) {
                     left: '0.75rem',
                     top: '50%',
                     transform: 'translateY(-50%)',
-                    color: '#94a3b8',
+                    color: 'var(--ttd-muted)',
                   }}
                 />
                 <input
@@ -355,7 +378,7 @@ export default function EditPatientDrawer({ patient, onClose, onSuccess }) {
                     position: 'absolute',
                     left: '0.75rem',
                     top: '0.75rem',
-                    color: '#94a3b8',
+                    color: 'var(--ttd-muted)',
                   }}
                 />
                 <textarea
@@ -384,9 +407,9 @@ export default function EditPatientDrawer({ patient, onClose, onSuccess }) {
                     gridTemplateColumns: '1fr 1fr',
                     gap: '0.75rem',
                     padding: '0.85rem',
-                    background: 'var(--color-bg-primary, #f8fafc)',
+                    background: 'var(--ttd-surface-soft)',
                     borderRadius: '12px',
-                    border: '1px solid var(--color-border, #e2e8f0)',
+                    border: '1px solid var(--ttd-line)',
                   }}
                 >
                   <div className="rpm-field">
@@ -394,7 +417,7 @@ export default function EditPatientDrawer({ patient, onClose, onSuccess }) {
                       className="rpm-label"
                       style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
                     >
-                      <Calendar size={12} color="#00857c" /> LMP Date
+                      <Calendar size={12} color="var(--ttd-accent-ink)" /> LMP Date
                     </label>
                     <input
                       className="rpm-input"
@@ -409,7 +432,7 @@ export default function EditPatientDrawer({ patient, onClose, onSuccess }) {
                       className="rpm-label"
                       style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
                     >
-                      <CalendarCheck size={12} color="#00857c" /> Expected Delivery (EDD)
+                      <CalendarCheck size={12} color="var(--ttd-accent-ink)" /> Expected Delivery (EDD)
                     </label>
                     <input
                       className="rpm-input"
@@ -445,9 +468,9 @@ export default function EditPatientDrawer({ patient, onClose, onSuccess }) {
                     gridTemplateColumns: '1fr 1fr',
                     gap: '0.75rem',
                     padding: '0.85rem',
-                    background: 'var(--color-bg-primary, #f8fafc)',
+                    background: 'var(--ttd-surface-soft)',
                     borderRadius: '12px',
-                    border: '1px solid var(--color-border, #e2e8f0)',
+                    border: '1px solid var(--ttd-line)',
                   }}
                 >
                   <div className="rpm-field">
@@ -455,7 +478,7 @@ export default function EditPatientDrawer({ patient, onClose, onSuccess }) {
                       className="rpm-label"
                       style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
                     >
-                      <Baby size={12} color="#00857c" /> Child Name
+                      <Baby size={12} color="var(--ttd-accent-ink)" /> Child Name
                     </label>
                     <input
                       className="rpm-input"
@@ -482,6 +505,18 @@ export default function EditPatientDrawer({ patient, onClose, onSuccess }) {
               </>
             )}
 
+            {/* Section: Audit reason */}
+            <div className="drawer-section-title">Audit</div>
+            <div className="rpm-field">
+              <label className="rpm-label">Reason for change</label>
+              <input
+                className="rpm-input"
+                value={form.reason}
+                onChange={(e) => set('reason', e.target.value)}
+                placeholder="e.g. Contact number correction, EDD revised after scan"
+              />
+            </div>
+
             {/* Section: Clinical Notes */}
             <div className="drawer-section-title">Clinical Records &amp; Notes</div>
             <div className="rpm-field">
@@ -492,7 +527,7 @@ export default function EditPatientDrawer({ patient, onClose, onSuccess }) {
                     position: 'absolute',
                     left: '0.75rem',
                     top: '0.75rem',
-                    color: '#94a3b8',
+                    color: 'var(--ttd-muted)',
                   }}
                 />
                 <textarea
@@ -514,6 +549,21 @@ export default function EditPatientDrawer({ patient, onClose, onSuccess }) {
 
           {/* Sticky Drawer Footer */}
           <div className="patient-drawer-footer">
+            {canToggleStatus && (
+              <button
+                type="button"
+                className="rpm-btn-cancel"
+                onClick={handleStatusToggle}
+                disabled={loading || statusLoading}
+                style={{ color: patient.status === 'inactive' ? 'var(--ttd-accent-ink)' : 'var(--ttd-rose)' }}
+              >
+                {statusLoading
+                  ? 'Updating...'
+                  : patient.status === 'inactive'
+                    ? 'Reactivate Patient'
+                    : 'Deactivate Patient'}
+              </button>
+            )}
             <button
               type="button"
               className="rpm-btn-cancel"
@@ -522,24 +572,27 @@ export default function EditPatientDrawer({ patient, onClose, onSuccess }) {
             >
               Cancel
             </button>
-            <button
-              type="submit"
-              className="rpm-btn-submit"
-              disabled={loading}
-              style={{ minWidth: 130, justifyContent: 'center' }}
-            >
-              {loading ? (
-                <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
-              ) : (
-                <>
-                  <CheckCircle size={14} />
-                  <span>Save Changes</span>
-                </>
-              )}
-            </button>
+            {canEdit && (
+              <button
+                type="submit"
+                className="rpm-btn-submit"
+                disabled={loading}
+                style={{ minWidth: 130, justifyContent: 'center' }}
+              >
+                {loading ? (
+                  <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
+                ) : (
+                  <>
+                    <CheckCircle size={14} />
+                    <span>Save Changes</span>
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </form>
       </aside>
-    </div>
+    </div>,
+    document.body,
   );
 }

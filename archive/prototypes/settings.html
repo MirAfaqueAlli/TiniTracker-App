@@ -1,0 +1,3074 @@
+<!doctype html>
+<html lang="en">
+<head><script type="application/json" data-od-external-dependencies>["https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,600&display=swap"]</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Hospital settings · TiniTracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,600&display=swap" rel="stylesheet">
+<style>
+/* OD-LAYOUT-PRIMITIVES v1 — structure only: display, flex/grid, overflow, wrapping, ratio, geometry.
+   Put this @layer first; product CSS outside the layer wins ordinary layout rules.
+   Native hidden and closed-dialog states take precedence over component display rules. */
+@layer od-layout {
+  [hidden]:not([hidden="until-found" i]) { display: none !important; }
+  dialog:not([open]) { display: none !important; }
+
+  :where(.od-stack,.od-row,.od-row-top,.od-cluster,.od-grid,.od-field,.od-stat,.od-cell,.od-tile) > :where(*) { min-width: 0; }
+
+  /* containers */
+  .od-stack   { display: flex; flex-direction: column; gap: var(--od-gap, 8px); }
+  .od-row     { display: flex; align-items: center; gap: var(--od-gap, 8px); }
+  .od-row-top { display: flex; align-items: flex-start; gap: var(--od-gap, 8px); }
+  .od-cluster { display: flex; flex-wrap: wrap; align-items: center; gap: var(--od-gap, 8px); }
+  .od-fill    { flex: 1 1 0; min-width: 0; }
+  .od-fixed   { flex: none; }
+  .od-grid    { display: grid; gap: var(--od-gap, 12px); grid-template-columns: repeat(var(--od-cols, 3), minmax(0, 1fr)); }
+
+  /* stacked information: each piece is its own line — never sibling inline spans */
+  .od-stat, .od-field, .od-cell { display: grid; gap: var(--od-gap, 2px); }
+  :where(.od-stat,.od-field,.od-cell) > :where(*) { display: block; }
+  .od-tile { display: grid; grid-template-rows: auto 1fr; }
+  :where(.od-tile) > :where(*) { display: block; }
+
+  /* media keeps its intrinsic ratio by default; never a distorted or cropped
+     cover by accident. height:auto lets the ratio win over an <img height="…">
+     attribute. Cropping to a uniform box is an explicit opt-in: set --od-ratio
+     AND add .od-media-cover together. */
+  .od-media { display: block; width: 100%; height: auto; aspect-ratio: var(--od-ratio, auto); }
+  .od-media-cover { object-fit: cover; }
+
+  /* functional inline SVG icons opt into bounded geometry; content SVGs keep their own */
+  .od-icon { display: inline-block; inline-size: var(--od-icon-size, 1em); block-size: var(--od-icon-size, 1em); flex: none; }
+
+  /* data text only — authored copy is rewritten to its budget instead */
+  .od-truncate { display: block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .od-clamp-2, .od-clamp-3 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+  .od-clamp-2 { -webkit-line-clamp: 2; }
+  .od-clamp-3 { -webkit-line-clamp: 3; }
+  .od-lines-2 { min-height: calc(2 * 1.4em); }
+  .od-nowrap  { white-space: nowrap; }
+  .od-keep    { word-break: keep-all; overflow-wrap: anywhere; }
+
+  /* screen skeleton (optional): bars take their own space, the middle scrolls */
+  .od-screen { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; }
+  .od-scroll { overflow-y: auto; overscroll-behavior: contain; min-height: 0; }
+
+  /* horizontal rail: the next item peeks at the edge */
+  .od-rail { display: flex; gap: var(--od-gap, 8px); overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none;
+             padding-inline: var(--od-rail-pad, 16px); scroll-padding-inline: var(--od-rail-pad, 16px); }
+  .od-rail::-webkit-scrollbar { display: none; }
+  :where(.od-rail) > :where(*) { flex: none; scroll-snap-align: start; }
+  :where(.od-rail) > :where(:last-child) { margin-inline-end: var(--od-rail-pad, 16px); }
+
+  .od-spacer { flex: none; visibility: hidden; pointer-events: none; }
+  .od-touch  { min-width: 44px; min-height: 44px; }
+}
+:root [hidden]:where(:not([hidden="until-found" i])) { display: none; }
+/* /OD-LAYOUT-PRIMITIVES v1 */
+
+:root{
+  --bg:#eef2f1;
+  --surface:#ffffff;
+  --surface-2:#f5f8f7;
+  --line:#dde5e3;
+  --line-soft:#eaf0ee;
+  --line-strong:#c4d2ce;
+  --ink:#12201d;
+  --ink-2:#4c5c58;
+  --ink-3:#5d6d65;
+  --brand:#0d6b58;
+  --brand-dark:#0a5749;
+  --brand-deep:#08483d;
+  --brand-soft:#e6f2ee;
+  --danger:#9c2a1e;
+  --danger-soft:#fbe9e6;
+  --warn:#8a5a0b;
+  --warn-soft:#fdf2dc;
+  --imm:#3c5f8c;
+  --imm-soft:#e9eff8;
+  --radius:14px;
+  --radius-sm:10px;
+  --shadow:0 1px 2px rgba(14,32,28,.06);
+  --font-ui:'Manrope', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-serif:'Source Serif 4', Georgia, 'Times New Roman', serif;
+  --mono:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font:400 14px/1.5 var(--font-ui);
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+h1,h2,h3,h4,p{margin:0}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+button{font-family:inherit}
+.i14{--od-icon-size:14px}
+.i16{--od-icon-size:16px}
+.i18{--od-icon-size:18px}
+.i20{--od-icon-size:20px}
+
+/* ---------- app shell ---------- */
+.app{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:100vh}
+.sidebar{
+  position:sticky;top:0;height:100vh;overflow-y:auto;
+  background:#0e2622;color:#cfe3dc;
+  padding:18px 14px 16px;display:flex;flex-direction:column;gap:22px;
+}
+.brand{display:flex;align-items:center;gap:10px;padding:4px 6px 0}
+.brand-mark{width:34px;height:34px;border-radius:10px;background:#1b6b58;display:grid;place-items:center;color:#eaf5f1;flex:none}
+.brand-text{min-width:0}
+.brand-name{display:block;font:700 15.5px/1.2 var(--font-ui);color:#f0f7f4;letter-spacing:-.01em}
+.brand-sub{display:block;font:500 11px/1.3 var(--font-ui);color:#8fb3a9;margin-top:2px}
+.nav{display:flex;flex-direction:column;gap:2px;min-width:0}
+.nav-label{font:700 10.5px/1 var(--font-ui);letter-spacing:.1em;text-transform:uppercase;color:#7b9f95;padding:0 8px 6px}
+.nav button{
+  display:flex;align-items:center;gap:10px;width:100%;
+  padding:9px 9px;border:0;border-radius:9px;background:none;cursor:pointer;
+  font:500 13.5px/1.2 var(--font-ui);color:#a9c6bd;text-align:left;
+  transition:background-color .16s ease,color .16s ease;
+}
+.nav button:hover{background:rgba(255,255,255,.07);color:#f0f7f4}
+.nav button[aria-current="page"]{background:#1a4b3f;color:#f0f7f4;font-weight:600}
+.nav button:focus-visible{outline:2px solid #7fd0bb;outline-offset:2px}
+.nav .nav-count{margin-left:auto;font:600 10.5px/1 var(--font-ui);background:#1d5147;color:#cfe3dc;padding:3px 6px;border-radius:999px}
+.side-foot{margin-top:auto;display:flex;flex-direction:column;gap:10px}
+.clinic-card{background:rgba(255,255,255,.07);border-radius:11px;padding:11px 12px}
+.clinic-card .k{display:block;font:700 10px/1 var(--font-ui);letter-spacing:.09em;text-transform:uppercase;color:#8fb3a9}
+.clinic-card .v{display:block;font:600 12.5px/1.4 var(--font-ui);color:#eaf5f1;margin-top:5px}
+.clinic-card .s{display:block;font:500 11.5px/1.4 var(--font-ui);color:#a9c6bd;margin-top:2px}
+.user-line{display:flex;align-items:center;gap:9px;padding:2px 4px}
+.user-avatar{width:28px;height:28px;border-radius:8px;background:#1d5147;color:#dcece6;display:grid;place-items:center;font:700 11px/1 var(--font-ui);flex:none}
+.staff-name{display:block;font:600 12.5px/1.2 var(--font-ui);color:var(--ink)}
+.staff-role{display:block;font:500 11px/1.2 var(--font-ui);color:var(--ink-3)}
+.sidebar .staff-name{color:#f0f7f4}
+.sidebar .staff-role{color:#a9c6bd}
+
+/* ---------- topbar ---------- */
+.workspace{min-width:0;display:flex;flex-direction:column}
+.topbar{
+  position:sticky;top:0;z-index:30;
+  display:flex;align-items:center;gap:16px;
+  padding:10px 26px;background:var(--surface);border-bottom:1px solid var(--line);
+}
+.crumbs{display:flex;align-items:center;gap:7px;font:500 13px/1.2 var(--font-ui);color:var(--ink-3);min-width:0;flex:1 1 auto}
+.crumbs .sep{color:var(--line-strong)}
+.crumbs strong{color:var(--ink);font-weight:600}
+.top-meta{display:flex;align-items:center;gap:14px;flex:none;margin-left:auto}
+.top-date{font:500 12.5px/1.2 var(--font-ui);color:var(--ink-3);font-variant-numeric:tabular-nums}
+.icon-btn{
+  width:36px;height:36px;border-radius:9px;border:1px solid var(--line);background:#fff;
+  display:grid;place-items:center;color:var(--ink-2);cursor:pointer;position:relative;
+}
+.icon-btn:hover{background:var(--surface-2);color:var(--ink)}
+.icon-btn:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.icon-btn .dot{position:absolute;top:7px;right:8px;width:6px;height:6px;border-radius:50%;background:var(--danger);border:1.5px solid #fff}
+.staff{display:flex;align-items:center;gap:8px}
+.staff-avatar{width:32px;height:32px;border-radius:9px;background:var(--brand-soft);color:var(--brand-dark);display:grid;place-items:center;font:700 11.5px/1 var(--font-ui);border:1px solid #cfe4dd}
+
+/* ---------- content ---------- */
+.content{padding:22px 26px 44px;display:flex;flex-direction:column;gap:14px;max-width:1400px;width:100%}
+
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;flex-wrap:wrap;padding:2px 2px 2px}
+.hospital-head{display:flex;gap:15px;align-items:flex-start;min-width:0}
+.hospital-mark{
+  width:52px;height:52px;border-radius:14px;background:var(--brand-dark);color:#f2fbf7;
+  display:grid;place-items:center;font:600 17px/1 var(--font-serif);letter-spacing:.01em;flex:none;
+  border:1px solid #0d5f4f;overflow:hidden;
+}
+.hospital-mark img{width:100%;height:100%;object-fit:cover;display:block}
+.eyebrow{display:block;font:700 10px/1 var(--font-ui);letter-spacing:.11em;text-transform:uppercase;color:var(--ink-3);margin-bottom:7px}
+.page-title{font:600 30px/1.14 var(--font-serif);letter-spacing:-.015em;color:var(--ink)}
+.page-sub{font:500 13px/1.6 var(--font-ui);color:var(--ink-2);margin-top:7px;max-width:74ch}
+.name-meta{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:9px}
+.chip{font:600 11px/1 var(--font-ui);padding:5px 8px;border-radius:6px;background:#eef2f1;color:var(--ink-2);white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
+.chip-line{background:#fff;border:1px solid var(--line-strong)}
+.chip-live{background:var(--brand-soft);color:var(--brand-dark)}
+.chip-warn{background:var(--warn-soft);color:var(--warn)}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--brand);flex:none}
+.page-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.save-state{
+  display:inline-flex;align-items:center;gap:7px;font:600 12px/1.2 var(--font-ui);color:var(--ink-2);
+  background:#fff;border:1px solid var(--line);border-radius:999px;padding:8px 12px;min-height:38px;
+}
+.save-state .state-dot{width:7px;height:7px;border-radius:50%;background:var(--brand);flex:none}
+.save-state[data-dirty="true"]{color:var(--warn);border-color:#ead6b4;background:#fffdf8}
+.save-state[data-dirty="true"] .state-dot{background:var(--warn)}
+
+/* buttons */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  border:1px solid transparent;border-radius:9px;padding:8px 13px;min-height:38px;
+  font:600 13px/1.2 var(--font-ui);cursor:pointer;white-space:nowrap;
+  transition:background-color .16s ease,border-color .16s ease,color .16s ease;
+  text-decoration:none;
+}
+.btn-primary{background:var(--brand-dark);color:#fff;border-color:var(--brand-dark)}
+.btn-primary:hover{background:var(--brand-deep)}
+.btn-outline{background:#fff;color:var(--ink);border-color:var(--line-strong)}
+.btn-outline:hover{background:var(--surface-2);border-color:#a9bdb8}
+.btn-ghost{background:transparent;color:var(--ink-2);border-color:transparent}
+.btn-ghost:hover{background:#eef2f1;color:var(--ink)}
+.btn-danger{background:var(--danger);color:#fff;border-color:var(--danger)}
+.btn-danger:hover{background:#7f1f16}
+.btn-danger-outline{background:#fff;color:var(--danger);border-color:#e3b8b1}
+.btn-danger-outline:hover{background:var(--danger-soft)}
+.btn:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.btn-sm{min-height:32px;padding:6px 10px;font-size:12.5px;border-radius:8px}
+.linkbtn{
+  border:0;background:none;border-radius:7px;padding:6px 7px;cursor:pointer;
+  font:600 12px/1.2 var(--font-ui);color:var(--brand-dark);white-space:nowrap;
+  transition:background-color .16s ease,color .16s ease;
+}
+.linkbtn:hover{background:var(--brand-soft);color:var(--brand-deep)}
+.linkbtn:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
+.linkbtn.danger{color:var(--danger)}
+.linkbtn.danger:hover{background:var(--danger-soft)}
+
+/* ---------- settings shell ---------- */
+.settings-grid{display:grid;grid-template-columns:236px minmax(0,1fr);gap:16px;align-items:start}
+.settings-nav{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:6px;box-shadow:var(--shadow);position:sticky;top:76px;min-width:0;
+}
+.settings-nav button{
+  position:relative;display:grid;grid-template-columns:30px minmax(0,1fr);gap:9px;align-items:center;
+  width:100%;border:0;background:none;border-radius:9px;padding:9px 8px;text-align:left;
+  cursor:pointer;color:var(--ink-2);transition:background-color .16s ease,color .16s ease;
+}
+.settings-nav button:hover{background:var(--surface-2);color:var(--ink)}
+.settings-nav button[aria-current="true"]{background:var(--brand-soft);color:var(--brand-deep)}
+.settings-nav button:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
+.snav-icon{
+  width:30px;height:30px;border-radius:8px;display:grid;place-items:center;
+  background:var(--surface-2);border:1px solid var(--line);color:var(--ink-3);flex:none;
+}
+.settings-nav button[aria-current="true"] .snav-icon{background:#fff;border-color:#cfe4dd;color:var(--brand-dark)}
+.snav-copy{min-width:0}
+.snav-label{display:block;font:600 12.5px/1.3 var(--font-ui);color:inherit}
+.snav-meta{display:block;font:500 10.5px/1.35 var(--font-ui);color:var(--ink-3);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.settings-nav button[aria-current="true"] .snav-meta{color:#4b766b}
+.settings-nav button[data-dirty="true"]::after{
+  content:'';position:absolute;top:9px;right:8px;width:6px;height:6px;border-radius:50%;background:var(--warn);
+}
+.settings-main{min-width:0}
+
+.setting-panel{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);overflow:hidden;
+}
+.panel-head{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  padding:16px 18px 14px;border-bottom:1px solid var(--line);
+}
+.setting-title{font:600 21px/1.25 var(--font-serif);color:var(--ink);letter-spacing:-.01em}
+.setting-title:focus{outline:none}
+.panel-note{font:500 12px/1.5 var(--font-ui);color:var(--ink-2);margin-top:4px;max-width:72ch}
+.panel-note b{color:var(--ink);font-weight:700}
+.panel-actions{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.panel-body{padding:16px 18px;display:grid;gap:14px}
+.panel-foot{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  padding:11px 18px;border-top:1px solid var(--line);background:#fbfcfc;
+}
+.dirty-note{display:inline-flex;align-items:center;gap:7px;font:600 11.5px/1.4 var(--font-ui);color:var(--ink-3)}
+.dirty-note::before{content:'';width:6px;height:6px;border-radius:50%;background:#c9d5d1;flex:none}
+.dirty-note.on{color:var(--warn)}
+.dirty-note.on::before{background:var(--warn)}
+.foot-actions{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+
+/* ---------- roles ---------- */
+.role-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(235px,1fr));gap:9px}
+.role-card{
+  border:1px solid var(--line);border-radius:11px;background:var(--surface-2);
+  padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0;
+}
+.role-top{display:flex;gap:9px;align-items:flex-start;min-width:0}
+.role-icon{width:32px;height:32px;border-radius:9px;background:#fff;border:1px solid var(--line);display:grid;place-items:center;color:var(--brand-dark);flex:none}
+.role-title{min-width:0;flex:1 1 auto}
+.role-name{font:600 13px/1.35 var(--font-ui);color:var(--ink);overflow-wrap:anywhere}
+.role-desc{font:500 11.5px/1.5 var(--font-ui);color:var(--ink-2);margin-top:3px}
+.role-kind{font:700 8.5px/1 var(--font-ui);letter-spacing:.07em;text-transform:uppercase;padding:4px 5px;border-radius:4px;background:#eef2f1;color:var(--ink-2);white-space:nowrap;flex:none}
+.role-kind.custom{background:var(--brand-soft);color:var(--brand-dark)}
+.role-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto;padding-top:2px}
+.role-members{font:600 10.5px/1.3 var(--font-ui);color:var(--ink-3)}
+.matrix-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:2px}
+.matrix-title{font:600 14px/1.35 var(--font-ui);color:var(--ink)}
+.matrix-sub{font:500 11.5px/1.45 var(--font-ui);color:var(--ink-3);margin-top:2px;max-width:70ch}
+.matrix-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:11px;background:#fff}
+.perm-matrix{min-width:760px}
+.perm-head{
+  display:grid;grid-template-columns:minmax(220px,1.5fr) repeat(var(--role-cols,5),minmax(78px,1fr));
+  gap:6px;padding:10px 12px;background:var(--surface-2);border-bottom:1px solid var(--line);
+}
+.perm-head-label{font:700 9px/1.2 var(--font-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);display:flex;align-items:flex-end}
+.perm-head-role{display:grid;gap:2px;justify-items:center;text-align:center;font:600 10px/1.25 var(--font-ui);color:var(--ink-2);min-width:0}
+.perm-head-role span{overflow-wrap:anywhere}
+.perm-head-role small{font:600 9px/1.2 var(--font-ui);color:var(--ink-3)}
+.perm-group{
+  padding:6px 12px;background:#fbfcfc;border-top:1px solid var(--line-soft);
+  font:700 9px/1.3 var(--font-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);
+}
+.perm-group:first-child{border-top:0}
+.perm-row{
+  display:grid;grid-template-columns:minmax(220px,1.5fr) repeat(var(--role-cols,5),minmax(78px,1fr));
+  gap:6px;padding:7px 12px;border-top:1px solid var(--line-soft);align-items:center;
+}
+.perm-label{min-width:0}
+.perm-name{display:block;font:600 12px/1.4 var(--font-ui);color:var(--ink)}
+.perm-desc{display:block;font:500 10.5px/1.4 var(--font-ui);color:var(--ink-3);margin-top:1px}
+.perm-roles{display:contents}
+.perm-cell{
+  position:relative;display:flex;align-items:center;justify-content:center;gap:6px;
+  min-height:34px;border-radius:7px;cursor:pointer;
+}
+.perm-cell:hover{background:var(--surface-2)}
+.perm-cell input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.perm-box{
+  width:19px;height:19px;border-radius:5px;border:1.5px solid var(--line-strong);background:#fff;
+  display:grid;place-items:center;color:#fff;flex:none;transition:background-color .14s ease,border-color .14s ease;
+}
+.perm-box svg{width:11px;height:11px;opacity:0}
+.perm-cell input:checked + .perm-box{background:var(--brand);border-color:var(--brand)}
+.perm-cell input:checked + .perm-box svg{opacity:1}
+.perm-cell input:focus-visible + .perm-box{outline:2px solid var(--brand);outline-offset:2px}
+.role-cell-name{display:none;font:600 10.5px/1.3 var(--font-ui);color:var(--ink-2)}
+
+/* ---------- staff ---------- */
+.staff-strip{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+  border-bottom:1px solid var(--line-soft);background:#fbfcfc;
+}
+.metric{padding:12px 16px;border-right:1px solid var(--line-soft);min-width:0}
+.metric:last-child{border-right:0}
+.metric-value{display:block;font:600 22px/1.05 var(--font-serif);color:var(--ink);font-variant-numeric:tabular-nums}
+.metric-label{display:block;font:700 9px/1.2 var(--font-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin-top:4px}
+.toolbar{display:flex;gap:7px;align-items:center;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--line-soft);background:#fbfcfc}
+.tool-search{position:relative;flex:1 1 240px;max-width:340px;min-width:180px}
+.tool-search .od-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--ink-3);pointer-events:none}
+.tool-search input{
+  width:100%;padding:7px 11px 7px 32px;border:1px solid var(--line-strong);border-radius:999px;
+  background:#fff;font:400 12.5px/1.4 var(--font-ui);color:var(--ink);
+}
+.tool-search input::placeholder{color:var(--ink-3)}
+.tool-search input:focus{outline:2px solid var(--brand);outline-offset:1px}
+.select-wrap{position:relative;display:inline-flex}
+.select-wrap select{
+  appearance:none;-webkit-appearance:none;
+  border:1px solid var(--line);background:#fff;color:var(--ink-2);border-radius:999px;
+  padding:7px 28px 7px 11px;font:600 12px/1.2 var(--font-ui);cursor:pointer;
+}
+.select-wrap select:hover{background:var(--surface-2);color:var(--ink)}
+.select-wrap select:focus{outline:2px solid var(--brand);outline-offset:2px}
+.select-wrap .chev{position:absolute;right:9px;top:50%;transform:translateY(-50%);color:var(--ink-3);pointer-events:none}
+.result-count{font:500 11.5px/1.3 var(--font-ui);color:var(--ink-3);white-space:nowrap;font-variant-numeric:tabular-nums}
+.result-count b{color:var(--ink-2);font-weight:700}
+.table-wrap{overflow-x:auto}
+.staff-table{width:100%;border-collapse:collapse}
+.staff-table th{
+  text-align:left;font:700 9px/1.2 var(--font-ui);letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-3);padding:9px 16px;background:var(--surface-2);border-bottom:1px solid var(--line);white-space:nowrap;
+}
+.staff-table td{padding:11px 16px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+.staff-table tbody tr:last-child td{border-bottom:0}
+.staff-table tbody tr:hover{background:#fbfcfc}
+.col-staff{width:26%}
+.col-role{width:18%}
+.col-contact{width:20%}
+.col-status{width:11%}
+.col-last{width:15%}
+.col-act{width:10%;text-align:right}
+.p-cell{display:flex;gap:9px;align-items:flex-start;min-width:0}
+.avatar-sm{
+  width:32px;height:32px;border-radius:9px;background:var(--brand-soft);color:var(--brand-dark);
+  display:grid;place-items:center;font:700 10.5px/1 var(--font-ui);letter-spacing:.01em;flex:none;
+  border:1px solid #cfe4dd;
+}
+.avatar-sm.role-admin{background:var(--warn-soft);color:var(--warn);border-color:#efdfbd}
+.avatar-sm.role-doctor{background:var(--imm-soft);color:var(--imm);border-color:#ccd9ec}
+.avatar-sm.role-front{background:#eef2f1;color:var(--ink-2);border-color:var(--line)}
+.p-name{font:600 13px/1.35 var(--font-ui);color:var(--ink);overflow-wrap:anywhere}
+.p-sub{font:500 11.5px/1.4 var(--font-ui);color:var(--ink-3);margin-top:2px;overflow-wrap:anywhere}
+.role-chip{font:600 10.5px/1.2 var(--font-ui);color:var(--ink-2);background:#eef2f1;border-radius:5px;padding:5px 6px;display:inline-block;max-width:100%}
+.contact-line{font:500 12px/1.45 var(--font-ui);color:var(--ink-2);overflow-wrap:anywhere}
+.contact-sub{font:500 11px/1.4 var(--font-ui);color:var(--ink-3);margin-top:2px}
+.status{
+  display:inline-flex;align-items:center;gap:5px;border-radius:6px;
+  font:600 11px/1.2 var(--font-ui);padding:5px 7px;white-space:nowrap;
+}
+.status i{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+.st-active{background:var(--brand-soft);color:#0a5749}
+.st-invited{background:var(--warn-soft);color:var(--warn)}
+.st-inactive{background:#eef2f1;color:var(--ink-2)}
+.last-line{font:500 12px/1.45 var(--font-ui);color:var(--ink-2);font-variant-numeric:tabular-nums}
+.last-sub{font:500 10.5px/1.4 var(--font-ui);color:var(--ink-3);margin-top:2px}
+.empty{
+  padding:32px 16px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;
+  color:var(--ink-2);font:500 13px/1.5 var(--font-ui);
+}
+.empty .od-icon{color:var(--ink-3);margin-bottom:2px}
+.empty strong{color:var(--ink);font:600 14px/1.4 var(--font-ui)}
+.empty .btn{margin-top:8px}
+
+/* ---------- audit ---------- */
+.audit-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:11px 16px;border-bottom:1px solid var(--line-soft);background:#fbfcfc}
+.audit-cats{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:9px 16px;border-bottom:1px solid var(--line-soft);background:#fff}
+.chipfilter{
+  border:1px solid var(--line);background:#fff;color:var(--ink-2);border-radius:999px;
+  padding:5px 9px;font:600 11.5px/1.2 var(--font-ui);cursor:pointer;
+  display:inline-flex;align-items:center;gap:5px;
+  transition:background-color .16s ease,border-color .16s ease,color .16s ease;
+}
+.chipfilter .n{font:700 10px/1 var(--font-ui);opacity:.65}
+.chipfilter:hover{background:var(--surface-2);color:var(--ink)}
+.chipfilter[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+.chipfilter:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.audit-day{border-bottom:1px solid var(--line)}
+.audit-day:last-child{border-bottom:0}
+.audit-day-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+  padding:9px 16px;background:var(--surface-2);border-bottom:1px solid var(--line-soft);
+  font:600 11.5px/1.4 var(--font-ui);color:var(--ink-2);
+}
+.audit-day-head b{color:var(--ink);font-weight:700}
+.audit-day-head span{font-weight:500;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.audit-event{display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:11px;padding:12px 16px;border-bottom:1px solid var(--line-soft);align-items:start}
+.audit-event:last-child{border-bottom:0}
+.audit-icon{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;flex:none}
+.cat-clinical .audit-icon,.audit-icon.cat-clinical{background:var(--brand-soft);color:var(--brand-dark)}
+.cat-reminder .audit-icon,.audit-icon.cat-reminder{background:var(--imm-soft);color:var(--imm)}
+.cat-automation .audit-icon,.audit-icon.cat-automation{background:var(--warn-soft);color:var(--warn)}
+.cat-access .audit-icon,.audit-icon.cat-access{background:#eceef0;color:#4d5560}
+.cat-billing .audit-icon,.audit-icon.cat-billing{background:#e7eee9;color:var(--brand-deep)}
+.cat-system .audit-icon,.audit-icon.cat-system{background:#eef2f1;color:var(--ink-2)}
+.audit-main{min-width:0}
+.audit-line{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.audit-action{font:600 13px/1.35 var(--font-ui);color:var(--ink)}
+.cat-tag{font:700 8.5px/1 var(--font-ui);letter-spacing:.06em;text-transform:uppercase;padding:4px 5px;border-radius:4px;white-space:nowrap}
+.cat-tag.cat-clinical{background:var(--brand-soft);color:#0a5749}
+.cat-tag.cat-reminder{background:var(--imm-soft);color:var(--imm)}
+.cat-tag.cat-automation{background:var(--warn-soft);color:var(--warn)}
+.cat-tag.cat-access{background:#eceef0;color:#4d5560}
+.cat-tag.cat-billing{background:#e7eee9;color:var(--brand-deep)}
+.cat-tag.cat-system{background:#eef2f1;color:var(--ink-2)}
+.audit-detail{font:400 12px/1.5 var(--font-ui);color:var(--ink-2);margin-top:3px;max-width:82ch}
+.audit-meta{display:flex;gap:6px;flex-wrap:wrap;font:500 10.5px/1.4 var(--font-ui);color:var(--ink-3);margin-top:4px}
+.audit-meta .sep{color:var(--line-strong)}
+.audit-time{font:500 11.5px/1.4 var(--font-ui);color:var(--ink-3);font-variant-numeric:tabular-nums;white-space:nowrap;padding-top:2px}
+.audit-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:10px 16px;border-top:1px solid var(--line-soft);background:#fbfcfc;font:500 11.5px/1.4 var(--font-ui);color:var(--ink-3)}
+.audit-foot b{color:var(--ink-2);font-weight:700}
+
+/* ---------- automation ---------- */
+.automation-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(300px,.85fr);gap:14px;padding:16px 18px;align-items:start}
+.auto-form{display:grid;gap:11px;min-width:0}
+.setting-box{border:1px solid var(--line);border-radius:12px;padding:13px 14px;background:#fff;display:grid;gap:11px;min-width:0}
+.box-title{font:600 13.5px/1.35 var(--font-ui);color:var(--ink);display:flex;align-items:center;gap:7px}
+.box-title .od-icon{color:var(--ink-3)}
+.box-note{font:500 11.5px/1.5 var(--font-ui);color:var(--ink-2);margin-top:3px}
+.switch-row{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:9px 0;border-bottom:1px solid var(--line-soft)}
+.switch-row:last-child{border-bottom:0;padding-bottom:0}
+.switch-row:first-of-type{padding-top:0}
+.switch-copy{min-width:0}
+.switch-title{font:600 12.5px/1.4 var(--font-ui);color:var(--ink)}
+.switch-sub{font:500 11px/1.45 var(--font-ui);color:var(--ink-3);margin-top:2px}
+.switch{position:relative;display:inline-flex;align-items:center;justify-content:center;width:44px;min-height:44px;flex:none;cursor:pointer}
+.switch input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.switch-track{width:40px;height:23px;border-radius:999px;background:#d5dfdc;position:relative;transition:background-color .16s ease}
+.switch-thumb{position:absolute;top:3px;left:3px;width:17px;height:17px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(14,32,28,.2);transition:transform .16s ease}
+.switch input:checked + .switch-track{background:var(--brand)}
+.switch input:checked + .switch-track .switch-thumb{transform:translateX(17px)}
+.switch input:focus-visible + .switch-track{outline:2px solid var(--brand);outline-offset:2px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field{display:grid;gap:5px;min-width:0}
+.field > label{font:600 12px/1.3 var(--font-ui);color:var(--ink)}
+.field .hint{font:500 11px/1.4 var(--font-ui);color:var(--ink-3)}
+.field .req{color:var(--danger);font-weight:700}
+.field input,.field select,.field textarea{
+  width:100%;padding:8px 10px;border:1px solid var(--line-strong);border-radius:8px;
+  font:400 13px/1.4 var(--font-ui);color:var(--ink);background:#fff;
+}
+.field textarea{resize:vertical;min-height:66px}
+.field input:focus,.field select:focus,.field textarea:focus{outline:2px solid var(--brand);outline-offset:1px;border-color:var(--brand)}
+.field [aria-invalid="true"]{border-color:var(--danger);box-shadow:0 0 0 3px rgba(156,42,30,.1)}
+.field input:disabled,.field select:disabled{background:var(--surface-2);color:var(--ink-3);cursor:not-allowed}
+.err{font:600 11px/1.4 var(--font-ui);color:var(--danger)}
+.form-summary{font:600 12px/1.5 var(--font-ui);color:var(--danger);background:var(--danger-soft);border-radius:8px;padding:8px 10px}
+.form-summary a{color:inherit;text-decoration:underline}
+.time-pair{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.time-pair .field{flex:0 0 auto}
+.time-pair .dash{color:var(--ink-3);font:600 12px/1.2 var(--font-ui)}
+.input-time{width:118px}
+.preview-card{
+  background:#0e2622;color:#dcece6;border-radius:14px;padding:16px;display:grid;gap:14px;
+  border:1px solid #1d3e36;position:sticky;top:76px;
+}
+.preview-eyebrow{font:700 9.5px/1.2 var(--font-ui);letter-spacing:.1em;text-transform:uppercase;color:#8fb3a9}
+.preview-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.preview-time{font:600 32px/1 var(--font-serif);color:#f6fbf8;letter-spacing:-.02em;margin-top:5px}
+.preview-date{font:500 11.5px/1.45 var(--font-ui);color:#a9c6bd;margin-top:3px}
+.preview-badge{font:700 9px/1 var(--font-ui);letter-spacing:.07em;text-transform:uppercase;padding:5px 7px;border-radius:5px;background:#1d5147;color:#cfe3dc;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
+.preview-badge .live-dot{background:#7fd0bb}
+.preview-badge.paused{background:#4a3a1d;color:#f4dfb6}
+.preview-badge.paused .live-dot{background:#e2b566}
+.preview-count{display:flex;align-items:baseline;gap:7px}
+.preview-count b{font:600 27px/1 var(--font-serif);color:#f6fbf8}
+.preview-count span{font:600 11px/1.2 var(--font-ui);color:#a9c6bd}
+.preview-breakdown{font:500 11px/1.5 var(--font-ui);color:#a9c6bd}
+.preview-divider{height:1px;background:#24453d}
+.preview-list{display:grid;gap:8px}
+.preview-item{display:grid;grid-template-columns:7px minmax(0,1fr);gap:8px;align-items:start}
+.preview-item .dot{width:7px;height:7px;border-radius:50%;background:#7fd0bb;margin-top:5px}
+.preview-item .dot.muted{background:#4b6a61}
+.preview-item-title{font:600 11.5px/1.4 var(--font-ui);color:#dcece6}
+.preview-item-sub{font:500 10.5px/1.4 var(--font-ui);color:#8fb3a9;margin-top:1px}
+.preview-link{
+  display:inline-flex;align-items:center;gap:6px;font:600 11.5px/1.3 var(--font-ui);color:#c9efe4;
+  text-decoration:none;border-radius:6px;padding:6px 0;width:max-content;
+}
+.preview-link:hover{color:#f2fffb}
+.preview-link:focus-visible{outline:2px solid #7fd0bb;outline-offset:2px}
+.preview-foot{font:500 10.5px/1.5 var(--font-ui);color:#8fb3a9;border-top:1px solid #24453d;padding-top:10px}
+.preview-empty{font:500 11.5px/1.5 var(--font-ui);color:#8fb3a9}
+
+/* ---------- hospital / whatsapp ---------- */
+.hospital-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(300px,.85fr);gap:14px;padding:16px 18px;align-items:start}
+.hospital-form{display:grid;gap:11px}
+.logo-row{display:flex;gap:12px;align-items:center}
+.logo-preview{
+  width:56px;height:56px;border-radius:13px;background:var(--brand-dark);color:#f2fbf7;
+  display:grid;place-items:center;font:600 18px/1 var(--font-serif);overflow:hidden;flex:none;
+  border:1px solid #0d5f4f;
+}
+.logo-preview img{width:100%;height:100%;object-fit:cover;display:block}
+.logo-copy{min-width:0}
+.logo-title{font:600 12.5px/1.35 var(--font-ui);color:var(--ink)}
+.logo-note{font:500 10.5px/1.45 var(--font-ui);color:var(--ink-3);margin-top:2px}
+.logo-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.wa-banner{
+  display:flex;gap:9px;align-items:flex-start;padding:10px 11px;border-radius:9px;
+  background:var(--brand-soft);color:var(--brand-deep);font:600 11.5px/1.5 var(--font-ui);
+}
+.wa-banner .od-icon{margin-top:1px}
+.wa-banner.warn{background:var(--warn-soft);color:var(--warn)}
+.wa-status-line{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;font:500 11px/1.4 var(--font-ui);color:var(--ink-3)}
+.key-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.key-value{
+  font:600 11.5px/1.4 var(--mono);background:#0e2622;color:#dcece6;
+  padding:8px 10px;border-radius:8px;letter-spacing:.03em;flex:1 1 180px;
+  min-width:0;overflow-wrap:anywhere;
+}
+.wa-actions{display:flex;gap:6px;flex-wrap:wrap}
+.test-status{font:600 11px/1.4 var(--font-ui);color:var(--ink-3)}
+.test-status.ok{color:var(--brand-dark)}
+.account-actions{border-top:1px solid var(--line-soft);padding-top:12px;display:grid;gap:8px}
+.account-title{font:600 12px/1.35 var(--font-ui);color:var(--ink)}
+.account-note{font:500 11px/1.45 var(--font-ui);color:var(--ink-3);margin-top:2px}
+.account-buttons{display:flex;gap:6px;flex-wrap:wrap}
+
+/* ---------- billing ---------- */
+.billing-body{display:grid;gap:14px;padding:16px 18px}
+.billing-hero{
+  background:#0e2622;color:#eaf5f1;border-radius:14px;padding:17px 18px;
+  display:flex;align-items:flex-end;justify-content:space-between;gap:18px;flex-wrap:wrap;
+  border:1px solid #1d3e36;
+}
+.billing-eyebrow{font:700 9.5px/1.2 var(--font-ui);letter-spacing:.1em;text-transform:uppercase;color:#8fb3a9}
+.billing-days{font:600 34px/1 var(--font-serif);color:#f6fbf8;letter-spacing:-.02em;margin-top:6px}
+.billing-days small{font:600 13px/1.2 var(--font-ui);color:#cfe3dc;letter-spacing:0;margin-left:4px}
+.billing-note{font:500 11.5px/1.55 var(--font-ui);color:#a9c6bd;margin-top:5px;max-width:52ch}
+.billing-actions{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.billing-hero .btn-outline{background:transparent;color:#eaf5f1;border-color:#3b6156}
+.billing-hero .btn-outline:hover{background:rgba(255,255,255,.07);border-color:#5a7f74}
+.billing-hero .btn-primary{background:#d7efe6;color:#08483d;border-color:#d7efe6}
+.billing-hero .btn-primary:hover{background:#eefaf5}
+.trial-tag{font:700 9px/1 var(--font-ui);letter-spacing:.07em;text-transform:uppercase;padding:5px 7px;border-radius:5px;background:#25493f;color:#d7efe6;display:inline-block}
+.request-banner{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;
+  padding:10px 12px;border-radius:10px;background:var(--brand-soft);color:var(--brand-deep);
+  font:600 12px/1.5 var(--font-ui);
+}
+.request-banner .banner-main{display:flex;gap:8px;align-items:flex-start;min-width:0}
+.request-banner .od-icon{margin-top:1px}
+.usage-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.usage-card{border:1px solid var(--line);border-radius:11px;padding:11px 12px;background:var(--surface-2);min-width:0}
+.usage-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.usage-label{font:700 9px/1.2 var(--font-ui);letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)}
+.usage-value{font:600 18px/1.1 var(--font-serif);color:var(--ink);font-variant-numeric:tabular-nums}
+.usage-value small{font:600 10px/1.2 var(--font-ui);color:var(--ink-3);margin-left:2px;letter-spacing:0}
+.usage-bar{height:6px;border-radius:999px;background:#e2eae7;overflow:hidden;margin-top:8px}
+.usage-bar i{display:block;height:100%;border-radius:inherit;background:var(--brand)}
+.usage-bar.warn i{background:var(--warn)}
+.usage-note{font:500 10.5px/1.4 var(--font-ui);color:var(--ink-3);margin-top:5px}
+.section-subhead{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:2px}
+.section-subhead h3{font:600 16px/1.3 var(--font-serif);color:var(--ink)}
+.section-subhead p{font:500 11.5px/1.45 var(--font-ui);color:var(--ink-3);margin-top:2px}
+.plan-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.plan-card{
+  border:1px solid var(--line);border-radius:12px;padding:13px;background:#fff;
+  display:flex;flex-direction:column;gap:9px;min-width:0;position:relative;
+}
+.plan-card.recommended{border:1.5px solid var(--brand);box-shadow:0 0 0 3px rgba(13,107,88,.06)}
+.plan-card.requested{background:var(--brand-soft);border-color:#bcdcd2}
+.plan-rec{position:absolute;top:10px;right:10px;font:700 8.5px/1 var(--font-ui);letter-spacing:.06em;text-transform:uppercase;padding:4px 5px;border-radius:4px;background:var(--brand-dark);color:#fff}
+.plan-name{font:600 14px/1.3 var(--font-ui);color:var(--ink)}
+.plan-price{font:600 22px/1.1 var(--font-serif);color:var(--ink);margin-top:1px}
+.plan-price small{font:600 10px/1.2 var(--font-ui);color:var(--ink-3);letter-spacing:0;margin-left:2px}
+.plan-blurb{font:500 11px/1.5 var(--font-ui);color:var(--ink-2);min-height:2.9em}
+.plan-features{list-style:none;margin:0;padding:0;display:grid;gap:5px}
+.plan-features li{display:flex;gap:6px;align-items:flex-start;font:500 11px/1.45 var(--font-ui);color:var(--ink-2)}
+.plan-features .od-icon{color:var(--brand);margin-top:1px}
+.plan-card .btn{margin-top:auto;width:100%}
+.invoices{display:grid;gap:8px}
+.invoice-empty{
+  display:flex;gap:10px;align-items:flex-start;padding:12px;border:1px dashed var(--line-strong);
+  border-radius:10px;color:var(--ink-2);background:#fbfcfc;
+}
+.invoice-empty .od-icon{color:var(--ink-3);margin-top:1px}
+.invoice-title{font:600 12px/1.4 var(--font-ui);color:var(--ink)}
+.invoice-sub{font:500 11px/1.5 var(--font-ui);color:var(--ink-3);margin-top:2px}
+
+/* ---------- dialogs ---------- */
+.dlg{
+  border:0;border-radius:16px;padding:0;width:min(560px,calc(100vw - 32px));
+  max-height:calc(100vh - 40px);background:var(--surface);color:var(--ink);
+  box-shadow:0 24px 64px rgba(11,26,23,.26);
+}
+.dlg.dlg-wide{width:min(620px,calc(100vw - 32px))}
+.dlg.dlg-small{width:min(460px,calc(100vw - 32px))}
+.dlg::backdrop{background:rgba(10,24,21,.44)}
+.dlg-form{display:flex;flex-direction:column;max-height:calc(100vh - 40px)}
+.dlg-head{
+  display:flex;justify-content:space-between;align-items:flex-start;gap:12px;
+  padding:16px 18px 13px;border-bottom:1px solid var(--line);
+}
+.dlg-title{font:600 20px/1.3 var(--font-serif);color:var(--ink)}
+.dlg-sub{font:500 11.5px/1.4 var(--font-ui);color:var(--ink-3);margin-top:3px}
+.dlg-body{padding:15px 18px;overflow-y:auto;min-height:0;display:flex;flex-direction:column;gap:13px}
+.dlg-body > *{flex:0 0 auto}
+.dlg-foot{
+  display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;align-items:center;
+  padding:12px 18px 15px;border-top:1px solid var(--line);background:#fbfcfc;
+}
+.foot-left{margin-right:auto;display:flex;gap:7px;flex-wrap:wrap}
+.close-x{
+  width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:#fff;
+  display:grid;place-items:center;color:var(--ink-2);cursor:pointer;flex:none;
+}
+.close-x:hover{background:var(--surface-2);color:var(--ink)}
+.close-x:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.radio-row{display:flex;gap:8px;flex-wrap:wrap}
+.radio-option{
+  display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line-strong);border-radius:8px;
+  padding:8px 10px;font:600 12px/1.3 var(--font-ui);color:var(--ink-2);cursor:pointer;background:#fff;
+}
+.radio-option:has(input:checked){border-color:var(--brand);background:var(--brand-soft);color:var(--brand-deep)}
+.radio-option input{accent-color:var(--brand)}
+.dlg-plan{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:11px 12px}
+.dlg-plan-name{font:600 14px/1.35 var(--font-ui);color:var(--ink)}
+.dlg-plan-note{font:500 11.5px/1.5 var(--font-ui);color:var(--ink-2);margin-top:3px}
+
+/* toasts */
+.toasts{position:fixed;right:18px;bottom:18px;z-index:70;display:flex;flex-direction:column;gap:8px;max-width:min(360px,calc(100vw - 36px))}
+.toast{
+  background:#12201d;color:#f1f7f5;border-radius:10px;padding:10px 13px;
+  font:500 12.5px/1.45 var(--font-ui);box-shadow:0 10px 28px rgba(11,26,23,.28);
+  animation:toastIn .2s ease-out;
+}
+.toast.err{background:#5f1c14}
+.toast .toast-k{display:block;font:700 9.5px/1 var(--font-ui);letter-spacing:.09em;text-transform:uppercase;color:#8fd0bd;margin-bottom:3px}
+.toast.err .toast-k{color:#f3b7ae}
+@keyframes toastIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* responsive */
+@media (max-width:1180px){
+  .automation-grid,.hospital-grid{grid-template-columns:1fr}
+  .preview-card{position:static}
+  .usage-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:1100px){
+  .settings-grid{grid-template-columns:1fr}
+  .settings-nav{
+    position:static;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;
+    padding:5px;border-radius:12px;
+  }
+  .settings-nav::-webkit-scrollbar{display:none}
+  .settings-nav button{min-width:max-content;width:auto;grid-template-columns:26px auto;padding:7px 10px}
+  .snav-icon{width:26px;height:26px;border-radius:7px}
+  .snav-label{font-size:12px}
+  .snav-meta{font-size:9.5px}
+  .settings-nav button[data-dirty="true"]::after{top:6px;right:6px}
+}
+@media (max-width:1024px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .sidebar{
+    position:static;height:auto;flex-direction:row;align-items:center;gap:14px;
+    padding:9px 14px;z-index:40;overflow:visible;min-width:0;
+  }
+  .brand-sub,.side-foot,.nav-label{display:none}
+  .brand{padding:0;flex:none}
+  .nav{flex-direction:row;gap:2px;overflow-x:auto;scrollbar-width:none;flex:1 1 auto}
+  .nav::-webkit-scrollbar{display:none}
+  .nav button{width:auto;white-space:nowrap;padding:8px 11px;min-height:44px}
+  .nav .nav-count{display:none}
+  .topbar{top:0;padding:9px 16px}
+  .content{padding:16px 16px 40px;gap:12px}
+  .preview-card{top:auto}
+}
+@media (max-width:900px){
+  .perm-head{display:none}
+  .perm-matrix{min-width:0 !important}
+  .perm-group{padding:8px 12px}
+  .perm-row{display:block;padding:10px 12px;border-top:1px solid var(--line-soft)}
+  .perm-roles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:8px}
+  .perm-cell{
+    justify-content:flex-start;gap:7px;border:1px solid var(--line);background:var(--surface-2);
+    padding:7px 9px;min-height:44px;
+  }
+  .role-cell-name{display:block}
+  .staff-table thead{display:none}
+  .staff-table,.staff-table tbody{display:block;width:100%}
+  .staff-table tbody tr{
+    display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px 12px;
+    padding:13px 15px;border-bottom:1px solid var(--line-soft);
+  }
+  .staff-table tbody tr:last-child{border-bottom:0}
+  .staff-table td{padding:0;border:0;min-width:0}
+  .staff-table td.c-staff{grid-column:1;grid-row:1}
+  .staff-table td.c-status{grid-column:2;grid-row:1;justify-self:end;text-align:right}
+  .staff-table td.c-role{grid-column:1;grid-row:2}
+  .staff-table td.c-last{grid-column:2;grid-row:2;text-align:right}
+  .staff-table td.c-contact{grid-column:1 / -1;grid-row:3;margin-top:2px}
+  .staff-table td.c-act{grid-column:1 / -1;grid-row:4;margin-top:5px;text-align:left}
+  .staff-table td.c-act .linkbtn{
+    display:inline-flex;align-items:center;justify-content:center;width:100%;
+    border:1px solid var(--line-strong);border-radius:8px;min-height:44px;background:#fff;
+  }
+  .staff-table td.c-act .linkbtn:hover{background:var(--surface-2)}
+  .table-wrap{overflow-x:visible}
+}
+@media (max-width:700px){
+  .topbar{flex-wrap:nowrap;gap:8px;padding:8px 14px}
+  .crumbs{flex:1 1 auto;font-size:12.5px}
+  .top-date{display:none}
+  .staff-name{display:none}
+  .sidebar .staff-role{display:none}
+  .content{padding:14px 14px 36px}
+  .page-head{align-items:flex-start;gap:12px}
+  .hospital-head{gap:11px}
+  .hospital-mark{width:44px;height:44px;border-radius:12px;font-size:15px}
+  .page-title{font-size:25px}
+  .page-actions{width:100%}
+  .page-actions .btn{flex:1 1 auto}
+  .save-state{flex:1 1 100%;justify-content:center}
+  .panel-head{padding:14px}
+  .setting-title{font-size:19px}
+  .panel-body{padding:13px 14px}
+  .panel-foot{padding:10px 14px}
+  .panel-foot .foot-actions{width:100%}
+  .panel-foot .btn{flex:1 1 auto;min-height:44px}
+  .settings-nav button{min-height:44px}
+  .role-grid{grid-template-columns:1fr}
+  .role-card .linkbtn{min-height:44px}
+  .perm-roles{grid-template-columns:1fr}
+  .staff-strip{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .metric:nth-child(2){border-right:0}
+  .metric:nth-child(1),.metric:nth-child(2){border-bottom:1px solid var(--line-soft)}
+  .toolbar{padding:9px 14px}
+  .tool-search{max-width:none;flex:1 1 100%}
+  .tool-search input{min-height:44px}
+  .toolbar .select-wrap{flex:1 1 45%}
+  .toolbar .select-wrap select{width:100%;min-height:44px}
+  .toolbar .result-count{flex:1 1 100%}
+  .staff-table tbody tr{padding:13px 14px}
+  .audit-toolbar{padding:9px 14px}
+  .audit-cats{padding:8px 14px;gap:5px}
+  .chipfilter{padding:8px 10px;min-height:44px}
+  .audit-event{grid-template-columns:30px minmax(0,1fr);padding:11px 14px;gap:9px}
+  .audit-icon{width:30px;height:30px}
+  .audit-time{grid-column:2;grid-row:2;padding-top:2px;text-align:left}
+  .audit-meta{gap:5px}
+  .audit-foot{padding:10px 14px}
+  .automation-grid,.hospital-grid{padding:13px 14px}
+  .preview-card{padding:14px}
+  .form-row,.grid-2{grid-template-columns:1fr}
+  .billing-body{padding:13px 14px}
+  .billing-hero{padding:15px}
+  .billing-actions{width:100%}
+  .billing-actions .btn{flex:1 1 auto;min-height:44px}
+  .usage-grid{grid-template-columns:1fr}
+  .plan-grid{grid-template-columns:1fr}
+  .plan-card .btn{min-height:44px}
+  .plan-blurb{min-height:0}
+  .section-subhead h3{font-size:15px}
+  .dlg{width:calc(100vw - 20px);max-height:calc(100vh - 20px)}
+  .dlg-form{max-height:calc(100vh - 20px)}
+  .dlg-head{padding:14px 15px 12px}
+  .dlg-title{font-size:18.5px}
+  .dlg-body{padding:13px 15px;gap:12px}
+  .dlg-foot{padding:11px 15px 13px}
+  .dlg-foot .btn{flex:1 1 auto;min-height:44px}
+  .btn{min-height:44px}
+  .btn-sm{min-height:40px}
+  .icon-btn{width:44px;height:44px}
+  .close-x{width:44px;height:44px}
+  .switch{width:44px}
+  .input-time{width:128px}
+  .setting-box{padding:12px}
+}
+@media (max-width:380px){
+  .page-title{font-size:23px}
+  .setting-title{font-size:18px}
+  .chipfilter .n{display:none}
+  .billing-days{font-size:30px}
+  .metric-value{font-size:20px}
+}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important;scroll-behavior:auto !important}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg class="od-icon i20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h3.2l1.8-5 2.6 10 2.2-6 1.6 3H21"/></svg>
+      </span>
+      <span class="brand-text">
+        <span class="brand-name">TiniTracker</span>
+        <span class="brand-sub">Maternal &amp; child care</span>
+      </span>
+    </div>
+
+    <nav class="nav" aria-label="Main">
+      <span class="nav-label">Clinic</span>
+      <button type="button" data-action="nav" data-view="overview">
+        <svg class="od-icon i18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        Overview
+      </button>
+      <button type="button" data-action="nav" data-view="patients">
+        <svg class="od-icon i18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20"/><circle cx="9" cy="7.5" r="3.5"/><path d="M17 11.5h5M19.5 9v5"/></svg>
+        Patients
+        <span class="nav-count">24</span>
+      </button>
+      <button type="button" data-action="nav" data-view="schedules">
+        <svg class="od-icon i18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 3v3M16 3v3"/></svg>
+        Schedules
+      </button>
+      <button type="button" data-action="nav" data-view="reminders">
+        <svg class="od-icon i18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 9a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6"/><path d="M10.5 20a2 2 0 0 0 3 0"/></svg>
+        Reminders
+      </button>
+      <button type="button" data-action="nav" data-view="reports">
+        <svg class="od-icon i18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+        Reports
+      </button>
+      <button type="button" data-action="nav" data-view="settings" aria-current="page">
+        <svg class="od-icon i18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+        Settings
+      </button>
+    </nav>
+
+    <div class="side-foot">
+      <div class="clinic-card">
+        <span class="k">Active clinic</span>
+        <span class="v" id="clinic-name">St. Mary's Maternity</span>
+        <span class="s" id="clinic-sub">Dhanmondi, Dhaka · 128 patients</span>
+      </div>
+      <div class="user-line">
+        <span class="user-avatar" aria-hidden="true">AS</span>
+        <span>
+          <span class="staff-name">Ayesha Siddiqua</span>
+          <span class="staff-role">Hospital administrator</span>
+        </span>
+      </div>
+    </div>
+  </aside>
+
+  <div class="workspace">
+    <header class="topbar">
+      <div class="crumbs">
+        <span>Clinic</span>
+        <span class="sep">/</span>
+        <strong>Hospital settings</strong>
+      </div>
+      <div class="top-meta">
+        <span class="top-date">Tue, 10 Nov 2026</span>
+        <button type="button" class="icon-btn" data-action="notifications" aria-label="Notifications, 2 open items">
+          <svg class="od-icon i18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 9a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6"/><path d="M10.5 20a2 2 0 0 0 3 0"/></svg>
+          <span class="dot" aria-hidden="true"></span>
+        </button>
+        <div class="staff">
+          <span class="staff-avatar" aria-hidden="true">AS</span>
+          <span class="staff-name">Ayesha Siddiqua</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="content">
+      <div class="page-head">
+        <div class="hospital-head">
+          <div class="hospital-mark" id="hospital-mark" aria-hidden="true">SM</div>
+          <div style="min-width:0">
+            <span class="eyebrow" id="hospital-eyebrow">St. Mary's Maternity · Hospital administration</span>
+            <h1 class="page-title">Hospital settings</h1>
+            <p class="page-sub">The control room for access, staff, automated outreach, hospital identity and billing — kept in one auditable place.</p>
+            <div class="name-meta">
+              <span class="chip chip-live" id="plan-chip">Free Clinical Trial · 12 days left</span>
+              <span class="chip chip-line"><span class="live-dot" aria-hidden="true"></span><span id="wa-chip">WhatsApp verified</span></span>
+              <span class="chip chip-line" id="staff-chip">8 active staff</span>
+            </div>
+          </div>
+        </div>
+        <div class="page-actions">
+          <span class="save-state" id="save-state" data-dirty="false"><span class="state-dot" aria-hidden="true"></span><span id="save-state-text">All changes saved</span></span>
+          <a class="btn btn-outline" href="schedules.html">Reminder register</a>
+        </div>
+      </div>
+
+      <div class="settings-grid">
+        <aside class="settings-nav" aria-label="Settings sections">
+          <button type="button" data-action="section" data-section="roles" aria-current="true">
+            <span class="snav-icon" aria-hidden="true"><svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6Z"/><path d="m9 12 2 2 4-4"/></svg></span>
+            <span class="snav-copy"><span class="snav-label">Roles &amp; permissions</span><span class="snav-meta" id="nav-roles-meta">6 roles</span></span>
+          </button>
+          <button type="button" data-action="section" data-section="staff">
+            <span class="snav-icon" aria-hidden="true"><svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20"/><circle cx="9" cy="7.5" r="3.5"/><path d="M17 11.5h5M19.5 9v5"/></svg></span>
+            <span class="snav-copy"><span class="snav-label">Staff management</span><span class="snav-meta" id="nav-staff-meta">8 active · 2 invited</span></span>
+          </button>
+          <button type="button" data-action="section" data-section="logs">
+            <span class="snav-icon" aria-hidden="true"><svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v18H6.5A2.5 2.5 0 0 1 4 18.5Z"/><path d="M4 5.5V18.5M8 7h8M8 11h8M8 15h5"/></svg></span>
+            <span class="snav-copy"><span class="snav-label">Activity logs</span><span class="snav-meta" id="nav-logs-meta">24 events</span></span>
+          </button>
+          <button type="button" data-action="section" data-section="automation">
+            <span class="snav-icon" aria-hidden="true"><svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+            <span class="snav-copy"><span class="snav-label">Batch &amp; automation</span><span class="snav-meta" id="nav-automation-meta">08:00 daily</span></span>
+          </button>
+          <button type="button" data-action="section" data-section="hospital">
+            <span class="snav-icon" aria-hidden="true"><svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V6.5L12 3l8 3.5V21"/><path d="M9 21v-5h6v5M8 9h.01M12 9h.01M16 9h.01M8 12.5h.01M12 12.5h.01M16 12.5h.01"/></svg></span>
+            <span class="snav-copy"><span class="snav-label">Hospital &amp; WhatsApp</span><span class="snav-meta" id="nav-hospital-meta">WhatsApp verified</span></span>
+          </button>
+          <button type="button" data-action="section" data-section="billing">
+            <span class="snav-icon" aria-hidden="true"><svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 9.5h19M6.5 15h4"/></svg></span>
+            <span class="snav-copy"><span class="snav-label">Subscription &amp; billing</span><span class="snav-meta" id="nav-billing-meta">12 days left</span></span>
+          </button>
+        </aside>
+
+        <div class="settings-main">
+          <section class="setting-panel" id="panel-roles" data-section-panel="roles" aria-labelledby="roles-title">
+            <div class="panel-head">
+              <div>
+                <h2 class="setting-title" id="roles-title" tabindex="-1">Roles &amp; permissions</h2>
+                <p class="panel-note">Shape what each role can see and do. Default roles keep their identity; custom roles can be tailored to your hospital.</p>
+              </div>
+              <div class="panel-actions">
+                <button type="button" class="btn btn-outline btn-sm" data-action="role-add">
+                  <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                  Add custom role
+                </button>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="role-grid" id="role-grid"></div>
+              <div class="matrix-head">
+                <div>
+                  <h3 class="matrix-title">Permission matrix</h3>
+                  <p class="matrix-sub">Changes apply to everyone assigned to that role. Patient records, clinical notes and reminders stay separated by specialty.</p>
+                </div>
+                <span class="chip chip-line" id="role-matrix-note">Select a check to adjust access</span>
+              </div>
+              <div class="matrix-scroll">
+                <div class="perm-matrix" id="perm-matrix" role="group" aria-label="Role permission matrix"></div>
+              </div>
+            </div>
+            <div class="panel-foot">
+              <span class="dirty-note" id="roles-dirty">All permission changes saved</span>
+              <div class="foot-actions">
+                <button type="button" class="btn btn-ghost" data-action="roles-reset">Discard</button>
+                <button type="button" class="btn btn-primary" data-action="roles-save">Save changes</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="setting-panel" id="panel-staff" data-section-panel="staff" aria-labelledby="staff-title" hidden>
+            <div class="panel-head">
+              <div>
+                <h2 class="setting-title" id="staff-title" tabindex="-1">Staff management</h2>
+                <p class="panel-note">Invite doctors and nurses, assign roles, and keep the medical team directory current. Deactivation removes access immediately without deleting history.</p>
+              </div>
+              <div class="panel-actions">
+                <button type="button" class="btn btn-primary btn-sm" data-action="staff-invite">
+                  <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20"/><circle cx="9" cy="7.5" r="3.5"/><path d="M17 11.5h5M19.5 9v5"/></svg>
+                  Invite staff
+                </button>
+              </div>
+            </div>
+            <div class="staff-strip" id="staff-metrics"></div>
+            <div class="toolbar">
+              <div class="tool-search">
+                <svg class="od-icon i14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
+                <label class="sr-only" for="staff-search">Search staff by name, email or phone</label>
+                <input id="staff-search" type="search" placeholder="Search staff" autocomplete="off">
+              </div>
+              <div class="select-wrap">
+                <label class="sr-only" for="staff-role-filter">Filter by role</label>
+                <select id="staff-role-filter"><option value="all">All roles</option></select>
+                <svg class="od-icon i14 chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+              </div>
+              <div class="select-wrap">
+                <label class="sr-only" for="staff-status-filter">Filter by status</label>
+                <select id="staff-status-filter">
+                  <option value="all">All statuses</option>
+                  <option value="active">Active</option>
+                  <option value="invited">Invited</option>
+                  <option value="inactive">Deactivated</option>
+                </select>
+                <svg class="od-icon i14 chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+              </div>
+              <span class="result-count" id="staff-count" aria-live="polite">Showing <b>10</b> of 10 staff</span>
+              <button type="button" class="btn btn-ghost btn-sm" data-action="staff-clear">Clear</button>
+            </div>
+            <div class="table-wrap">
+              <table class="staff-table">
+                <thead>
+                  <tr>
+                    <th scope="col" class="col-staff">Staff</th>
+                    <th scope="col" class="col-role">Role</th>
+                    <th scope="col" class="col-contact">Contact</th>
+                    <th scope="col" class="col-status">Status</th>
+                    <th scope="col" class="col-last">Last active</th>
+                    <th scope="col" class="col-act"><span class="sr-only">Actions</span></th>
+                  </tr>
+                </thead>
+                <tbody id="staff-body"></tbody>
+              </table>
+            </div>
+            <div class="audit-foot">
+              <span id="staff-foot">10 staff accounts · 8 active, 2 invited</span>
+              <span>Access changes are recorded in the activity log</span>
+            </div>
+          </section>
+
+          <section class="setting-panel" id="panel-logs" data-section-panel="logs" aria-labelledby="logs-title" hidden>
+            <div class="panel-head">
+              <div>
+                <h2 class="setting-title" id="logs-title" tabindex="-1">Activity logs</h2>
+                <p class="panel-note">A chronological audit trail of clinical and administrative actions. Every entry names the person or system responsible.</p>
+              </div>
+              <div class="panel-actions">
+                <button type="button" class="btn btn-outline btn-sm" data-action="audit-export">
+                  <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7.5 10.5 12 15l4.5-4.5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+                  Export log
+                </button>
+              </div>
+            </div>
+            <div class="audit-toolbar">
+              <div class="tool-search">
+                <svg class="od-icon i14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
+                <label class="sr-only" for="audit-search">Search activity by action, person or record</label>
+                <input id="audit-search" type="search" placeholder="Search activity" autocomplete="off">
+              </div>
+              <div class="select-wrap">
+                <label class="sr-only" for="audit-actor">Filter by staff member</label>
+                <select id="audit-actor">
+                  <option value="all">All staff</option>
+                  <option value="Ayesha Siddiqua">Ayesha Siddiqua</option>
+                  <option value="Nusrat Jahan">Nusrat Jahan</option>
+                  <option value="Dr. Farhana Karim">Dr. Farhana Karim</option>
+                  <option value="Mariam Sultana">Mariam Sultana</option>
+                  <option value="Clinic system">Clinic system</option>
+                </select>
+                <svg class="od-icon i14 chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+              </div>
+              <span class="result-count" id="audit-count" aria-live="polite">Showing <b>10</b> of 24 events</span>
+            </div>
+            <div class="audit-cats" id="audit-cats" role="group" aria-label="Filter activity by category"></div>
+            <div id="audit-list"></div>
+            <div class="audit-foot">
+              <span id="audit-foot">Newest activity first · all times clinic local (GMT+6)</span>
+              <button type="button" class="btn btn-outline btn-sm" data-action="audit-more" id="audit-more">Load more</button>
+            </div>
+          </section>
+
+          <section class="setting-panel" id="panel-automation" data-section-panel="automation" aria-labelledby="automation-title" hidden>
+            <div class="panel-head">
+              <div>
+                <h2 class="setting-title" id="automation-title" tabindex="-1">Batch &amp; automation</h2>
+                <p class="panel-note">Let TiniTracker send the routine reminders. Daily WhatsApp batches and milestone nudges keep families ahead of visits and vaccine doses.</p>
+              </div>
+              <div class="panel-actions">
+                <span class="chip chip-live" id="automation-state-chip"><span class="live-dot" aria-hidden="true"></span>Automation on</span>
+              </div>
+            </div>
+            <div class="automation-grid">
+              <div class="auto-form">
+                <div class="setting-box">
+                  <div class="switch-row">
+                    <div class="switch-copy">
+                      <div class="switch-title">Automated patient reminders</div>
+                      <div class="switch-sub">Pause all scheduled reminders without losing your settings.</div>
+                    </div>
+                    <label class="switch">
+                      <input type="checkbox" id="auto-enabled">
+                      <span class="switch-track"><span class="switch-thumb"></span></span>
+                      <span class="sr-only">Enable automated patient reminders</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="setting-box">
+                  <div>
+                    <h3 class="box-title">
+                      <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                      Daily dispatch
+                    </h3>
+                    <p class="box-note">One batch each morning for visits and doses due in the next 48 hours.</p>
+                  </div>
+                  <div class="form-row">
+                    <div class="field">
+                      <label for="auto-time">Dispatch time</label>
+                      <input type="time" id="auto-time" step="300">
+                    </div>
+                    <div class="field">
+                      <label for="auto-timezone">Clinic timezone</label>
+                      <select id="auto-timezone">
+                        <option value="Asia/Dhaka">Asia/Dhaka · GMT+6</option>
+                        <option value="Asia/Kolkata">Asia/Kolkata · GMT+5:30</option>
+                        <option value="Asia/Karachi">Asia/Karachi · GMT+5</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="switch-row">
+                    <div class="switch-copy">
+                      <div class="switch-title">Weekdays only</div>
+                      <div class="switch-sub">Skip Saturday and Sunday dispatches.</div>
+                    </div>
+                    <label class="switch">
+                      <input type="checkbox" id="auto-weekdays">
+                      <span class="switch-track"><span class="switch-thumb"></span></span>
+                      <span class="sr-only">Send daily batches on weekdays only</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="setting-box">
+                  <div>
+                    <h3 class="box-title">
+                      <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="4"/></svg>
+                      Milestone reminders
+                    </h3>
+                    <p class="box-note">Send separate nudges as the appointment gets closer.</p>
+                  </div>
+                  <div class="switch-row">
+                    <div class="switch-copy">
+                      <div class="switch-title">7-day reminder</div>
+                      <div class="switch-sub">A week before the visit or dose.</div>
+                    </div>
+                    <label class="switch">
+                      <input type="checkbox" id="milestone-seven">
+                      <span class="switch-track"><span class="switch-thumb"></span></span>
+                      <span class="sr-only">Enable 7-day reminder</span>
+                    </label>
+                  </div>
+                  <div class="switch-row">
+                    <div class="switch-copy">
+                      <div class="switch-title">1-day reminder</div>
+                      <div class="switch-sub">The day before, with time and room details.</div>
+                    </div>
+                    <label class="switch">
+                      <input type="checkbox" id="milestone-one">
+                      <span class="switch-track"><span class="switch-thumb"></span></span>
+                      <span class="sr-only">Enable 1-day reminder</span>
+                    </label>
+                  </div>
+                  <div class="switch-row">
+                    <div class="switch-copy">
+                      <div class="switch-title">Day-of reminder</div>
+                      <div class="switch-sub">A short morning prompt on the appointment day.</div>
+                    </div>
+                    <label class="switch">
+                      <input type="checkbox" id="milestone-dayof">
+                      <span class="switch-track"><span class="switch-thumb"></span></span>
+                      <span class="sr-only">Enable day-of reminder</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="setting-box">
+                  <div>
+                    <h3 class="box-title">
+                      <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16v12H4Z"/><path d="m4 7 8 6 8-6"/></svg>
+                      Delivery &amp; quiet hours
+                    </h3>
+                    <p class="box-note">WhatsApp is the primary channel; SMS catches undelivered messages.</p>
+                  </div>
+                  <div class="form-row">
+                    <div class="field">
+                      <label for="auto-channel">Primary channel</label>
+                      <select id="auto-channel">
+                        <option value="WhatsApp">WhatsApp</option>
+                        <option value="SMS">SMS</option>
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label>Fallback</label>
+                      <div class="switch-row" style="border:0;padding:0;min-height:38px;align-items:center">
+                        <div class="switch-copy"><div class="switch-title">SMS fallback</div></div>
+                        <label class="switch">
+                          <input type="checkbox" id="auto-fallback">
+                          <span class="switch-track"><span class="switch-thumb"></span></span>
+                          <span class="sr-only">Send an SMS if WhatsApp delivery fails</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="field">
+                    <label>Quiet hours</label>
+                    <div class="time-pair">
+                      <input class="input-time" type="time" id="auto-quiet-start" aria-label="Quiet hours start">
+                      <span class="dash" aria-hidden="true">—</span>
+                      <input class="input-time" type="time" id="auto-quiet-end" aria-label="Quiet hours end">
+                    </div>
+                    <span class="hint">No automated messages are sent inside this window.</span>
+                  </div>
+                </div>
+              </div>
+
+              <aside class="preview-card" id="auto-preview" aria-label="Next automated dispatch preview"></aside>
+            </div>
+            <div class="panel-foot">
+              <span class="dirty-note" id="automation-dirty">All automation changes saved</span>
+              <div class="foot-actions">
+                <button type="button" class="btn btn-ghost" data-action="auto-test" id="auto-test">Send test message</button>
+                <button type="button" class="btn btn-ghost" data-action="auto-reset">Discard</button>
+                <button type="button" class="btn btn-primary" data-action="auto-save">Save changes</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="setting-panel" id="panel-hospital" data-section-panel="hospital" aria-labelledby="hospital-title" hidden>
+            <div class="panel-head">
+              <div>
+                <h2 class="setting-title" id="hospital-title" tabindex="-1">Hospital &amp; WhatsApp</h2>
+                <p class="panel-note">Keep the official hospital identity consistent on reports, and send reminders from your verified WhatsApp business number.</p>
+              </div>
+              <div class="panel-actions">
+                <span class="chip chip-live" id="hospital-wa-chip"><span class="live-dot" aria-hidden="true"></span>WhatsApp verified</span>
+              </div>
+            </div>
+            <div class="hospital-grid">
+              <form class="hospital-form setting-box" id="hospital-form" novalidate>
+                <div>
+                  <h3 class="box-title">
+                    <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V6.5L12 3l8 3.5V21"/><path d="M9 21v-5h6v5M8 9h.01M12 9h.01M16 9h.01M8 12.5h.01M12 12.5h.01M16 12.5h.01"/></svg>
+                    Hospital profile
+                  </h3>
+                  <p class="box-note">Shown on reports, discharge summaries and patient-facing messages.</p>
+                </div>
+                <div class="form-summary" id="hospital-summary" tabindex="-1" hidden></div>
+                <div class="logo-row">
+                  <div class="logo-preview" id="logo-preview">SM</div>
+                  <div class="logo-copy">
+                    <div class="logo-title">Hospital logo</div>
+                    <div class="logo-note">PNG or JPG, up to 1.5 MB. A clear square mark works best.</div>
+                    <div class="logo-actions">
+                      <button type="button" class="btn btn-outline btn-sm" data-action="logo-upload">Replace logo</button>
+                      <input type="file" id="logo-file" class="sr-only" accept="image/png,image/jpeg" tabindex="-1">
+                    </div>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div class="field">
+                    <label for="h-name">Official hospital name <span class="req">*</span></label>
+                    <input id="h-name" type="text" autocomplete="organization" aria-describedby="h-name-err">
+                    <p class="err" id="h-name-err" hidden></p>
+                  </div>
+                  <div class="field">
+                    <label for="h-legal">Legal entity</label>
+                    <input id="h-legal" type="text" autocomplete="organization">
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="h-address">Clinic address <span class="req">*</span></label>
+                  <textarea id="h-address" rows="2" autocomplete="street-address" aria-describedby="h-address-err"></textarea>
+                  <p class="err" id="h-address-err" hidden></p>
+                </div>
+                <div class="form-row">
+                  <div class="field">
+                    <label for="h-phone">Primary phone <span class="req">*</span></label>
+                    <input id="h-phone" type="tel" autocomplete="tel" aria-describedby="h-phone-err">
+                    <p class="err" id="h-phone-err" hidden></p>
+                  </div>
+                  <div class="field">
+                    <label for="h-email">Administrative email <span class="req">*</span></label>
+                    <input id="h-email" type="email" autocomplete="email" aria-describedby="h-email-err">
+                    <p class="err" id="h-email-err" hidden></p>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div class="field">
+                    <label for="h-regno">Registration number</label>
+                    <input id="h-regno" type="text">
+                  </div>
+                  <div class="field">
+                    <label for="w-phone">WhatsApp business number</label>
+                    <input id="w-phone" type="tel" aria-describedby="w-phone-err">
+                    <p class="err" id="w-phone-err" hidden></p>
+                  </div>
+                </div>
+              </form>
+
+              <div class="setting-box">
+                <div>
+                  <h3 class="box-title">
+                    <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11.5a8 8 0 1 1-4-7"/><path d="M8.5 9.5h5M11 7v5M15.5 15.5h.01M18 13h.01"/></svg>
+                    WhatsApp Business API
+                  </h3>
+                  <p class="box-note">Reminders are dispatched through your verified business channel.</p>
+                </div>
+                <div class="wa-banner" id="wa-banner">
+                  <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+                  <span id="wa-banner-text">Verified business account · connected 25 Oct 2026</span>
+                </div>
+                <div class="form-row">
+                  <div class="field">
+                    <label for="w-display">Sender display name <span class="req">*</span></label>
+                    <input id="w-display" type="text" aria-describedby="w-display-err">
+                    <p class="err" id="w-display-err" hidden></p>
+                  </div>
+                  <div class="field">
+                    <label for="w-sender">Sender ID <span class="req">*</span></label>
+                    <input id="w-sender" type="text" inputmode="numeric" aria-describedby="w-sender-err">
+                    <p class="err" id="w-sender-err" hidden></p>
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="w-key-value">API key</label>
+                  <div class="key-row">
+                    <span class="key-value" id="w-key-value">••••••••••••4f9c</span>
+                    <button type="button" class="btn btn-outline btn-sm" data-action="wa-reveal" aria-pressed="false">Reveal</button>
+                  </div>
+                  <span class="hint" id="wa-key-note">Stored encrypted · last rotated 5 Nov 2026</span>
+                </div>
+                <div class="wa-actions">
+                  <button type="button" class="btn btn-outline btn-sm" data-action="wa-test" id="wa-test">Test connection</button>
+                  <button type="button" class="btn btn-ghost btn-sm" data-action="wa-rotate">Rotate key</button>
+                </div>
+                <div class="wa-status-line">
+                  <span class="test-status" id="wa-test-status">No test run in this session</span>
+                  <button type="button" class="linkbtn" data-action="wa-help">Gateway help</button>
+                </div>
+              </div>
+            </div>
+            <div class="panel-foot">
+              <span class="dirty-note" id="hospital-dirty">All hospital changes saved</span>
+              <div class="foot-actions">
+                <button type="button" class="btn btn-ghost" data-action="hospital-reset">Discard</button>
+                <button type="button" class="btn btn-primary" data-action="hospital-save">Save changes</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="setting-panel" id="panel-billing" data-section-panel="billing" aria-labelledby="billing-title" hidden>
+            <div class="panel-head">
+              <div>
+                <h2 class="setting-title" id="billing-title" tabindex="-1">Subscription &amp; billing</h2>
+                <p class="panel-note">Track your trial, patient quota and message usage, then choose the plan that fits the clinic as it grows.</p>
+              </div>
+              <div class="panel-actions">
+                <span class="chip chip-line" id="billing-contact">Billing contact · Ayesha Siddiqua</span>
+              </div>
+            </div>
+            <div class="billing-body">
+              <div class="billing-hero">
+                <div>
+                  <span class="trial-tag">Free Clinical Trial</span>
+                  <div class="billing-days" id="billing-days">12 days<small>left</small></div>
+                  <p class="billing-note" id="billing-note">Your full Professional feature set is free until Sunday, 22 November 2026. Upgrade before the trial ends to keep automated reminders running.</p>
+                </div>
+                <div class="billing-actions">
+                  <button type="button" class="btn btn-outline" data-action="billing-scroll">Compare plans</button>
+                  <button type="button" class="btn btn-primary" data-action="billing-upgrade">View upgrade options</button>
+                </div>
+              </div>
+
+              <div class="request-banner" id="billing-request" hidden></div>
+
+              <div class="usage-grid" id="usage-grid"></div>
+
+              <div class="section-subhead" id="plans-heading">
+                <div>
+                  <h3>Plans for the next chapter</h3>
+                  <p>Move when the trial ends, or earlier if your patient volume needs more room.</p>
+                </div>
+                <span class="chip chip-line">Billed in BDT · prices exclude VAT</span>
+              </div>
+              <div class="plan-grid" id="plan-grid"></div>
+
+              <div class="section-subhead">
+                <div>
+                  <h3>Invoices</h3>
+                  <p>Billing documents appear here after a paid plan begins.</p>
+                </div>
+              </div>
+              <div class="invoice-empty">
+                <svg class="od-icon i18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6Z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>
+                <div>
+                  <div class="invoice-title">No invoices yet</div>
+                  <div class="invoice-sub" id="invoice-note">Your trial is free until 22 Nov 2026. Nothing is due today.</div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<dialog class="dlg" id="dlg-role" aria-labelledby="dlg-role-title">
+  <div class="dlg-form">
+    <div class="dlg-head">
+      <div>
+        <h2 class="dlg-title" id="dlg-role-title">Add custom role</h2>
+        <p class="dlg-sub" id="dlg-role-sub">Create a role for your hospital and fine-tune it in the matrix.</p>
+      </div>
+      <button type="button" class="close-x" data-close aria-label="Close role dialog">
+        <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="dlg-body">
+      <div class="form-summary" id="role-summary" tabindex="-1" hidden>Check the highlighted fields.</div>
+      <div class="field">
+        <label for="role-name">Role name <span class="req">*</span></label>
+        <input id="role-name" type="text" autocomplete="off" aria-describedby="role-name-err">
+        <p class="err" id="role-name-err" hidden></p>
+      </div>
+      <div class="field">
+        <label for="role-desc">What is this role for?</label>
+        <textarea id="role-desc" rows="2" placeholder="e.g. Registration, scheduling and front-desk reminders"></textarea>
+      </div>
+      <div class="field" id="role-base-wrap">
+        <label for="role-base">Start with permissions from</label>
+        <select id="role-base"></select>
+        <span class="hint">You can adjust each permission in the matrix after creating the role.</span>
+      </div>
+    </div>
+    <div class="dlg-foot">
+      <div class="foot-left">
+        <button type="button" class="btn btn-danger-outline" data-action="role-delete" id="role-delete" hidden>Delete role</button>
+      </div>
+      <button type="button" class="btn btn-outline" data-close>Cancel</button>
+      <button type="button" class="btn btn-primary" data-action="role-save" id="role-save">Create role</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog class="dlg dlg-wide" id="dlg-staff" aria-labelledby="dlg-staff-title">
+  <div class="dlg-form">
+    <div class="dlg-head">
+      <div>
+        <h2 class="dlg-title" id="dlg-staff-title">Invite a staff member</h2>
+        <p class="dlg-sub" id="dlg-staff-sub">They will receive an email invitation to activate their account.</p>
+      </div>
+      <button type="button" class="close-x" data-close aria-label="Close staff dialog">
+        <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="dlg-body">
+      <div class="form-summary" id="staff-summary" tabindex="-1" hidden>Check the highlighted fields.</div>
+      <div class="grid-2">
+        <div class="field">
+          <label for="staff-name">Full name <span class="req">*</span></label>
+          <input id="staff-name" type="text" autocomplete="name" aria-describedby="staff-name-err">
+          <p class="err" id="staff-name-err" hidden></p>
+        </div>
+        <div class="field">
+          <label for="staff-email">Email <span class="req">*</span></label>
+          <input id="staff-email" type="email" autocomplete="email" aria-describedby="staff-email-err">
+          <p class="err" id="staff-email-err" hidden></p>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="field">
+          <label for="staff-phone">Phone <span class="hint">(optional)</span></label>
+          <input id="staff-phone" type="tel" autocomplete="tel" aria-describedby="staff-phone-err">
+          <p class="err" id="staff-phone-err" hidden></p>
+        </div>
+        <div class="field">
+          <label for="staff-role">Role <span class="req">*</span></label>
+          <select id="staff-role" aria-describedby="staff-role-err"></select>
+          <p class="err" id="staff-role-err" hidden></p>
+        </div>
+      </div>
+      <div class="account-actions" id="staff-account" hidden>
+        <div>
+          <div class="account-title">Account actions</div>
+          <div class="account-note" id="staff-account-note"></div>
+        </div>
+        <div class="account-buttons" id="staff-account-buttons"></div>
+      </div>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" class="btn btn-outline" data-close>Cancel</button>
+      <button type="button" class="btn btn-primary" data-action="staff-save" id="staff-save">Send invitation</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog class="dlg dlg-small" id="dlg-confirm" aria-labelledby="dlg-confirm-title">
+  <div class="dlg-form">
+    <div class="dlg-head">
+      <div>
+        <h2 class="dlg-title" id="dlg-confirm-title">Confirm action</h2>
+        <p class="dlg-sub" id="dlg-confirm-sub">This change takes effect immediately.</p>
+      </div>
+      <button type="button" class="close-x" data-close aria-label="Close confirmation">
+        <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="dlg-body">
+      <p class="box-note" id="dlg-confirm-message"></p>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" class="btn btn-outline" data-close>Cancel</button>
+      <button type="button" class="btn btn-danger" data-action="confirm-go" id="confirm-go">Confirm</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog class="dlg" id="dlg-upgrade" aria-labelledby="dlg-upgrade-title">
+  <div class="dlg-form">
+    <div class="dlg-head">
+      <div>
+        <h2 class="dlg-title" id="dlg-upgrade-title">Request an upgrade</h2>
+        <p class="dlg-sub" id="dlg-upgrade-sub">Our team will confirm availability and final pricing with you.</p>
+      </div>
+      <button type="button" class="close-x" data-close aria-label="Close upgrade request">
+        <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="dlg-body">
+      <div class="dlg-plan">
+        <div class="dlg-plan-name" id="upgrade-plan-name">Professional</div>
+        <div class="dlg-plan-note" id="upgrade-plan-note">1,000 patient records · 40 staff seats · 50,000 automated messages</div>
+      </div>
+      <div class="field">
+        <label>Billing cycle</label>
+        <div class="radio-row">
+          <label class="radio-option"><input type="radio" name="billing-cycle" value="monthly" checked>Monthly</label>
+          <label class="radio-option"><input type="radio" name="billing-cycle" value="annual">Annual</label>
+        </div>
+      </div>
+      <div class="field">
+        <label for="upgrade-note">Note for the TiniTracker team <span class="hint">(optional)</span></label>
+        <textarea id="upgrade-note" rows="2" placeholder="Anything we should know about your contract or start date?"></textarea>
+      </div>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" class="btn btn-outline" data-close>Cancel</button>
+      <button type="button" class="btn btn-primary" data-action="upgrade-confirm" id="upgrade-confirm">Send request</button>
+    </div>
+  </div>
+</dialog>
+
+<div class="toasts" id="toasts" role="status" aria-live="polite" aria-atomic="false"></div>
+
+<script>
+(function(){
+  'use strict';
+
+  var KEY = 'tinittracker-settings-v1';
+  var DEMO_TODAY = new Date(2026, 10, 10);
+  var DEMO_NOW = new Date(2026, 10, 10, 11, 5);
+  var CURRENT_USER = 'Ayesha Siddiqua';
+  var i18nDate = new Intl.DateTimeFormat('en-GB', { weekday:'short', day:'2-digit', month:'short', year:'numeric' });
+  var i18nDateShort = new Intl.DateTimeFormat('en-GB', { weekday:'short', day:'2-digit', month:'short' });
+  var i18nClock = new Intl.DateTimeFormat('en-GB', { hour:'2-digit', minute:'2-digit', hour12:false });
+
+  function parseDT(v){
+    var p = String(v).split(/[-T:]/).map(Number);
+    return new Date(p[0], p[1]-1, p[2], p[3] || 0, p[4] || 0);
+  }
+  function toDT(d){
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') +
+      'T' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  }
+  function parseISO(v){
+    var p = String(v).split('-').map(Number);
+    return new Date(p[0], p[1]-1, p[2]);
+  }
+  function addDays(d, n){ var c = new Date(d.getTime()); c.setDate(c.getDate() + n); return c; }
+  function sameDay(a, b){ return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
+  function fmtDay(d){
+    if (sameDay(d, DEMO_TODAY)) return 'Today';
+    if (sameDay(d, addDays(DEMO_TODAY, -1))) return 'Yesterday';
+    if (sameDay(d, addDays(DEMO_TODAY, 1))) return 'Tomorrow';
+    return i18nDateShort.format(d);
+  }
+  function fmtWhen(v){
+    if (!v) return '—';
+    var d = parseDT(v);
+    return fmtDay(d) + ', ' + i18nClock.format(d);
+  }
+  function fmtDate(v){ return i18nDate.format(parseISO(v)); }
+  function fmtShortDate(v){ return i18nDateShort.format(parseISO(v)); }
+  function esc(v){
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function(c){
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
+    });
+  }
+  function initials(name){
+    return String(name).split(/\s+/).filter(Boolean).map(function(p){ return p.charAt(0); }).join('').slice(0,2).toUpperCase();
+  }
+  function digits(v){ return String(v).replace(/\D/g, ''); }
+  function clone(v){ return JSON.parse(JSON.stringify(v)); }
+
+  var stampCursor = 0;
+  function nextStamp(){
+    stampCursor += 1;
+    return toDT(new Date(DEMO_NOW.getTime() + stampCursor * 60000));
+  }
+
+  function toast(message, kind){
+    var wrap = document.getElementById('toasts');
+    var el = document.createElement('div');
+    el.className = 'toast' + (kind === 'err' ? ' err' : '');
+    var k = document.createElement('span');
+    k.className = 'toast-k';
+    k.textContent = kind === 'err' ? 'Not saved' : kind === 'info' ? 'TiniTracker' : 'Saved';
+    var t = document.createElement('span');
+    t.textContent = message;
+    el.appendChild(k);
+    el.appendChild(t);
+    wrap.appendChild(el);
+    window.setTimeout(function(){
+      if (el.parentNode) el.parentNode.removeChild(el);
+    }, 4200);
+  }
+
+  var roleIds = ['admin','clinical','docpreg','docimm','frontdesk','senior'];
+  function makePermission(id, group, label, desc, allowed){
+    var roles = {};
+    roleIds.forEach(function(r){ roles[r] = allowed.indexOf(r) !== -1; });
+    return { id:id, group:group, label:label, desc:desc, roles:roles };
+  }
+
+  var GROUPS = [
+    { id:'records', name:'Patient records' },
+    { id:'care', name:'Care & visits' },
+    { id:'communication', name:'Communication' },
+    { id:'reporting', name:'Reporting & audit' },
+    { id:'administration', name:'Hospital administration' }
+  ];
+
+  var SEED = {
+    roles: [
+      { id:'admin', name:'Hospital Admin', short:'Admin', kind:'default', desc:'Full control of clinic settings, staff, billing and every patient record.' },
+      { id:'clinical', name:'Clinical Staff', short:'Clinical', kind:'default', desc:'Day-to-day antenatal care, visits, deliveries and reminders.' },
+      { id:'docpreg', name:'Doctor – Pregnancy', short:'Pregnancy', kind:'default', desc:'Pregnancy consultations, clinical notes and delivery records.' },
+      { id:'docimm', name:'Doctor – Immunization', short:'Immunization', kind:'default', desc:'Child immunization records, growth checks and dose reminders.' },
+      { id:'frontdesk', name:'Front Desk Coordinator', short:'Front desk', kind:'custom', desc:'Registration, scheduling and front-desk patient reminders.' },
+      { id:'senior', name:'Senior Midwife', short:'Senior MW', kind:'custom', desc:'Senior clinical oversight across pregnancy and postnatal care.' }
+    ],
+    permissions: [
+      makePermission('records-view','records','View patient records','Open maternal and child records, including visit history', roleIds),
+      makePermission('records-register','records','Register patients','Create a new maternal or child record', ['admin','clinical','frontdesk','senior']),
+      makePermission('records-notes','records','Edit clinical notes','Add notes, vitals and outcomes to a record', ['admin','clinical','docpreg','docimm','senior']),
+      makePermission('visits-record','care','Record antenatal visits','Complete scheduled visits and update the care timeline', ['admin','clinical','docpreg','senior']),
+      makePermission('deliveries-record','care','Record deliveries','Close the antenatal track and open postnatal care', ['admin','clinical','docpreg','senior']),
+      makePermission('immunizations-manage','care','Manage immunizations','Record doses, due dates and catch-up schedules', ['admin','clinical','docimm','senior']),
+      makePermission('growth-view','care','View child growth records','See growth, feeding and development notes', ['admin','clinical','docpreg','docimm','senior']),
+      makePermission('reminders-send','communication','Send reminders manually','Send an SMS, WhatsApp message or call script', roleIds),
+      makePermission('automation-manage','communication','Manage automation rules','Change daily batches, milestones and quiet hours', ['admin']),
+      makePermission('audit-view','reporting','View activity logs','Read the hospital-wide audit trail', ['admin','clinical','docpreg','docimm','senior']),
+      makePermission('reports-export','reporting','Export reports','Download clinical and delivery reports', ['admin','clinical','docpreg','docimm','senior']),
+      makePermission('staff-manage','reporting','Manage staff accounts','Invite, edit, deactivate and reset staff', ['admin']),
+      makePermission('hospital-edit','administration','Edit hospital settings','Change hospital details and WhatsApp configuration', ['admin']),
+      makePermission('roles-manage','administration','Manage roles & permissions','Create roles and change the permission matrix', ['admin']),
+      makePermission('billing-manage','administration','Manage billing','View usage and request subscription changes', ['admin'])
+    ],
+    staff: [
+      { id:'s1', name:'Ayesha Siddiqua', email:'ayesha@stmarysmaternity.bd', phone:'+880 1711 220 118', roleId:'admin', status:'active', joined:'2026-07-01', lastActive:'2026-11-10T10:54' },
+      { id:'s2', name:'Nusrat Jahan', email:'nusrat@stmarysmaternity.bd', phone:'+880 1812 553 901', roleId:'clinical', status:'active', joined:'2026-07-03', lastActive:'2026-11-10T09:43' },
+      { id:'s3', name:'Dr. Farhana Karim', email:'farhana@stmarysmaternity.bd', phone:'+880 1811 907 442', roleId:'docpreg', status:'active', joined:'2026-07-03', lastActive:'2026-11-10T11:02' },
+      { id:'s4', name:'Dr. Imran Chowdhury', email:'imran@stmarysmaternity.bd', phone:'+880 1913 664 208', roleId:'docimm', status:'active', joined:'2026-11-06', lastActive:'2026-11-09T16:41' },
+      { id:'s5', name:'Dr. Sadia Islam', email:'sadia@stmarysmaternity.bd', phone:'+880 1677 331 905', roleId:'docpreg', status:'active', joined:'2026-08-12', lastActive:'2026-11-08T12:10' },
+      { id:'s6', name:'Tanvir Hasan', email:'tanvir@stmarysmaternity.bd', phone:'+880 1866 402 771', roleId:'clinical', status:'active', joined:'2026-08-20', lastActive:'2026-11-09T15:22' },
+      { id:'s7', name:'Mariam Sultana', email:'mariam@stmarysmaternity.bd', phone:'+880 1521 880 364', roleId:'clinical', status:'active', joined:'2026-09-01', lastActive:'2026-11-10T08:47' },
+      { id:'s8', name:'Rehana Parvin', email:'rehana@stmarysmaternity.bd', phone:'+880 1977 215 630', roleId:'frontdesk', status:'active', joined:'2026-10-04', lastActive:'2026-11-10T10:31' },
+      { id:'s9', name:'Dr. Rezaul Karim', email:'rezaul@stmarysmaternity.bd', phone:'+880 1733 905 118', roleId:'docimm', status:'invited', invitedAt:'2026-11-09T16:20', lastActive:null },
+      { id:'s10', name:'Shabnam Akter', email:'shabnam@stmarysmaternity.bd', phone:'+880 1688 442 109', roleId:'clinical', status:'invited', invitedAt:'2026-11-10T09:05', lastActive:null }
+    ],
+    audit: [
+      { id:'a1', at:'2026-11-10T10:58', actor:'Nusrat Jahan', category:'automation', action:'WhatsApp test message sent', detail:'Test reminder delivered to +880 1712 448 902 from sender ID 8801844220110.', target:'Clinic automation', source:'Settings · WhatsApp' },
+      { id:'a2', at:'2026-11-10T10:54', actor:'Ayesha Siddiqua', category:'automation', action:'Automation schedule updated', detail:'Daily dispatch moved from 08:30 to 08:00. 7-day, 1-day and day-of reminders remain enabled.', target:'Clinic automation', source:'Settings · Automation' },
+      { id:'a3', at:'2026-11-10T09:42', actor:'Clinic system', category:'reminder', action:'Reminder sent', detail:'SMS for Amina Rahman\'s 28-week antenatal visit delivered to +880 1712 448 902.', target:'Amina Rahman', source:'SMS gateway' },
+      { id:'a4', at:'2026-11-10T09:12', actor:'Ayesha Siddiqua', category:'access', action:'Staff role updated', detail:'Dr. Imran Chowdhury assigned the Doctor – Immunization role; clinical access only.', target:'Dr. Imran Chowdhury', source:'Settings · Staff' },
+      { id:'a5', at:'2026-11-10T09:05', actor:'Ayesha Siddiqua', category:'access', action:'Staff invited', detail:'Invitation sent to Shabnam Akter for the Clinical Staff role.', target:'Shabnam Akter', source:'Settings · Staff' },
+      { id:'a6', at:'2026-11-09T17:10', actor:'Clinic system', category:'system', action:'Drop-off risk flagged', detail:'Zayan Rahman\'s 12-month PCV booster is 58 days overdue. Escalated to the assigned midwife.', target:'Zayan Rahman', source:'Automated rule' },
+      { id:'a7', at:'2026-11-09T16:20', actor:'Ayesha Siddiqua', category:'access', action:'Staff invited', detail:'Invitation sent to Dr. Rezaul Karim for the Doctor – Immunization role.', target:'Dr. Rezaul Karim', source:'Settings · Staff' },
+      { id:'a8', at:'2026-11-09T14:05', actor:'Ayesha Siddiqua', category:'access', action:'Hospital contact updated', detail:'Primary phone changed to +880 2 9661 4400. WhatsApp number unchanged.', target:'Hospital profile', source:'Settings · Hospital' },
+      { id:'a9', at:'2026-11-09T11:30', actor:'Clinic system', category:'reminder', action:'Voice call attempt failed', detail:'Call to Amina Rahman failed: number busy after 3 attempts. No voicemail left.', target:'Amina Rahman', source:'Voice gateway' },
+      { id:'a10', at:'2026-11-08T16:40', actor:'Ayesha Siddiqua', category:'access', action:'Permission changed', detail:'Clinical Staff can now view activity logs. Change saved by hospital admin.', target:'Clinical Staff', source:'Settings · Roles' },
+      { id:'a11', at:'2026-11-07T14:20', actor:'Clinic system', category:'reminder', action:'Reminder sent', detail:'WhatsApp reminder for Rukhsana Begum\'s 6-week postnatal check delivered.', target:'Rukhsana Begum', source:'WhatsApp gateway' },
+      { id:'a12', at:'2026-11-06T11:24', actor:'Dr. Farhana Karim', category:'clinical', action:'Visit recorded', detail:'26-week anaemia review recorded for Amina Rahman. BP 110/70, fundal height 27 cm.', target:'Amina Rahman', source:'Clinic desktop' },
+      { id:'a13', at:'2026-11-06T11:20', actor:'Dr. Farhana Karim', category:'clinical', action:'Clinical note added', detail:'Hb 10.4 g/dL; ferrous sulphate started; repeat CBC at 28 weeks.', target:'Amina Rahman', source:'Clinic desktop' },
+      { id:'a14', at:'2026-11-06T11:18', actor:'Ayesha Siddiqua', category:'access', action:'Staff account activated', detail:'Dr. Imran Chowdhury accepted the invitation and activated their account.', target:'Dr. Imran Chowdhury', source:'Settings · Staff' },
+      { id:'a15', at:'2026-11-05T15:30', actor:'Ayesha Siddiqua', category:'access', action:'WhatsApp key rotated', detail:'WhatsApp API key rotated. Previous key revoked immediately.', target:'WhatsApp gateway', source:'Settings · WhatsApp' },
+      { id:'a16', at:'2026-11-05T09:00', actor:'Clinic system', category:'automation', action:'Daily batch completed', detail:'14 automated reminders dispatched; 13 delivered, 1 failed.', target:'Daily batch', source:'Automation worker' },
+      { id:'a17', at:'2026-11-04T09:10', actor:'Ayesha Siddiqua', category:'access', action:'Custom role created', detail:'Front Desk Coordinator created with registration, scheduling and reminder permissions.', target:'Front Desk Coordinator', source:'Settings · Roles' },
+      { id:'a18', at:'2026-11-03T12:00', actor:'Ayesha Siddiqua', category:'automation', action:'Milestone reminders enabled', detail:'Milestone reminders enabled: 7 days, 1 day and day of appointment.', target:'Clinic automation', source:'Settings · Automation' },
+      { id:'a19', at:'2026-11-02T10:40', actor:'Mariam Sultana', category:'clinical', action:'Patient registered', detail:'Salma Khatun registered at 9 weeks. Booking bloods requested.', target:'Salma Khatun', source:'Reception desk' },
+      { id:'a20', at:'2026-10-28T09:00', actor:'Clinic system', category:'reminder', action:'Reminder sent', detail:'PCV booster reminder delivered to Zayan Rahman\'s guardian.', target:'Zayan Rahman', source:'SMS gateway' },
+      { id:'a21', at:'2026-10-27T08:00', actor:'Clinic system', category:'automation', action:'Daily batch completed', detail:'21 automated reminders dispatched; 20 delivered, 1 failed.', target:'Daily batch', source:'Automation worker' },
+      { id:'a22', at:'2026-10-25T09:12', actor:'Ayesha Siddiqua', category:'billing', action:'Free trial started', detail:'Free Clinical Trial activated for St. Mary\'s Maternity — 28 days, 150 patient limit.', target:'Subscription', source:'Settings · Billing' },
+      { id:'a23', at:'2026-09-27T13:48', actor:'Dr. Farhana Karim', category:'clinical', action:'Delivery recorded', detail:'Rukhsana Begum delivered a healthy girl by normal vaginal delivery. Postnatal schedule opened.', target:'Rukhsana Begum', source:'Labour ward' },
+      { id:'a24', at:'2026-07-03T10:15', actor:'Nusrat Jahan', category:'clinical', action:'Patient registered', detail:'Amina Rahman registered at 8 weeks 2 days. Antenatal record created.', target:'Amina Rahman', source:'Reception desk' }
+    ],
+    automation: {
+      enabled: true, time:'08:00', timezone:'Asia/Dhaka', weekdaysOnly:false,
+      milestones:{ seven:true, one:true, dayof:true },
+      channel:'WhatsApp', fallback:true, quietStart:'21:00', quietEnd:'07:00',
+      lastTestAt:'2026-11-10T10:58'
+    },
+    hospital: {
+      name:"St. Mary's Maternity",
+      legalName:"St. Mary's Maternity & Child Care Ltd.",
+      address:'House 14, Road 7, Dhanmondi, Dhaka 1205',
+      primaryPhone:'+880 2 9661 4400',
+      email:'admin@stmarysmaternity.bd',
+      regNo:'DGH-2019-4471',
+      logoData:'',
+      whatsapp:{
+        displayName:"St. Mary's Maternity",
+        senderId:'8801844220110',
+        phone:'+880 1844 220 110',
+        verified:true,
+        connectedAt:'2026-10-25T09:12',
+        keyLast4:'4f9c',
+        lastRotatedAt:'2026-11-05T15:30',
+        lastTestedAt:'2026-11-10T10:58'
+      }
+    },
+    billing: {
+      plan:'trial', trialStarted:'2026-10-25', trialEnds:'2026-11-22',
+      patientsUsed:128, patientsLimit:150,
+      messagesUsed:3420, messagesLimit:5000,
+      staffLimit:10,
+      upgradeRequest:null
+    }
+  };
+
+  var state;
+  try {
+    var raw = localStorage.getItem(KEY);
+    var saved = raw ? JSON.parse(raw) : null;
+    if (saved && saved.v === 1 && saved.state && Array.isArray(saved.state.roles)) {
+      state = saved.state;
+    }
+  } catch (err) { state = null; }
+  if (!state) state = clone(SEED);
+  if (!state.permissions) state.permissions = clone(SEED.permissions);
+  if (!state.hospital.whatsapp) state.hospital.whatsapp = clone(SEED.hospital.whatsapp);
+
+  function save(){
+    try { localStorage.setItem(KEY, JSON.stringify({ v:1, state: state })); } catch (err) { /* in-memory fallback */ }
+  }
+
+  var dirty = { roles:false, automation:false, hospital:false };
+  var permDraft = clone(state.permissions);
+  var autoDraft = clone(state.automation);
+  var hospitalDraft = clone(state.hospital);
+  var activeSection = 'roles';
+  var staffFilter = { q:'', role:'all', status:'all' };
+  var auditFilter = { category:'all', actor:'all', q:'' };
+  var auditLimit = 10;
+  var activeStaffId = null;
+  var staffMode = 'invite';
+  var activeRoleId = null;
+  var roleMode = 'add';
+  var upgradePlanId = 'professional';
+  var confirmAction = null;
+  var waRevealed = false;
+  var staffSeq = state.staff.reduce(function(max, s){
+    var n = Number(String(s.id).replace(/^s/, ''));
+    return isFinite(n) ? Math.max(max, n) : max;
+  }, 0);
+  var auditSeq = state.audit.reduce(function(max, a){
+    var n = Number(String(a.id).replace(/^a/, ''));
+    return isFinite(n) ? Math.max(max, n) : max;
+  }, 0);
+  var roleSeq = state.roles.length;
+
+  function staffRole(id){ return state.roles.filter(function(r){ return r.id === id; })[0] || null; }
+  function activeStaff(){ return state.staff.filter(function(s){ return s.status === 'active'; }); }
+  function roleMembers(roleId){ return state.staff.filter(function(s){ return s.roleId === roleId && s.status === 'active'; }).length; }
+  function daysLeft(){
+    var n = Math.ceil((parseISO(state.billing.trialEnds) - DEMO_TODAY) / 86400000);
+    return Math.max(0, n);
+  }
+  function permissionRow(id){ return permDraft.filter(function(p){ return p.id === id; })[0] || null; }
+  function categoryLabel(cat){
+    return ({ clinical:'Clinical', reminder:'Reminder', automation:'Automation', access:'Access', billing:'Billing', system:'System' })[cat] || cat;
+  }
+
+  function roleIcon(id){
+    var icons = {
+      admin:'<path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6Z"/><path d="m9 12 2 2 4-4"/>',
+      clinical:'<path d="M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20"/><circle cx="9" cy="7.5" r="3.5"/><path d="M17 11.5h5M19.5 9v5"/>',
+      docpreg:'<path d="M12 21s-7-4.6-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.4-7 10-7 10Z"/>',
+      docimm:'<path d="m14 4 6 6M17 7l-9.5 9.5M9 5.5 5 9.5l3 3M15.5 12l4 4-4 4-4-4M4 20l3-3"/>',
+      frontdesk:'<path d="M4 21V6.5L12 3l8 3.5V21"/><path d="M9 21v-5h6v5M8 9h.01M12 9h.01M16 9h.01"/>'
+    };
+    return icons[id] || '<path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6Z"/>';
+  }
+  function categoryIcon(cat){
+    var icons = {
+      clinical:'<path d="M12 21s-7-4.6-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.4-7 10-7 10Z"/>',
+      reminder:'<path d="M18 9a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6"/><path d="M10.5 20a2 2 0 0 0 3 0"/>',
+      automation:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+      access:'<circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l2 2M14 9l2 2"/>',
+      billing:'<rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 9.5h19M6.5 15h4"/>',
+      system:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/>'
+    };
+    return icons[cat] || icons.system;
+  }
+  function roleAvatarClass(roleId){
+    if (roleId === 'admin') return 'role-admin';
+    if (roleId === 'docpreg' || roleId === 'docimm') return 'role-doctor';
+    if (roleId === 'frontdesk') return 'role-front';
+    return '';
+  }
+
+  function updateHospitalMark(){
+    var el = document.getElementById('hospital-mark');
+    if (!el) return;
+    if (state.hospital.logoData) {
+      el.innerHTML = '<img src="' + esc(state.hospital.logoData) + '" alt="">';
+    } else {
+      el.textContent = initials(state.hospital.name);
+    }
+  }
+
+  function renderChrome(){
+    var active = activeStaff().length;
+    var invited = state.staff.filter(function(s){ return s.status === 'invited'; }).length;
+    var days = daysLeft();
+    document.getElementById('clinic-name').textContent = state.hospital.name;
+    document.getElementById('clinic-sub').textContent = 'Dhanmondi, Dhaka · ' + state.billing.patientsUsed + ' patients';
+    document.getElementById('hospital-eyebrow').textContent = state.hospital.name + ' · Hospital administration';
+    document.getElementById('plan-chip').textContent = 'Free Clinical Trial · ' + days + ' days left';
+    document.getElementById('wa-chip').textContent = state.hospital.whatsapp.verified ? 'WhatsApp verified' : 'WhatsApp needs setup';
+    document.getElementById('staff-chip').textContent = active + ' active staff';
+    document.getElementById('nav-roles-meta').textContent = state.roles.length + ' roles';
+    document.getElementById('nav-staff-meta').textContent = active + ' active · ' + invited + ' invited';
+    document.getElementById('nav-logs-meta').textContent = state.audit.length + ' events';
+    document.getElementById('nav-automation-meta').textContent = draftAutomationEnabledLabel();
+    document.getElementById('nav-hospital-meta').textContent = state.hospital.whatsapp.verified ? 'WhatsApp verified' : 'Action needed';
+    document.getElementById('nav-billing-meta').textContent = state.billing.upgradeRequest ? 'Upgrade requested' : days + ' days left';
+    document.getElementById('hospital-wa-chip').innerHTML = state.hospital.whatsapp.verified
+      ? '<span class="live-dot" aria-hidden="true"></span>WhatsApp verified'
+      : 'WhatsApp needs setup';
+    updateHospitalMark();
+  }
+  function draftAutomationEnabledLabel(){
+    return state.automation.enabled ? state.automation.time + ' daily' : 'Paused';
+  }
+
+  function updateSaveState(){
+    var names = [];
+    if (dirty.roles) names.push('Roles & permissions');
+    if (dirty.automation) names.push('Automation');
+    if (dirty.hospital) names.push('Hospital & WhatsApp');
+    var saveEl = document.getElementById('save-state');
+    var textEl = document.getElementById('save-state-text');
+    if (names.length) {
+      saveEl.setAttribute('data-dirty', 'true');
+      textEl.textContent = names.length === 1 ? 'Unsaved changes · ' + names[0] : 'Unsaved changes · ' + names.length + ' sections';
+      saveEl.setAttribute('title', names.join(', '));
+    } else {
+      saveEl.setAttribute('data-dirty', 'false');
+      textEl.textContent = 'All changes saved';
+      saveEl.removeAttribute('title');
+    }
+    document.querySelectorAll('.settings-nav [data-section]').forEach(function(b){
+      var s = b.getAttribute('data-section');
+      b.setAttribute('data-dirty', String(!!dirty[s]));
+    });
+    document.getElementById('roles-dirty').textContent = dirty.roles ? 'Unsaved permission changes' : 'All permission changes saved';
+    document.getElementById('roles-dirty').className = 'dirty-note' + (dirty.roles ? ' on' : '');
+    document.getElementById('automation-dirty').textContent = dirty.automation ? 'Unsaved automation changes' : 'All automation changes saved';
+    document.getElementById('automation-dirty').className = 'dirty-note' + (dirty.automation ? ' on' : '');
+    document.getElementById('hospital-dirty').textContent = dirty.hospital ? 'Unsaved hospital changes' : 'All hospital changes saved';
+    document.getElementById('hospital-dirty').className = 'dirty-note' + (dirty.hospital ? ' on' : '');
+  }
+
+  function showSection(name, focusHeading){
+    activeSection = name;
+    document.querySelectorAll('[data-section-panel]').forEach(function(p){
+      p.hidden = p.getAttribute('data-section-panel') !== name;
+    });
+    document.querySelectorAll('.settings-nav [data-section]').forEach(function(b){
+      b.setAttribute('aria-current', b.getAttribute('data-section') === name ? 'true' : 'false');
+    });
+    if (name === 'logs') renderAudit();
+    if (name === 'billing') renderBilling();
+    updateSaveState();
+    if (focusHeading) {
+      var h = document.querySelector('#panel-' + name + ' .setting-title');
+      if (h) h.focus({ preventScroll: true });
+    }
+  }
+
+  function renderRoles(){
+    var grid = document.getElementById('role-grid');
+    grid.innerHTML = state.roles.map(function(role){
+      var count = roleMembers(role.id);
+      var action = role.kind === 'custom'
+        ? '<button type="button" class="linkbtn" data-action="role-edit" data-id="' + esc(role.id) + '" aria-label="Manage ' + esc(role.name) + '">Manage</button>'
+        : '<span class="role-members">' + count + ' active</span>';
+      return '<article class="role-card">' +
+        '<div class="role-top">' +
+          '<span class="role-icon" aria-hidden="true"><svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' + roleIcon(role.id) + '</svg></span>' +
+          '<div class="role-title"><div class="role-name">' + esc(role.name) + '</div><div class="role-desc">' + esc(role.desc) + '</div></div>' +
+          '<span class="role-kind' + (role.kind === 'custom' ? ' custom' : '') + '">' + (role.kind === 'custom' ? 'Custom' : 'Default') + '</span>' +
+        '</div>' +
+        '<div class="role-foot"><span class="role-members">' + count + ' active member' + (count === 1 ? '' : 's') + '</span>' + action + '</div>' +
+      '</article>';
+    }).join('');
+    renderMatrix();
+  }
+
+  function renderMatrix(){
+    var matrix = document.getElementById('perm-matrix');
+    matrix.style.setProperty('--role-cols', state.roles.length);
+    matrix.style.minWidth = Math.max(760, 240 + state.roles.length * 86) + 'px';
+    var html = '<div class="perm-head"><div class="perm-head-label">Permission</div>';
+    state.roles.forEach(function(role){
+      html += '<div class="perm-head-role" title="' + esc(role.name) + '"><span>' + esc(role.short || role.name) + '</span><small>' + roleMembers(role.id) + '</small></div>';
+    });
+    html += '</div>';
+    GROUPS.forEach(function(group){
+      html += '<div class="perm-group">' + esc(group.name) + '</div>';
+      state.permissions.filter(function(p){ return p.group === group.id; }).forEach(function(p){
+        var row = permissionRow(p.id);
+        html += '<div class="perm-row"><div class="perm-label"><span class="perm-name">' + esc(p.label) + '</span><span class="perm-desc">' + esc(p.desc) + '</span></div><div class="perm-roles">';
+        state.roles.forEach(function(role){
+          var checked = row && row.roles[role.id] ? ' checked' : '';
+          html += '<label class="perm-cell" title="' + esc(role.name + ': ' + p.label) + '">' +
+            '<input type="checkbox" data-perm="' + esc(p.id) + '" data-role="' + esc(role.id) + '"' + checked + ' aria-label="' + esc(role.name + ': ' + p.label) + '">' +
+            '<span class="perm-box" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>' +
+            '<span class="role-cell-name">' + esc(role.short || role.name) + '</span>' +
+          '</label>';
+        });
+        html += '</div></div>';
+      });
+    });
+    matrix.innerHTML = html;
+  }
+
+  function fillRoleSelects(){
+    var filter = document.getElementById('staff-role-filter');
+    var prior = filter.value || 'all';
+    filter.innerHTML = '<option value="all">All roles</option>' + state.roles.map(function(r){
+      return '<option value="' + esc(r.id) + '">' + esc(r.name) + '</option>';
+    }).join('');
+    filter.value = state.roles.some(function(r){ return r.id === prior; }) ? prior : 'all';
+
+    var roleSel = document.getElementById('staff-role');
+    var priorRole = roleSel.value;
+    roleSel.innerHTML = state.roles.map(function(r){
+      return '<option value="' + esc(r.id) + '">' + esc(r.name) + '</option>';
+    }).join('');
+    if (state.roles.some(function(r){ return r.id === priorRole; })) roleSel.value = priorRole;
+  }
+
+  function fillRoleBaseOptions(){
+    var base = document.getElementById('role-base');
+    base.innerHTML = state.roles.map(function(r){
+      return '<option value="' + esc(r.id) + '">' + esc(r.name) + '</option>';
+    }).join('');
+  }
+
+  function renderStaff(){
+    var active = activeStaff();
+    document.getElementById('staff-metrics').innerHTML =
+      '<div class="metric"><span class="metric-value">' + active.length + '</span><span class="metric-label">Active staff</span></div>' +
+      '<div class="metric"><span class="metric-value">' + active.filter(function(s){ return s.roleId === 'docpreg' || s.roleId === 'docimm'; }).length + '</span><span class="metric-label">Doctors</span></div>' +
+      '<div class="metric"><span class="metric-value">' + state.staff.filter(function(s){ return s.status === 'invited'; }).length + '</span><span class="metric-label">Pending invites</span></div>' +
+      '<div class="metric"><span class="metric-value">' + active.filter(function(s){ return s.roleId === 'admin'; }).length + '</span><span class="metric-label">Hospital admins</span></div>';
+
+    var q = staffFilter.q.trim().toLowerCase();
+    var rows = state.staff.filter(function(s){
+      if (staffFilter.role !== 'all' && s.roleId !== staffFilter.role) return false;
+      if (staffFilter.status !== 'all' && s.status !== staffFilter.status) return false;
+      if (!q) return true;
+      var role = staffRole(s.roleId);
+      return (s.name + ' ' + s.email + ' ' + s.phone + ' ' + (role ? role.name : '')).toLowerCase().indexOf(q) !== -1;
+    }).slice().sort(function(a, b){
+      var order = { active:0, invited:1, inactive:2 };
+      if (order[a.status] !== order[b.status]) return order[a.status] - order[b.status];
+      return (parseDT(b.lastActive || b.invitedAt || '2026-01-01T00:00') - parseDT(a.lastActive || a.invitedAt || '2026-01-01T00:00'));
+    });
+
+    var body = document.getElementById('staff-body');
+    if (!rows.length) {
+      body.innerHTML = '<tr><td colspan="6"><div class="empty">' +
+        '<svg class="od-icon i20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20"/><circle cx="9" cy="7.5" r="3.5"/><path d="M17 11.5h5M19.5 9v5"/></svg>' +
+        '<strong>No staff match these filters</strong><span>Try another role or clear the search.</span>' +
+        '<button type="button" class="btn btn-outline btn-sm" data-action="staff-clear">Clear filters</button>' +
+      '</div></td></tr>';
+    } else {
+      body.innerHTML = rows.map(function(s){
+        var role = staffRole(s.roleId);
+        var roleName = role ? role.name : 'Unassigned';
+        var status = s.status === 'active' ? 'Active' : s.status === 'invited' ? 'Invited' : 'Deactivated';
+        var last = s.status === 'active'
+          ? '<div class="last-line">' + esc(fmtWhen(s.lastActive)) + '</div>'
+          : s.status === 'invited'
+            ? '<div class="last-line">Invite sent</div><div class="last-sub">' + esc(fmtWhen(s.invitedAt)) + '</div>'
+            : '<div class="last-line">Access removed</div><div class="last-sub">' + esc(fmtWhen(s.deactivatedAt || s.lastActive)) + '</div>';
+        return '<tr>' +
+          '<td class="c-staff"><div class="p-cell"><span class="avatar-sm ' + roleAvatarClass(s.roleId) + '" aria-hidden="true">' + esc(initials(s.name)) + '</span><div style="min-width:0"><div class="p-name">' + esc(s.name) + '</div><div class="p-sub">' + esc(s.email) + '</div></div></div></td>' +
+          '<td class="c-role"><span class="role-chip">' + esc(roleName) + '</span></td>' +
+          '<td class="c-contact"><div class="contact-line">' + esc(s.phone || 'No phone on file') + '</div><div class="contact-sub">' + (s.status === 'invited' ? 'Awaiting first sign-in' : 'Clinic account') + '</div></td>' +
+          '<td class="c-status"><span class="status st-' + esc(s.status) + '"><i aria-hidden="true"></i>' + esc(status) + '</span></td>' +
+          '<td class="c-last">' + last + '</td>' +
+          '<td class="c-act"><button type="button" class="linkbtn" data-action="staff-edit" data-id="' + esc(s.id) + '" aria-label="Edit ' + esc(s.name) + '">Edit</button></td>' +
+        '</tr>';
+      }).join('');
+    }
+    var invitedCount = state.staff.filter(function(s){ return s.status === 'invited'; }).length;
+    document.getElementById('staff-count').innerHTML = 'Showing <b>' + rows.length + '</b> of ' + state.staff.length + ' staff';
+    document.getElementById('staff-foot').textContent = state.staff.length + ' staff accounts · ' + active.length + ' active, ' + invitedCount + ' invited';
+  }
+
+  function auditMatches(a){
+    if (auditFilter.category !== 'all' && a.category !== auditFilter.category) return false;
+    if (auditFilter.actor !== 'all' && a.actor !== auditFilter.actor) return false;
+    var q = auditFilter.q.trim().toLowerCase();
+    if (!q) return true;
+    return (a.action + ' ' + a.detail + ' ' + (a.target || '') + ' ' + a.actor).toLowerCase().indexOf(q) !== -1;
+  }
+
+  function renderAuditCats(){
+    var cats = [
+      { id:'all', label:'All' },
+      { id:'clinical', label:'Clinical' },
+      { id:'reminder', label:'Reminders' },
+      { id:'automation', label:'Automation' },
+      { id:'access', label:'Access' },
+      { id:'billing', label:'Billing' },
+      { id:'system', label:'System' }
+    ];
+    document.getElementById('audit-cats').innerHTML = cats.map(function(c){
+      var count = c.id === 'all' ? state.audit.length : state.audit.filter(function(a){ return a.category === c.id; }).length;
+      return '<button type="button" class="chipfilter" data-action="audit-cat" data-cat="' + c.id + '" aria-pressed="' + (auditFilter.category === c.id) + '">' + c.label + ' <span class="n">' + count + '</span></button>';
+    }).join('');
+  }
+
+  function dayKey(iso){ return String(iso).slice(0,10); }
+
+  function renderAudit(){
+    renderAuditCats();
+    var rows = state.audit.filter(auditMatches);
+    var shown = rows.slice(0, auditLimit);
+    var groups = [];
+    shown.forEach(function(a){
+      var key = dayKey(a.at);
+      var last = groups[groups.length - 1];
+      if (!last || last.key !== key) {
+        groups.push({ key:key, date:parseDT(a.at), allCount: rows.filter(function(x){ return dayKey(x.at) === key; }).length, items: [] });
+      }
+      groups[groups.length - 1].items.push(a);
+    });
+
+    var wrap = document.getElementById('audit-list');
+    if (!rows.length) {
+      wrap.innerHTML = '<div class="empty">' +
+        '<svg class="od-icon i20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v18H6.5A2.5 2.5 0 0 1 4 18.5Z"/><path d="M4 5.5V18.5M8 7h8M8 11h8M8 15h5"/></svg>' +
+        '<strong>No activity matches</strong><span>Try a different category, person or search term.</span>' +
+        '<button type="button" class="btn btn-outline btn-sm" data-action="audit-clear">Reset filters</button>' +
+      '</div>';
+    } else {
+      wrap.innerHTML = groups.map(function(g){
+        return '<section class="audit-day">' +
+          '<div class="audit-day-head"><span><b>' + esc(fmtDay(g.date)) + '</b> · ' + esc(i18nDate.format(g.date)) + '</span><span>' + g.allCount + ' event' + (g.allCount === 1 ? '' : 's') + '</span></div>' +
+          g.items.map(function(a){
+            return '<div class="audit-event">' +
+              '<span class="audit-icon cat-' + esc(a.category) + '" aria-hidden="true"><svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' + categoryIcon(a.category) + '</svg></span>' +
+              '<div class="audit-main">' +
+                '<div class="audit-line"><span class="audit-action">' + esc(a.action) + '</span><span class="cat-tag cat-' + esc(a.category) + '">' + esc(categoryLabel(a.category)) + '</span></div>' +
+                '<p class="audit-detail">' + esc(a.detail) + '</p>' +
+                '<div class="audit-meta"><span>' + esc(a.actor) + '</span><span class="sep">·</span><span>' + esc(a.source) + '</span>' + (a.target ? '<span class="sep">·</span><span>' + esc(a.target) + '</span>' : '') + '</div>' +
+              '</div>' +
+              '<span class="audit-time">' + esc(i18nClock.format(parseDT(a.at))) + '</span>' +
+            '</div>';
+          }).join('') +
+        '</section>';
+      }).join('');
+    }
+    document.getElementById('audit-count').innerHTML = 'Showing <b>' + shown.length + '</b> of ' + rows.length + ' events';
+    document.getElementById('audit-foot').textContent = rows.length
+      ? 'Newest activity first · ' + rows.length + ' event' + (rows.length === 1 ? '' : 's') + ' match' + (rows.length === 1 ? '' : '') + ' the current filters'
+      : 'Newest activity first · all times clinic local (GMT+6)';
+    var more = document.getElementById('audit-more');
+    more.hidden = shown.length >= rows.length;
+    more.textContent = 'Load ' + Math.min(10, rows.length - shown.length) + ' more';
+  }
+
+  function addAudit(entry){
+    auditSeq += 1;
+    state.audit.unshift({
+      id:'a' + auditSeq,
+      at: nextStamp(),
+      actor: entry.actor || CURRENT_USER,
+      category: entry.category,
+      action: entry.action,
+      detail: entry.detail,
+      target: entry.target || '',
+      source: entry.source || 'Settings'
+    });
+    state.audit.sort(function(a,b){ return parseDT(b.at) - parseDT(a.at); });
+    save();
+    renderChrome();
+    if (activeSection === 'logs') renderAudit();
+  }
+
+  function openDlg(dlg, target){
+    if (target) dlgTargets[dlg.id] = target;
+    if (typeof dlg.showModal === 'function') {
+      if (!dlg.open) dlg.showModal();
+    } else {
+      dlg.setAttribute('open','');
+    }
+  }
+  function closeDlg(dlg){
+    if (dlg.open && typeof dlg.close === 'function') dlg.close();
+    else dlg.removeAttribute('open');
+  }
+  var dlgRole = document.getElementById('dlg-role');
+  var dlgStaff = document.getElementById('dlg-staff');
+  var dlgConfirm = document.getElementById('dlg-confirm');
+  var dlgUpgrade = document.getElementById('dlg-upgrade');
+  var dlgTargets = {};
+
+  function focusSelector(target){
+    if (!target) return;
+    var sel = '[data-action="' + target.action + '"]';
+    if (target.id) sel += '[data-id="' + target.id + '"]';
+    var el = document.querySelector(sel);
+    if (el) el.focus();
+  }
+  [dlgRole, dlgStaff, dlgConfirm, dlgUpgrade].forEach(function(d){
+    d.addEventListener('close', function(){
+      var t = dlgTargets[d.id];
+      delete dlgTargets[d.id];
+      if (t) focusSelector(t);
+    });
+    d.addEventListener('click', function(e){
+      if (e.target === d) closeDlg(d);
+    });
+  });
+
+  function setFieldError(prefix, key, msg){
+    var input = document.getElementById(prefix + '-' + key);
+    var err = document.getElementById(prefix + '-' + key + '-err');
+    if (input) {
+      if (msg) input.setAttribute('aria-invalid','true'); else input.removeAttribute('aria-invalid');
+    }
+    if (err) {
+      err.textContent = msg || '';
+      err.hidden = !msg;
+    }
+  }
+  function clearFieldErrors(prefix, keys){
+    keys.forEach(function(k){ setFieldError(prefix, k, ''); });
+    var summary = document.getElementById(prefix === 'staff' ? 'staff-summary' : prefix === 'role' ? 'role-summary' : 'hospital-summary');
+    if (summary) summary.hidden = true;
+  }
+
+  function openRoleDialog(id){
+    roleMode = id ? 'edit' : 'add';
+    activeRoleId = id || null;
+    var role = id ? state.roles.filter(function(r){ return r.id === id; })[0] : null;
+    clearFieldErrors('role', ['name']);
+    document.getElementById('dlg-role-title').textContent = roleMode === 'add' ? 'Add custom role' : 'Manage custom role';
+    document.getElementById('dlg-role-sub').textContent = roleMode === 'add' ? 'Create a role for your hospital and fine-tune it in the matrix.' : 'Rename this role or remove it when no one is assigned.';
+    document.getElementById('role-name').value = role ? role.name : '';
+    document.getElementById('role-desc').value = role ? role.desc : '';
+    document.getElementById('role-base-wrap').hidden = roleMode !== 'add';
+    fillRoleBaseOptions();
+    if (roleMode === 'add') document.getElementById('role-base').value = 'clinical';
+    var deleteBtn = document.getElementById('role-delete');
+    deleteBtn.hidden = roleMode === 'add';
+    deleteBtn.disabled = false;
+    if (role) {
+      var members = roleMembers(role.id);
+      deleteBtn.disabled = members > 0;
+      deleteBtn.title = members > 0 ? 'Reassign ' + members + ' active member' + (members === 1 ? '' : 's') + ' before deleting this role.' : '';
+    }
+    document.getElementById('role-save').textContent = roleMode === 'add' ? 'Create role' : 'Save role';
+    openDlg(dlgRole, { action: roleMode === 'add' ? 'role-add' : 'role-edit', id:id || '' });
+    window.requestAnimationFrame(function(){ document.getElementById('role-name').focus(); });
+  }
+
+  function saveRole(){
+    var name = document.getElementById('role-name').value.trim();
+    var desc = document.getElementById('role-desc').value.trim();
+    clearFieldErrors('role', ['name']);
+    var valid = true;
+    if (!name) { setFieldError('role','name','Enter a name for this role.'); valid = false; }
+    if (name && state.roles.some(function(r){ return r.id !== activeRoleId && r.name.toLowerCase() === name.toLowerCase(); })) {
+      setFieldError('role','name','A role with this name already exists.'); valid = false;
+    }
+    if (!valid) {
+      document.getElementById('role-summary').hidden = false;
+      document.getElementById('role-summary').innerHTML = 'Check the highlighted fields. <a href="#role-name">Go to role name</a>';
+      document.getElementById('role-name').focus();
+      return;
+    }
+    var newRole = null;
+    if (roleMode === 'add') {
+      roleSeq += 1;
+      var baseId = document.getElementById('role-base').value;
+      var id = 'custom-' + roleSeq;
+      while (state.roles.some(function(r){ return r.id === id; })) { roleSeq += 1; id = 'custom-' + roleSeq; }
+      newRole = { id:id, name:name, short:name.length > 16 ? name.split(' ')[0] : name, kind:'custom', desc:desc || 'Custom hospital role.' };
+      state.roles.push(newRole);
+      state.permissions.forEach(function(p){
+        var base = p.roles[baseId];
+        p.roles[id] = typeof base === 'boolean' ? base : false;
+      });
+      permDraft = clone(state.permissions);
+      addAudit({ category:'access', action:'Custom role created', detail:name + ' created' + (desc ? ' — ' + desc : '') + '. Permissions copied from ' + (staffRole(baseId) ? staffRole(baseId).name : 'a clinic role') + '.', target:name, source:'Settings · Roles' });
+      toast('Custom role created.');
+    } else {
+      var role = state.roles.filter(function(r){ return r.id === activeRoleId; })[0];
+      if (role) {
+        role.name = name;
+        role.short = name.length > 16 ? name.split(' ')[0] : name;
+        role.desc = desc || 'Custom hospital role.';
+        addAudit({ category:'access', action:'Custom role updated', detail:name + ' details updated.', target:name, source:'Settings · Roles' });
+        toast('Role updated.');
+      }
+    }
+    save();
+    fillRoleSelects();
+    renderRoles();
+    renderStaff();
+    renderChrome();
+    updateSaveState();
+    var focusId = newRole ? newRole.id : activeRoleId;
+    dlgTargets[dlgRole.id] = newRole || roleMode === 'edit'
+      ? { action:'role-edit', id:focusId }
+      : { action:'role-add' };
+    closeDlg(dlgRole);
+  }
+
+  function openStaffDialog(mode, id){
+    staffMode = mode;
+    activeStaffId = id || null;
+    fillRoleSelects();
+    clearFieldErrors('staff', ['name','email','phone','role']);
+    var s = id ? state.staff.filter(function(x){ return x.id === id; })[0] : null;
+    var title = mode === 'invite' ? 'Invite a staff member' : 'Edit staff member';
+    document.getElementById('dlg-staff-title').textContent = title;
+    document.getElementById('dlg-staff-sub').textContent = mode === 'invite'
+      ? 'They will receive an email invitation to activate their account.'
+      : 'Update their details, role or account access.';
+    document.getElementById('staff-name').value = s ? s.name : '';
+    document.getElementById('staff-email').value = s ? s.email : '';
+    document.getElementById('staff-phone').value = s ? s.phone : '';
+    document.getElementById('staff-role').value = s ? s.roleId : 'clinical';
+    document.getElementById('staff-save').textContent = mode === 'invite' ? 'Send invitation' : 'Save changes';
+    var account = document.getElementById('staff-account');
+    if (mode === 'invite' || !s) {
+      account.hidden = true;
+    } else {
+      account.hidden = false;
+      var role = staffRole(s.roleId);
+      document.getElementById('staff-account-note').textContent = (role ? role.name : 'Unassigned') + ' · ' + (s.status === 'active' ? 'Active since ' + fmtDate(s.joined || '2026-07-01') : s.status === 'invited' ? 'Invitation pending' : 'Access removed');
+      document.getElementById('staff-account-buttons').innerHTML = s.status === 'active'
+        ? '<button type="button" class="btn btn-outline btn-sm" data-action="staff-reset" data-id="' + esc(s.id) + '">Reset password</button>' +
+          '<button type="button" class="btn btn-danger-outline btn-sm" data-action="staff-deactivate" data-id="' + esc(s.id) + '">Deactivate staff</button>'
+        : s.status === 'invited'
+          ? '<button type="button" class="btn btn-outline btn-sm" data-action="staff-resend" data-id="' + esc(s.id) + '">Resend invitation</button>' +
+            '<button type="button" class="btn btn-danger-outline btn-sm" data-action="staff-cancel-invite" data-id="' + esc(s.id) + '">Cancel invitation</button>'
+          : '<button type="button" class="btn btn-outline btn-sm" data-action="staff-reactivate" data-id="' + esc(s.id) + '">Reactivate account</button>';
+    }
+    openDlg(dlgStaff, { action: mode === 'invite' ? 'staff-invite' : 'staff-edit', id:id || '' });
+    window.requestAnimationFrame(function(){ document.getElementById('staff-name').focus(); });
+  }
+
+  function saveStaff(){
+    var name = document.getElementById('staff-name').value.trim();
+    var email = document.getElementById('staff-email').value.trim();
+    var phone = document.getElementById('staff-phone').value.trim();
+    var roleId = document.getElementById('staff-role').value;
+    clearFieldErrors('staff', ['name','email','phone','role']);
+    var errors = [];
+    if (!name) { setFieldError('staff','name','Enter the staff member\'s full name.'); errors.push('name'); }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setFieldError('staff','email','Enter a valid email address, for example name@hospital.org.'); errors.push('email'); }
+    else if (state.staff.some(function(s){ return s.id !== activeStaffId && s.email.toLowerCase() === email.toLowerCase(); })) {
+      setFieldError('staff','email','This email is already used by another staff account.'); errors.push('email');
+    }
+    if (phone && digits(phone).length < 7) { setFieldError('staff','phone','Enter a phone number with at least 7 digits, or leave it blank.'); errors.push('phone'); }
+    if (!roleId || !staffRole(roleId)) { setFieldError('staff','role','Choose a role for this staff member.'); errors.push('role'); }
+    if (errors.length) {
+      var summary = document.getElementById('staff-summary');
+      summary.hidden = false;
+      summary.innerHTML = 'Check the highlighted fields. <a href="#staff-' + errors[0] + '">Go to the first issue</a>';
+      document.getElementById('staff-' + errors[0]).focus();
+      return;
+    }
+    var savedStaff = null;
+    if (staffMode === 'invite') {
+      staffSeq += 1;
+      savedStaff = {
+        id:'s' + staffSeq, name:name, email:email, phone:phone, roleId:roleId,
+        status:'invited', invitedAt:nextStamp(), lastActive:null
+      };
+      state.staff.push(savedStaff);
+      addAudit({ category:'access', action:'Staff invited', detail:'Invitation sent to ' + name + ' for the ' + staffRole(roleId).name + ' role.', target:name, source:'Settings · Staff' });
+      toast('Invitation sent to ' + name + '.');
+    } else {
+      var s = state.staff.filter(function(x){ return x.id === activeStaffId; })[0];
+      if (s) {
+        var priorRole = staffRole(s.roleId);
+        s.name = name; s.email = email; s.phone = phone; s.roleId = roleId;
+        savedStaff = s;
+        addAudit({ category:'access', action:'Staff details updated', detail:name + '\'s profile updated' + (priorRole && priorRole.id !== roleId ? '; role changed to ' + staffRole(roleId).name : '') + '.', target:name, source:'Settings · Staff' });
+        toast('Staff details updated.');
+      }
+    }
+    save();
+    fillRoleSelects();
+    renderStaff();
+    renderRoles();
+    renderChrome();
+    updateSaveState();
+    if (savedStaff) dlgTargets[dlgStaff.id] = { action:'staff-edit', id:savedStaff.id };
+    closeDlg(dlgStaff);
+  }
+
+  function requestConfirm(title, sub, message, label, onConfirm, danger, focusTarget){
+    document.getElementById('dlg-confirm-title').textContent = title;
+    document.getElementById('dlg-confirm-sub').textContent = sub;
+    document.getElementById('dlg-confirm-message').textContent = message;
+    var go = document.getElementById('confirm-go');
+    go.textContent = label;
+    go.className = 'btn ' + (danger === false ? 'btn-primary' : 'btn-danger');
+    confirmAction = onConfirm;
+    dlgTargets[dlgConfirm.id] = focusTarget || null;
+    openDlg(dlgConfirm);
+    window.requestAnimationFrame(function(){ document.querySelector('#dlg-confirm [data-close]').focus(); });
+  }
+
+  function markDirty(section){
+    dirty[section] = true;
+    updateSaveState();
+  }
+
+  function renderAutoForm(){
+    document.getElementById('auto-enabled').checked = !!autoDraft.enabled;
+    document.getElementById('auto-time').value = autoDraft.time;
+    document.getElementById('auto-timezone').value = autoDraft.timezone;
+    document.getElementById('auto-weekdays').checked = !!autoDraft.weekdaysOnly;
+    document.getElementById('milestone-seven').checked = !!autoDraft.milestones.seven;
+    document.getElementById('milestone-one').checked = !!autoDraft.milestones.one;
+    document.getElementById('milestone-dayof').checked = !!autoDraft.milestones.dayof;
+    document.getElementById('auto-channel').value = autoDraft.channel;
+    document.getElementById('auto-fallback').checked = !!autoDraft.fallback;
+    document.getElementById('auto-quiet-start').value = autoDraft.quietStart;
+    document.getElementById('auto-quiet-end').value = autoDraft.quietEnd;
+    document.getElementById('automation-state-chip').innerHTML = autoDraft.enabled
+      ? '<span class="live-dot" aria-hidden="true"></span>Automation on'
+      : 'Automation paused';
+  }
+
+  function nextDispatch(){
+    if (!autoDraft.time) return null;
+    var parts = autoDraft.time.split(':').map(Number);
+    var candidate = new Date(DEMO_TODAY.getFullYear(), DEMO_TODAY.getMonth(), DEMO_TODAY.getDate(), parts[0] || 0, parts[1] || 0);
+    if (candidate <= DEMO_NOW) candidate = addDays(candidate, 1);
+    if (autoDraft.weekdaysOnly) {
+      while (candidate.getDay() === 0 || candidate.getDay() === 6) candidate = addDays(candidate, 1);
+    }
+    return candidate;
+  }
+
+  function renderPreview(){
+    var el = document.getElementById('auto-preview');
+    var nd = nextDispatch();
+    var enabled = autoDraft.enabled;
+    var milestones = autoDraft.milestones;
+    var timezoneLabel = ({ 'Asia/Dhaka':'Asia/Dhaka · GMT+6', 'Asia/Kolkata':'Asia/Kolkata · GMT+5:30', 'Asia/Karachi':'Asia/Karachi · GMT+5' })[autoDraft.timezone] || autoDraft.timezone;
+    var channel = autoDraft.channel || 'WhatsApp';
+    var milestoneRows = [];
+    if (milestones.seven) milestoneRows.push({ date:'Fri, 13 Nov', title:'7-day reminder', sub:'Amina Rahman · 20 Nov antenatal visit' });
+    if (milestones.one) milestoneRows.push({ date:'Thu, 19 Nov', title:'1-day reminder', sub:'Amina Rahman · visit details and room' });
+    if (milestones.dayof) milestoneRows.push({ date:'Fri, 20 Nov', title:'Day-of reminder', sub:'Morning prompt · 28-week antenatal visit' });
+    el.innerHTML =
+      '<div>' +
+        '<div class="preview-eyebrow">Next automated dispatch</div>' +
+        '<div class="preview-top"><div><div class="preview-time">' + (enabled ? esc(autoDraft.time || '08:00') : '—') + '</div>' +
+          '<div class="preview-date">' + (enabled && nd ? esc(fmtDay(nd)) + ', ' + esc(i18nDateShort.format(nd)) + ' · ' + esc(timezoneLabel) : 'Paused by hospital admin') + '</div></div>' +
+          '<span class="preview-badge' + (enabled ? '' : ' paused') + '"><span class="live-dot" aria-hidden="true"></span>' + (enabled ? 'Scheduled' : 'Paused') + '</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="preview-count"><b>' + (enabled ? '12' : '0') + '</b><span>reminders queued</span></div>' +
+      '<div class="preview-breakdown">' + (enabled ? '7 antenatal · 5 immunization · next 48 hours' : 'No messages will send while automation is off.') + '</div>' +
+      '<div class="preview-divider"></div>' +
+      '<div><div class="preview-eyebrow" style="margin-bottom:7px">Milestone reminders</div><div class="preview-list">' +
+        (milestoneRows.length ? milestoneRows.map(function(m){
+          return '<div class="preview-item"><span class="dot' + (enabled ? '' : ' muted') + '" aria-hidden="true"></span><div><div class="preview-item-title">' + esc(m.date) + ' · ' + esc(m.title) + '</div><div class="preview-item-sub">' + esc(m.sub) + '</div></div></div>';
+        }).join('') : '<div class="preview-empty">No milestone reminders enabled.</div>') +
+      '</div></div>' +
+      '<div class="preview-divider"></div>' +
+      '<div class="preview-foot">' + esc(channel) + ' first' + (autoDraft.fallback ? ' · SMS fallback' : ' · no fallback') + ' · quiet hours ' + esc(autoDraft.quietStart || '21:00') + '–' + esc(autoDraft.quietEnd || '07:00') + '<br>Last test ' + esc(fmtWhen(autoDraft.lastTestAt)) + '</div>' +
+      '<a class="preview-link" href="schedules.html">Open reminder register <svg class="od-icon" style="--od-icon-size:13px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>';
+    document.getElementById('automation-state-chip').innerHTML = enabled
+      ? '<span class="live-dot" aria-hidden="true"></span>Automation on'
+      : 'Automation paused';
+  }
+
+  function syncAutoDraftFromForm(){
+    autoDraft.enabled = document.getElementById('auto-enabled').checked;
+    autoDraft.time = document.getElementById('auto-time').value || '08:00';
+    autoDraft.timezone = document.getElementById('auto-timezone').value;
+    autoDraft.weekdaysOnly = document.getElementById('auto-weekdays').checked;
+    autoDraft.milestones.seven = document.getElementById('milestone-seven').checked;
+    autoDraft.milestones.one = document.getElementById('milestone-one').checked;
+    autoDraft.milestones.dayof = document.getElementById('milestone-dayof').checked;
+    autoDraft.channel = document.getElementById('auto-channel').value;
+    autoDraft.fallback = document.getElementById('auto-fallback').checked;
+    autoDraft.quietStart = document.getElementById('auto-quiet-start').value || '21:00';
+    autoDraft.quietEnd = document.getElementById('auto-quiet-end').value || '07:00';
+    markDirty('automation');
+    renderPreview();
+    document.getElementById('nav-automation-meta').textContent = autoDraft.enabled ? autoDraft.time + ' daily' : 'Paused';
+  }
+
+  function renderHospitalForm(){
+    document.getElementById('h-name').value = hospitalDraft.name || '';
+    document.getElementById('h-legal').value = hospitalDraft.legalName || '';
+    document.getElementById('h-address').value = hospitalDraft.address || '';
+    document.getElementById('h-phone').value = hospitalDraft.primaryPhone || '';
+    document.getElementById('h-email').value = hospitalDraft.email || '';
+    document.getElementById('h-regno').value = hospitalDraft.regNo || '';
+    document.getElementById('w-phone').value = hospitalDraft.whatsapp.phone || '';
+    document.getElementById('w-display').value = hospitalDraft.whatsapp.displayName || '';
+    document.getElementById('w-sender').value = hospitalDraft.whatsapp.senderId || '';
+    renderLogoPreview();
+    renderWaStatus();
+  }
+
+  function renderLogoPreview(){
+    var el = document.getElementById('logo-preview');
+    if (hospitalDraft.logoData) {
+      el.innerHTML = '<img src="' + esc(hospitalDraft.logoData) + '" alt="">';
+    } else {
+      el.textContent = initials(hospitalDraft.name || 'St. Mary\'s Maternity');
+    }
+  }
+
+  function renderWaStatus(){
+    var wa = hospitalDraft.whatsapp;
+    var masked = '••••••••••••' + (wa.keyLast4 || '4f9c');
+    var full = 'wba_live_9f2c8b7d1e6a' + (wa.keyLast4 || '4f9c');
+    document.getElementById('w-key-value').textContent = waRevealed ? full : masked;
+    document.getElementById('wa-key-note').textContent = 'Stored encrypted · last rotated ' + fmtDate(wa.lastRotatedAt ? wa.lastRotatedAt.slice(0,10) : '2026-11-05');
+    document.getElementById('wa-banner').className = 'wa-banner' + (wa.verified ? '' : ' warn');
+    document.getElementById('wa-banner-text').textContent = wa.verified
+      ? 'Verified business account · connected ' + fmtDate((wa.connectedAt || '2026-10-25').slice(0,10))
+      : 'WhatsApp needs attention. Test the gateway and reconnect before sending reminders.';
+    document.getElementById('hospital-wa-chip').innerHTML = wa.verified
+      ? '<span class="live-dot" aria-hidden="true"></span>WhatsApp verified'
+      : 'WhatsApp needs setup';
+    document.getElementById('wa-test-status').textContent = wa.lastTestedAt
+      ? 'Last tested ' + fmtWhen(wa.lastTestedAt)
+      : 'No test run in this session';
+    document.getElementById('wa-test-status').className = 'test-status' + (wa.verified ? ' ok' : '');
+  }
+
+  function validateHospital(){
+    var errors = [];
+    clearHospitalErrors();
+    var name = hospitalDraft.name.trim();
+    var address = hospitalDraft.address.trim();
+    var phone = hospitalDraft.primaryPhone.trim();
+    var email = hospitalDraft.email.trim();
+    var display = hospitalDraft.whatsapp.displayName.trim();
+    var sender = hospitalDraft.whatsapp.senderId.trim();
+    var wphone = hospitalDraft.whatsapp.phone.trim();
+    if (!name) { setFieldError('h','name','Enter the official hospital name.'); errors.push('h-name'); }
+    if (!address) { setFieldError('h','address','Enter the clinic address used on reports.'); errors.push('h-address'); }
+    if (digits(phone).length < 7) { setFieldError('h','phone','Enter a valid primary phone number.'); errors.push('h-phone'); }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setFieldError('h','email','Enter a valid administrative email.'); errors.push('h-email'); }
+    if (!display) { setFieldError('w','display','Enter the sender name patients will recognise.'); errors.push('w-display'); }
+    if (digits(sender).length < 8) { setFieldError('w','sender','Enter the full numeric sender ID.'); errors.push('w-sender'); }
+    if (wphone && digits(wphone).length < 7) { setFieldError('w','phone','Enter a valid WhatsApp number.'); errors.push('w-phone'); }
+    if (errors.length) {
+      var summary = document.getElementById('hospital-summary');
+      summary.hidden = false;
+      summary.innerHTML = 'Please fix ' + errors.length + ' field' + (errors.length === 1 ? '' : 's') + ': ' + errors.map(function(id){
+        var label = document.querySelector('label[for="' + id + '"]');
+        return '<a href="#' + id + '">' + esc(label ? label.textContent.replace('*','').trim() : id) + '</a>';
+      }).join(', ') + '.';
+      var first = document.getElementById(errors[0]);
+      if (first) first.focus();
+      return false;
+    }
+    return true;
+  }
+
+  function clearHospitalErrors(){
+    ['h-name','h-address','h-phone','h-email','w-phone','w-display','w-sender'].forEach(function(id){
+      var input = document.getElementById(id);
+      var err = document.getElementById(id + '-err');
+      if (input) input.removeAttribute('aria-invalid');
+      if (err) { err.textContent = ''; err.hidden = true; }
+    });
+    var s = document.getElementById('hospital-summary');
+    if (s) { s.hidden = true; s.textContent = ''; }
+  }
+
+  function planById(id){
+    return {
+      starter:{ id:'starter', name:'Starter', price:'৳4,900', cadence:'/ month', blurb:'A calm starting point for a small clinic finding its rhythm.', features:['300 patient records','15 staff seats','10,000 automated messages','Email support'] },
+      professional:{ id:'professional', name:'Professional', price:'৳9,900', cadence:'/ month', blurb:'Room to grow, with the controls a busy maternity unit needs.', features:['1,000 patient records','40 staff seats','50,000 automated messages','Audit export and priority support'] },
+      enterprise:{ id:'enterprise', name:'Enterprise', price:'Custom', cadence:'', blurb:'For hospital groups that need tailored limits and contracts.', features:['Tailored patient and staff limits','Dedicated success manager','Custom onboarding','Security review support'] }
+    }[id];
+  }
+
+  function renderBilling(){
+    var days = daysLeft();
+    var active = activeStaff().length;
+    document.getElementById('billing-days').innerHTML = days + ' days<small>left</small>';
+    document.getElementById('billing-note').textContent = 'Your full Professional feature set is free until ' + fmtDate(state.billing.trialEnds) + '. Upgrade before the trial ends to keep automated reminders running.';
+    document.getElementById('invoice-note').textContent = 'Your trial is free until ' + fmtShortDate(state.billing.trialEnds) + '. Nothing is due today.';
+    document.getElementById('billing-contact').textContent = 'Billing contact · ' + CURRENT_USER;
+    var req = state.billing.upgradeRequest;
+    document.getElementById('billing-request').hidden = !req;
+    if (req) {
+      var p = planById(req.plan);
+      document.getElementById('billing-request').innerHTML =
+        '<div class="banner-main"><svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>' +
+        '<span><b>' + esc(p ? p.name : req.plan) + ' upgrade requested</b> · ' + esc(req.cycle) + ' billing · requested ' + esc(fmtWhen(req.requestedAt)) + '. Our team will confirm within one business day.</span></div>' +
+        '<button type="button" class="linkbtn" data-action="billing-change">Change request</button>';
+    }
+    var usage = [
+      { label:'Patient records', used:state.billing.patientsUsed, limit:state.billing.patientsLimit, unit:'patients', note:(state.billing.patientsLimit - state.billing.patientsUsed) + ' remaining' },
+      { label:'Staff seats', used:active, limit:state.billing.staffLimit, unit:'seats', note:(state.billing.staffLimit - active) + ' remaining' },
+      { label:'Automated messages', used:state.billing.messagesUsed, limit:state.billing.messagesLimit, unit:'messages', note:(state.billing.messagesLimit - state.billing.messagesUsed).toLocaleString('en-US') + ' remaining' }
+    ];
+    document.getElementById('usage-grid').innerHTML = usage.map(function(u){
+      var pct = Math.min(100, Math.round(u.used / u.limit * 100));
+      return '<div class="usage-card"><div class="usage-top"><span class="usage-label">' + esc(u.label) + '</span><span class="usage-value">' + u.used.toLocaleString('en-US') + '<small>/ ' + u.limit.toLocaleString('en-US') + '</small></span></div>' +
+        '<div class="usage-bar' + (pct >= 80 ? ' warn' : '') + '" role="img" aria-label="' + esc(u.used + ' of ' + u.limit + ' ' + u.unit + ' used') + '"><i style="width:' + pct + '%"></i></div>' +
+        '<div class="usage-note">' + esc(u.note) + ' · ' + pct + '% used</div></div>';
+    }).join('');
+    var plans = ['starter','professional','enterprise'];
+    document.getElementById('plan-grid').innerHTML = plans.map(function(id){
+      var p = planById(id);
+      var requested = req && req.plan === id;
+      var isRec = id === 'professional';
+      return '<article class="plan-card' + (isRec ? ' recommended' : '') + (requested ? ' requested' : '') + '">' +
+        (isRec ? '<span class="plan-rec">Recommended</span>' : '') +
+        '<div class="plan-name">' + esc(p.name) + '</div>' +
+        '<div class="plan-price">' + esc(p.price) + '<small>' + esc(p.cadence) + '</small></div>' +
+        '<p class="plan-blurb">' + esc(p.blurb) + '</p>' +
+        '<ul class="plan-features">' + p.features.map(function(f){
+          return '<li><svg class="od-icon" style="--od-icon-size:13px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span>' + esc(f) + '</span></li>';
+        }).join('') + '</ul>' +
+        '<button type="button" class="btn ' + (requested ? 'btn-outline' : isRec ? 'btn-primary' : 'btn-outline') + '" data-action="request-plan" data-plan="' + id + '"' + (requested ? ' disabled' : '') + '>' + (requested ? 'Requested' : 'Request upgrade') + '</button>' +
+      '</article>';
+    }).join('');
+  }
+
+  function openUpgrade(planId){
+    upgradePlanId = planId || 'professional';
+    var p = planById(upgradePlanId);
+    document.getElementById('upgrade-plan-name').textContent = p.name + ' · ' + p.price + (p.cadence ? ' ' + p.cadence : '');
+    document.getElementById('upgrade-plan-note').textContent = p.features.join(' · ');
+    var req = state.billing.upgradeRequest;
+    document.querySelectorAll('input[name="billing-cycle"]').forEach(function(r){
+      r.checked = !!req && req.plan === upgradePlanId ? r.value === req.cycle : r.value === 'monthly';
+    });
+    document.getElementById('upgrade-note').value = req && req.plan === upgradePlanId ? (req.note || '') : '';
+    document.getElementById('upgrade-confirm').textContent = 'Send request';
+    dlgTargets[dlgUpgrade.id] = { action:'request-plan', id:'' };
+    openDlg(dlgUpgrade);
+    window.requestAnimationFrame(function(){ document.querySelector('input[name="billing-cycle"]:checked').focus(); });
+  }
+
+  function openConfirmForStaff(action, id){
+    var s = state.staff.filter(function(x){ return x.id === id; })[0];
+    if (!s) return;
+    if (action === 'deactivate') {
+      dlgTargets[dlgStaff.id] = { action:'staff-edit', id:id };
+      closeDlg(dlgStaff);
+      requestConfirm('Deactivate ' + s.name + '?', 'Access is removed immediately.', 'Their patient history and audit entries remain intact. You can reactivate the account later from the staff directory.', 'Deactivate staff', function(){
+        s.status = 'inactive';
+        s.deactivatedAt = nextStamp();
+        addAudit({ category:'access', action:'Staff account deactivated', detail:s.name + ' was deactivated by ' + CURRENT_USER + '. Access removed immediately.', target:s.name, source:'Settings · Staff' });
+        save();
+        renderStaff();
+        renderRoles();
+        renderChrome();
+        updateSaveState();
+        toast(s.name + ' deactivated.');
+        focusSelector({ action:'staff-edit', id:s.id });
+      }, true, { action:'staff-edit', id:id });
+    } else if (action === 'cancel-invite') {
+      dlgTargets[dlgStaff.id] = { action:'staff-edit', id:id };
+      closeDlg(dlgStaff);
+      requestConfirm('Cancel this invitation?', 'The invitation link will stop working.', 'You can invite ' + s.name + ' again later with a fresh email.', 'Cancel invitation', function(){
+        state.staff = state.staff.filter(function(x){ return x.id !== s.id; });
+        addAudit({ category:'access', action:'Staff invitation cancelled', detail:'Invitation for ' + s.name + ' cancelled before activation.', target:s.name, source:'Settings · Staff' });
+        save();
+        renderStaff();
+        renderRoles();
+        renderChrome();
+        updateSaveState();
+        toast('Invitation cancelled.');
+        focusSelector({ action:'staff-invite' });
+      }, true, { action:'staff-invite' });
+    }
+  }
+
+  function exportLog(){
+    var rows = state.audit.filter(auditMatches);
+    if (!rows.length) { toast('There is no activity to export with the current filters.', 'err'); return; }
+    var head = ['Time','Actor','Category','Action','Detail','Target','Source'];
+    function cell(v){ return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }
+    var lines = [head.map(cell).join(',')];
+    rows.forEach(function(a){
+      lines.push([a.at, a.actor, categoryLabel(a.category), a.action, a.detail, a.target || '', a.source].map(cell).join(','));
+    });
+    var csv = '\ufeff' + lines.join('\r\n');
+    var blob = new Blob([csv], { type:'text/csv;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'tinittracker-activity-log-2026-11-10.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+    toast('Exported ' + rows.length + ' activity event' + (rows.length === 1 ? '' : 's') + '.', 'info');
+  }
+
+  document.addEventListener('click', function(e){
+    var cd = e.target.closest('[data-close]');
+    if (cd) {
+      var parent = cd.closest('dialog');
+      if (parent) closeDlg(parent);
+      return;
+    }
+    var btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    var action = btn.getAttribute('data-action');
+    var id = btn.getAttribute('data-id');
+
+    if (action === 'section') { showSection(btn.getAttribute('data-section'), true); }
+    else if (action === 'roles-save') {
+      var changed = JSON.stringify(state.permissions) !== JSON.stringify(permDraft);
+      if (!changed) { dirty.roles = false; updateSaveState(); toast('No permission changes to save.', 'info'); return; }
+      state.permissions = clone(permDraft);
+      dirty.roles = false;
+      addAudit({ category:'access', action:'Role permissions updated', detail:'Permission matrix updated across ' + state.roles.length + ' roles by ' + CURRENT_USER + '.', target:'Access control', source:'Settings · Roles' });
+      save();
+      updateSaveState();
+      renderChrome();
+      toast('Permission changes saved.');
+    }
+    else if (action === 'roles-reset') {
+      permDraft = clone(state.permissions);
+      dirty.roles = false;
+      renderMatrix();
+      updateSaveState();
+      toast('Unsaved permission changes discarded.', 'info');
+    }
+    else if (action === 'role-add') { openRoleDialog(null); }
+    else if (action === 'role-edit') { openRoleDialog(id); }
+    else if (action === 'role-save') { saveRole(); }
+    else if (action === 'role-delete') {
+      var role = state.roles.filter(function(r){ return r.id === activeRoleId; })[0];
+      if (!role) return;
+      if (roleMembers(role.id) > 0) { toast('Reassign active members before deleting this role.', 'err'); return; }
+      dlgTargets[dlgRole.id] = { action:'role-add' };
+      closeDlg(dlgRole);
+      requestConfirm('Delete ' + role.name + '?', 'This custom role has no active members.', 'The role will be removed from the permission matrix. Audit history is kept.', 'Delete role', function(){
+        state.roles = state.roles.filter(function(r){ return r.id !== role.id; });
+        state.permissions.forEach(function(p){ delete p.roles[role.id]; });
+        permDraft = clone(state.permissions);
+        addAudit({ category:'access', action:'Custom role deleted', detail:role.name + ' deleted after confirming no active members.', target:role.name, source:'Settings · Roles' });
+        save();
+        fillRoleSelects();
+        renderRoles();
+        renderStaff();
+        renderChrome();
+        updateSaveState();
+        toast('Role deleted.');
+        focusSelector({ action:'role-add' });
+      }, true, { action:'role-add' });
+    }
+    else if (action === 'staff-invite') { openStaffDialog('invite', null); }
+    else if (action === 'staff-edit') { openStaffDialog('edit', id); }
+    else if (action === 'staff-save') { saveStaff(); }
+    else if (action === 'staff-clear') {
+      staffFilter = { q:'', role:'all', status:'all' };
+      document.getElementById('staff-search').value = '';
+      document.getElementById('staff-role-filter').value = 'all';
+      document.getElementById('staff-status-filter').value = 'all';
+      renderStaff();
+    }
+    else if (action === 'staff-reset') {
+      var s1 = state.staff.filter(function(s){ return s.id === id; })[0];
+      if (!s1) return;
+      addAudit({ category:'access', action:'Password reset sent', detail:'Temporary password reset link sent to ' + s1.email + '.', target:s1.name, source:'Settings · Staff' });
+      save();
+      toast('Password reset link sent to ' + s1.email + '.');
+      document.getElementById('staff-account-note').textContent = 'Password reset link sent just now.';
+    }
+    else if (action === 'staff-resend') {
+      var s2 = state.staff.filter(function(s){ return s.id === id; })[0];
+      if (!s2) return;
+      s2.invitedAt = nextStamp();
+      addAudit({ category:'access', action:'Staff invitation resent', detail:'A fresh invitation was sent to ' + s2.email + '.', target:s2.name, source:'Settings · Staff' });
+      save();
+      renderStaff();
+      dlgTargets[dlgStaff.id] = { action:'staff-edit', id:s2.id };
+      closeDlg(dlgStaff);
+      toast('Invitation resent to ' + s2.name + '.');
+    }
+    else if (action === 'staff-deactivate') { openConfirmForStaff('deactivate', id); }
+    else if (action === 'staff-cancel-invite') { openConfirmForStaff('cancel-invite', id); }
+    else if (action === 'staff-reactivate') {
+      var s3 = state.staff.filter(function(s){ return s.id === id; })[0];
+      if (!s3) return;
+      s3.status = 'active';
+      s3.lastActive = nextStamp();
+      delete s3.deactivatedAt;
+      addAudit({ category:'access', action:'Staff account reactivated', detail:s3.name + '\'s access restored by ' + CURRENT_USER + '.', target:s3.name, source:'Settings · Staff' });
+      save();
+      renderStaff();
+      renderRoles();
+      renderChrome();
+      dlgTargets[dlgStaff.id] = { action:'staff-edit', id:s3.id };
+      closeDlg(dlgStaff);
+      toast(s3.name + ' reactivated.');
+    }
+    else if (action === 'audit-cat') {
+      auditFilter.category = btn.getAttribute('data-cat');
+      auditLimit = 10;
+      renderAudit();
+    }
+    else if (action === 'audit-more') {
+      auditLimit += 10;
+      renderAudit();
+    }
+    else if (action === 'audit-clear') {
+      auditFilter = { category:'all', actor:'all', q:'' };
+      auditLimit = 10;
+      document.getElementById('audit-search').value = '';
+      document.getElementById('audit-actor').value = 'all';
+      renderAudit();
+    }
+    else if (action === 'audit-export') { exportLog(); }
+    else if (action === 'auto-save') {
+      if (!autoDraft.time || !autoDraft.quietStart || !autoDraft.quietEnd) {
+        toast('Add a dispatch time and both quiet-hour times before saving.', 'err');
+        return;
+      }
+      state.automation = clone(autoDraft);
+      dirty.automation = false;
+      addAudit({ category:'automation', action:'Automation settings updated', detail:(state.automation.enabled ? 'Daily dispatch set to ' + state.automation.time + ' ' + state.automation.timezone + '; ' : 'Automation paused; ') + 'milestone reminders are ' + (state.automation.milestones.seven || state.automation.milestones.one || state.automation.milestones.dayof ? 'enabled' : 'off') + '.', target:'Clinic automation', source:'Settings · Automation' });
+      save();
+      updateSaveState();
+      renderChrome();
+      renderPreview();
+      toast('Automation settings saved.');
+    }
+    else if (action === 'auto-reset') {
+      autoDraft = clone(state.automation);
+      dirty.automation = false;
+      renderAutoForm();
+      renderPreview();
+      updateSaveState();
+      toast('Unsaved automation changes discarded.', 'info');
+    }
+    else if (action === 'auto-test') {
+      var testBtn = document.getElementById('auto-test');
+      if (testBtn.disabled) return;
+      testBtn.disabled = true;
+      testBtn.textContent = 'Sending…';
+      window.setTimeout(function(){
+        autoDraft.lastTestAt = nextStamp();
+        state.automation.lastTestAt = autoDraft.lastTestAt;
+        addAudit({ category:'automation', action:'WhatsApp test message sent', detail:'Test reminder delivered to ' + state.hospital.whatsapp.phone + ' from ' + state.hospital.whatsapp.displayName + '.', target:'Clinic automation', source:'Settings · WhatsApp' });
+        save();
+        renderPreview();
+        testBtn.disabled = false;
+        testBtn.textContent = 'Send test message';
+        toast('Test message sent to ' + state.hospital.whatsapp.phone + '.');
+      }, 900);
+    }
+    else if (action === 'hospital-save') {
+      if (!validateHospital()) return;
+      state.hospital = clone(hospitalDraft);
+      dirty.hospital = false;
+      addAudit({ category:'access', action:'Hospital profile updated', detail:state.hospital.name + ' profile and WhatsApp sender settings saved by ' + CURRENT_USER + '.', target:'Hospital profile', source:'Settings · Hospital' });
+      save();
+      updateSaveState();
+      renderChrome();
+      renderHospitalForm();
+      toast('Hospital settings saved.');
+    }
+    else if (action === 'hospital-reset') {
+      hospitalDraft = clone(state.hospital);
+      waRevealed = false;
+      dirty.hospital = false;
+      renderHospitalForm();
+      clearHospitalErrors();
+      updateSaveState();
+      toast('Unsaved hospital changes discarded.', 'info');
+    }
+    else if (action === 'logo-upload') { document.getElementById('logo-file').click(); }
+    else if (action === 'wa-reveal') {
+      waRevealed = !waRevealed;
+      var revealBtn = document.querySelector('[data-action="wa-reveal"]');
+      revealBtn.setAttribute('aria-pressed', String(waRevealed));
+      revealBtn.textContent = waRevealed ? 'Hide' : 'Reveal';
+      renderWaStatus();
+    }
+    else if (action === 'wa-test') {
+      var waBtn = document.getElementById('wa-test');
+      if (waBtn.disabled) return;
+      waBtn.disabled = true;
+      waBtn.textContent = 'Testing…';
+      document.getElementById('wa-test-status').textContent = 'Checking gateway…';
+      document.getElementById('wa-test-status').className = 'test-status';
+      window.setTimeout(function(){
+        hospitalDraft.whatsapp.lastTestedAt = nextStamp();
+        hospitalDraft.whatsapp.verified = true;
+        state.hospital.whatsapp.lastTestedAt = hospitalDraft.whatsapp.lastTestedAt;
+        state.hospital.whatsapp.verified = true;
+        addAudit({ category:'access', action:'WhatsApp connection tested', detail:'Gateway responded normally for sender ID ' + hospitalDraft.whatsapp.senderId + '.', target:'WhatsApp gateway', source:'Settings · WhatsApp' });
+        save();
+        renderWaStatus();
+        waBtn.disabled = false;
+        waBtn.textContent = 'Test connection';
+        toast('WhatsApp connection verified.');
+      }, 900);
+    }
+    else if (action === 'wa-rotate') {
+      if (hospitalDraft.whatsapp.senderId.length < 8) return;
+      requestConfirm('Rotate the WhatsApp API key?', 'The current key stops working immediately.', 'Use this only when the key may have been exposed or during a scheduled rotation. The gateway stays connected after a successful test.', 'Rotate key', function(){
+        var suffix = String(Math.floor(Math.random() * 65535)).padStart(4, '0');
+        state.hospital.whatsapp.keyLast4 = suffix;
+        state.hospital.whatsapp.lastRotatedAt = nextStamp();
+        hospitalDraft.whatsapp.keyLast4 = suffix;
+        hospitalDraft.whatsapp.lastRotatedAt = state.hospital.whatsapp.lastRotatedAt;
+        waRevealed = false;
+        addAudit({ category:'access', action:'WhatsApp key rotated', detail:'WhatsApp API key rotated; previous key revoked immediately.', target:'WhatsApp gateway', source:'Settings · WhatsApp' });
+        save();
+        renderWaStatus();
+        toast('API key rotated.');
+        focusSelector({ action:'wa-rotate' });
+      }, true, { action:'wa-rotate' });
+    }
+    else if (action === 'wa-help') {
+      toast('The gateway must be verified before automated reminders can send. Rotate the key only if it has been exposed.', 'info');
+    }
+    else if (action === 'billing-upgrade' || action === 'billing-change') {
+      openUpgrade(state.billing.upgradeRequest ? state.billing.upgradeRequest.plan : 'professional');
+    }
+    else if (action === 'billing-scroll') {
+      document.getElementById('plans-heading').scrollIntoView({ behavior:'smooth', block:'start' });
+      var firstPlan = document.querySelector('#plan-grid .plan-card');
+      if (firstPlan) firstPlan.focus();
+    }
+    else if (action === 'request-plan') { openUpgrade(btn.getAttribute('data-plan')); }
+    else if (action === 'upgrade-confirm') {
+      var cycleEl = document.querySelector('input[name="billing-cycle"]:checked');
+      var cycle = cycleEl ? cycleEl.value : 'monthly';
+      var note = document.getElementById('upgrade-note').value.trim();
+      var plan = planById(upgradePlanId);
+      state.billing.upgradeRequest = { plan:upgradePlanId, cycle:cycle, note:note, requestedAt:nextStamp() };
+      addAudit({ category:'billing', action:'Upgrade requested', detail:plan.name + ' upgrade requested with ' + cycle + ' billing by ' + CURRENT_USER + '.', target:plan.name, source:'Settings · Billing' });
+      save();
+      renderBilling();
+      renderChrome();
+      dlgTargets[dlgUpgrade.id] = { action:'billing-change' };
+      closeDlg(dlgUpgrade);
+      toast(plan.name + ' upgrade requested. Our team will be in touch.');
+    }
+    else if (action === 'notifications') {
+      toast('2 items need attention: 2 pending staff invitations and 1 failed reminder.', 'info');
+    }
+    else if (action === 'nav') {
+      var view = btn.getAttribute('data-view');
+      if (view === 'patients') { window.location.href = 'index.html'; }
+      else if (view === 'schedules') { window.location.href = 'schedules.html'; }
+      else if (view === 'settings') { toast('You are already in hospital settings.', 'info'); }
+      else {
+        var copy = {
+          overview: 'The clinic overview lives outside this settings control room.',
+          reminders: 'The reminder queue and register share the same records.',
+          reports: 'Reporting lives outside settings.'
+        };
+        toast(copy[view] || 'That section is not part of this demo.', 'info');
+      }
+    }
+  });
+
+  document.getElementById('perm-matrix').addEventListener('change', function(e){
+    var input = e.target.closest('input[data-perm]');
+    if (!input) return;
+    var row = permissionRow(input.getAttribute('data-perm'));
+    if (!row) return;
+    row.roles[input.getAttribute('data-role')] = input.checked;
+    dirty.roles = true;
+    updateSaveState();
+  });
+
+  document.getElementById('staff-search').addEventListener('input', function(e){
+    staffFilter.q = e.target.value;
+    renderStaff();
+  });
+  document.getElementById('staff-role-filter').addEventListener('change', function(e){
+    staffFilter.role = e.target.value;
+    renderStaff();
+  });
+  document.getElementById('staff-status-filter').addEventListener('change', function(e){
+    staffFilter.status = e.target.value;
+    renderStaff();
+  });
+
+  document.getElementById('audit-search').addEventListener('input', function(e){
+    auditFilter.q = e.target.value;
+    auditLimit = 10;
+    renderAudit();
+  });
+  document.getElementById('audit-actor').addEventListener('change', function(e){
+    auditFilter.actor = e.target.value;
+    auditLimit = 10;
+    renderAudit();
+  });
+
+  ['auto-enabled','auto-time','auto-timezone','auto-weekdays','milestone-seven','milestone-one','milestone-dayof','auto-channel','auto-fallback','auto-quiet-start','auto-quiet-end'].forEach(function(id){
+    var el = document.getElementById(id);
+    el.addEventListener('change', syncAutoDraftFromForm);
+    if (el.type === 'time') el.addEventListener('input', syncAutoDraftFromForm);
+  });
+
+  ['h-name','h-legal','h-address','h-phone','h-email','h-regno','w-phone','w-display','w-sender'].forEach(function(id){
+    document.getElementById(id).addEventListener('input', function(e){
+      var key = id.replace(/^h-/, '').replace(/^w-/, '');
+      if (id.indexOf('w-') === 0) hospitalDraft.whatsapp[key === 'display' ? 'displayName' : key === 'sender' ? 'senderId' : key] = e.target.value;
+      else if (id === 'h-name') hospitalDraft.name = e.target.value;
+      else if (id === 'h-legal') hospitalDraft.legalName = e.target.value;
+      else if (id === 'h-address') hospitalDraft.address = e.target.value;
+      else if (id === 'h-phone') hospitalDraft.primaryPhone = e.target.value;
+      else if (id === 'h-email') hospitalDraft.email = e.target.value;
+      else if (id === 'h-regno') hospitalDraft.regNo = e.target.value;
+      if (id === 'h-name') renderLogoPreview();
+      var err = document.getElementById(id + '-err');
+      if (err && !err.hidden) {
+        err.hidden = true;
+        err.textContent = '';
+        e.target.removeAttribute('aria-invalid');
+      }
+      markDirty('hospital');
+    });
+  });
+
+  document.getElementById('hospital-form').addEventListener('submit', function(e){
+    e.preventDefault();
+    document.querySelector('[data-action="hospital-save"]').click();
+  });
+
+  document.getElementById('logo-file').addEventListener('change', function(e){
+    var file = e.target.files && e.target.files[0];
+    if (!file) return;
+    if (!/^image\/(png|jpeg)$/.test(file.type)) { toast('Choose a PNG or JPG image.', 'err'); return; }
+    if (file.size > 1.5 * 1024 * 1024) { toast('Keep the logo under 1.5 MB.', 'err'); return; }
+    var reader = new FileReader();
+    reader.onload = function(){
+      hospitalDraft.logoData = String(reader.result || '');
+      renderLogoPreview();
+      markDirty('hospital');
+      toast('Logo ready. Save changes to keep it.', 'info');
+    };
+    reader.readAsDataURL(file);
+  });
+
+  [document.getElementById('staff-name'), document.getElementById('staff-email'), document.getElementById('staff-phone'), document.getElementById('staff-role')].forEach(function(el){
+    el.addEventListener('input', function(){
+      if (el.id === 'staff-role') return;
+      var key = el.id.replace('staff-', '');
+      setFieldError('staff', key, '');
+      document.getElementById('staff-summary').hidden = true;
+    });
+    el.addEventListener('change', function(){
+      if (el.id === 'staff-role') setFieldError('staff','role','');
+    });
+  });
+  document.getElementById('role-name').addEventListener('input', function(){
+    setFieldError('role','name','');
+    document.getElementById('role-summary').hidden = true;
+  });
+  [dlgStaff, dlgRole].forEach(function(dlg){
+    dlg.addEventListener('keydown', function(e){
+      if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        var btn = dlg.id === 'dlg-staff' ? document.getElementById('staff-save') : document.getElementById('role-save');
+        if (btn) btn.click();
+      }
+    });
+  });
+
+  document.getElementById('confirm-go').addEventListener('click', function(){
+    var fn = confirmAction;
+    confirmAction = null;
+    closeDlg(dlgConfirm);
+    if (fn) fn();
+  });
+
+  document.getElementById('string-not-used') && 0;
+
+  fillRoleSelects();
+  renderChrome();
+  renderRoles();
+  renderStaff();
+  renderAudit();
+  renderAutoForm();
+  renderPreview();
+  renderHospitalForm();
+  renderBilling();
+  showSection('roles');
+  updateSaveState();
+
+  var navEl = document.querySelector('.nav');
+  var navCurrent = navEl ? navEl.querySelector('[aria-current="page"]') : null;
+  if (navEl && navCurrent && navEl.scrollWidth > navEl.clientWidth) {
+    var navBox = navEl.getBoundingClientRect();
+    var curBox = navCurrent.getBoundingClientRect();
+    var itemLeft = curBox.left - navBox.left + navEl.scrollLeft;
+    navEl.scrollLeft = Math.max(0, itemLeft - (navEl.clientWidth - curBox.width) / 2);
+  }
+})();
+</script>
+</body>
+</html>

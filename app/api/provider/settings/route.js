@@ -1,6 +1,19 @@
 import { NextResponse } from 'next/server';
 import { withProviderAuth } from '@/lib/middleware/withProviderAuth';
-import { PlatformSetting } from '@/lib/db/models/index';
+import { getPlatformSettings } from '@/lib/services/platformSettings.service';
+
+const UPDATABLE_KEYS = [
+  'platform_name',
+  'support_email',
+  'support_phone',
+  'maintenance_mode',
+  'maintenance_notice',
+  'allow_hospital_registration',
+  'default_trial_days',
+  'starter_plan_price',
+  'pro_plan_price',
+  'enterprise_plan_price',
+];
 
 // GET /api/provider/settings — get current platform configuration
 export async function GET(request) {
@@ -8,28 +21,7 @@ export async function GET(request) {
   if (errorResponse) return errorResponse;
 
   try {
-    let [settings] = await PlatformSetting.findOrCreate({
-      where: { id: 1 },
-      defaults: {
-        id: 1,
-        platform_name: 'TiniTracker Healthcare Platform',
-        support_email: 'support@tinitracker.in',
-        support_phone: '+91 98765 43210',
-        maintenance_mode: false,
-        maintenance_notice: 'The platform is undergoing brief routine maintenance. Service will resume shortly.',
-        allow_hospital_registration: true,
-        default_trial_days: 14,
-        starter_plan_price: 2499,
-        pro_plan_price: 4999,
-        enterprise_plan_price: 9999,
-        enable_whatsapp_engine: true,
-        enable_sms_fallback: false,
-        enable_audit_logging: true,
-        enable_session_timeout: true,
-        session_timeout_minutes: 60,
-      },
-    });
-
+    const settings = await getPlatformSettings();
     return NextResponse.json({ settings });
   } catch (error) {
     console.error('Error fetching platform settings:', error);
@@ -42,41 +34,35 @@ export async function PATCH(request) {
   const { admin, errorResponse } = await withProviderAuth(request);
   if (errorResponse) return errorResponse;
 
-  // Only superadmin can change platform settings
   if (admin.role !== 'superadmin') {
     return NextResponse.json({ error: 'Forbidden: Only superadmins can modify platform settings' }, { status: 403 });
   }
 
   try {
-    let [settings] = await PlatformSetting.findOrCreate({
-      where: { id: 1 },
-      defaults: { id: 1 },
-    });
-
+    const settings = await getPlatformSettings();
     const body = await request.json();
-    const updatableKeys = [
-      'platform_name',
-      'support_email',
-      'support_phone',
-      'maintenance_mode',
-      'maintenance_notice',
-      'allow_hospital_registration',
-      'default_trial_days',
-      'starter_plan_price',
-      'pro_plan_price',
-      'enterprise_plan_price',
-      'enable_whatsapp_engine',
-      'enable_sms_fallback',
-      'enable_audit_logging',
-      'enable_session_timeout',
-      'session_timeout_minutes',
-    ];
 
-    for (const key of updatableKeys) {
-      if (body[key] !== undefined) {
-        settings[key] = body[key];
-      }
+    for (const key of UPDATABLE_KEYS) {
+      if (body[key] !== undefined) settings[key] = body[key];
     }
+
+    // Validate values that drive real behavior.
+    const trialDays = Number(settings.default_trial_days);
+    if (!Number.isFinite(trialDays) || trialDays < 1 || trialDays > 3650) {
+      return NextResponse.json({ error: 'default_trial_days must be between 1 and 3650' }, { status: 400 });
+    }
+    settings.default_trial_days = Math.round(trialDays);
+
+    for (const key of ['starter_plan_price', 'pro_plan_price', 'enterprise_plan_price']) {
+      const price = Number(settings[key]);
+      if (!Number.isFinite(price) || price < 0) {
+        return NextResponse.json({ error: `${key} must be a non-negative number` }, { status: 400 });
+      }
+      settings[key] = Math.round(price);
+    }
+
+    settings.maintenance_mode = Boolean(settings.maintenance_mode);
+    settings.allow_hospital_registration = Boolean(settings.allow_hospital_registration);
 
     await settings.save();
 

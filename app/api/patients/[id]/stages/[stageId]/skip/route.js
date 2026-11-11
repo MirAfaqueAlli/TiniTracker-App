@@ -4,7 +4,7 @@ import { Patient, PatientStage, StageTemplate, PatientHistory, Hospital } from '
 import { Op } from 'sequelize';
 import { sendWhatsApp } from '@/lib/services/whatsapp.service';
 import { createAppNotif } from '@/lib/services/appNotif.service';
-import { hasPermission } from '@/lib/utils/rbac';
+import { hasPermission, canAccessPatientAsync } from '@/lib/utils/rbac';
 
 // PUT /api/patients/[id]/stages/[stageId]/skip
 export async function PUT(request, { params }) {
@@ -21,18 +21,36 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'Reason is mandatory for skipping a stage' }, { status: 400 });
     }
     const { id, stageId } = await params;
+
+    // ── Tenant isolation & patient-type access ────────────────────────────
+    const patient = await Patient.findByPk(id, {
+      include: [{ model: Hospital, attributes: ['name', 'phone'] }]
+    });
+    if (!patient) return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
+    if (patient.hospital_id !== user.hospital_id)
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    if (!(await canAccessPatientAsync(user, patient.patient_type)))
+      return NextResponse.json({ error: 'Access denied — patient type mismatch' }, { status: 403 });
+
     const stage = await PatientStage.findOne({
       where: { id: stageId, patient_id: id },
       include: [{ model: StageTemplate, as: 'template' }]
     });
     if (!stage) return NextResponse.json({ error: 'Stage not found' }, { status: 404 });
+
+    // ── Stage-status guards ──────────────────────────────────────────────
+    if (stage.status === 'visited') {
+      return NextResponse.json({ error: 'Visited stages cannot be skipped' }, { status: 409 });
+    }
+    if (stage.status === 'skipped') {
+      return NextResponse.json({ error: 'This stage is already skipped' }, { status: 409 });
+    }
+
+    const previousStatus = stage.status;
     await stage.update({ status: 'skipped', skip_reason: reason.trim(), recorded_by: user.id });
 
     // Send WhatsApp notification to patient
     try {
-      const patient = await Patient.findByPk(id, {
-        include: [{ model: Hospital, attributes: ['name', 'phone'] }]
-      });
       if (patient?.whatsapp_number) {
         // Find next upcoming appointment
         const nextStage = await PatientStage.findOne({
@@ -56,20 +74,28 @@ export async function PUT(request, { params }) {
           stage.id,
           patient.hospital_id
         );
-
-        // Audit log — fire-and-forget
-        PatientHistory.create({
-          patient_id:        patient.id,
-          hospital_id:       patient.hospital_id,
-          event_type:        'stage_skipped',
-          event_data:        { stage_name: stage.template?.stage_name, reason: reason.trim(), scheduled_date: stage.scheduled_date },
-          performed_by:      user.id,
-          performed_by_role: user.role,
-        }).catch(e => console.error('[History] stage_skipped log failed:', e.message));
       }
     } catch (waErr) {
       // Non-fatal — log but don't fail the skip action
       console.error('[Skip] WhatsApp notify failed:', waErr.message);
+    }
+
+    // Audit log — must be recorded regardless of WhatsApp delivery, and never gated on a phone number.
+    const auditPatient = await Patient.findByPk(id);
+    if (auditPatient) {
+      await PatientHistory.create({
+        patient_id:        auditPatient.id,
+        hospital_id:       auditPatient.hospital_id,
+        event_type:        'stage_skipped',
+        event_data:        {
+          stage_name:      stage.template?.stage_name,
+          reason:          reason.trim(),
+          scheduled_date:  stage.scheduled_date,
+          previous_status: previousStatus,
+        },
+        performed_by:      user.id,
+        performed_by_role: user.role,
+      });
     }
 
     // In-app notification

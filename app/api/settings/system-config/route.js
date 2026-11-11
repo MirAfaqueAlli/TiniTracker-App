@@ -1,17 +1,25 @@
 import { NextResponse } from 'next/server';
 import { withAuth } from '@/lib/middleware/withAuth';
 import { SystemConfig } from '@/lib/db/models/index';
+import { hasPermission } from '@/lib/utils/rbac';
 
 // GET /api/settings/system-config — Fetch hospital system & batch configuration
 export async function GET(request) {
-  const { user, errorResponse } = await withAuth(request, 'admin');
+  const { user, errorResponse } = await withAuth(request);
   if (errorResponse) return errorResponse;
+
+  const canRead = (await hasPermission(user, 'settings.edit_system')) ||
+                  (await hasPermission(user, 'settings.view'));
+  if (!canRead) {
+    return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+  }
 
   try {
     let [config] = await SystemConfig.findOrCreate({
       where: { hospital_id: user.hospital_id },
       defaults: {
         hospital_id: user.hospital_id,
+        timezone: 'Asia/Kolkata',
         batch_cron_time: '08:00',
         batch_auto_run: true,
         reminder_7d_enabled: true,
@@ -30,11 +38,16 @@ export async function GET(request) {
 
 // PUT /api/settings/system-config — Update hospital system & batch configuration
 export async function PUT(request) {
-  const { user, errorResponse } = await withAuth(request, 'admin');
+  const { user, errorResponse } = await withAuth(request);
   if (errorResponse) return errorResponse;
+
+  if (!(await hasPermission(user, 'settings.edit_system'))) {
+    return NextResponse.json({ error: 'Access denied: settings.edit_system required' }, { status: 403 });
+  }
 
   try {
     const {
+      timezone,
       batch_cron_time,
       batch_auto_run,
       reminder_7d_enabled,
@@ -47,6 +60,7 @@ export async function PUT(request) {
       where: { hospital_id: user.hospital_id },
       defaults: {
         hospital_id: user.hospital_id,
+        timezone: 'Asia/Kolkata',
         batch_cron_time: '08:00',
         batch_auto_run: true,
         reminder_7d_enabled: true,
@@ -55,6 +69,16 @@ export async function PUT(request) {
         missed_flag_enabled: true,
       }
     });
+
+    if (timezone !== undefined) {
+      try {
+        // Throws for invalid IANA timezone names.
+        new Intl.DateTimeFormat('en-US', { timeZone: timezone });
+        config.timezone = timezone;
+      } catch {
+        return NextResponse.json({ error: 'Invalid timezone. Use an IANA name such as Asia/Kolkata.' }, { status: 400 });
+      }
+    }
 
     // Validate batch_cron_time format HH:MM
     if (batch_cron_time) {

@@ -1,13 +1,17 @@
 import { NextResponse } from 'next/server';
 import { withAuth } from '@/lib/middleware/withAuth';
 import { Role, RolePermission } from '@/lib/db/models/index';
-import { PERMISSION_GROUPS, ALL_PERMISSIONS, DEFAULT_ROLE_PERMISSIONS, ROLES } from '@/lib/utils/rbac';
+import { PERMISSION_GROUPS, ALL_PERMISSIONS, DEFAULT_ROLE_PERMISSIONS, ROLES, hasPermission } from '@/lib/utils/rbac';
 import { seedRolesAndPermissionsForHospital } from '@/lib/seeders/roles.seed.js';
 
 // GET /api/settings/permissions — Fetch full permission matrix
 export async function GET(request) {
-  const { user, errorResponse } = await withAuth(request, 'admin');
+  const { user, errorResponse } = await withAuth(request);
   if (errorResponse) return errorResponse;
+
+  if (!(await hasPermission(user, 'settings.manage_roles'))) {
+    return NextResponse.json({ error: 'Access denied: settings.manage_roles required' }, { status: 403 });
+  }
 
   try {
     // 1. Fetch all roles for this hospital (auto-seed if missing)
@@ -79,8 +83,12 @@ export async function GET(request) {
 
 // PUT /api/settings/permissions — Update permissions for one or multiple roles
 export async function PUT(request) {
-  const { user, errorResponse } = await withAuth(request, 'admin');
+  const { user, errorResponse } = await withAuth(request);
   if (errorResponse) return errorResponse;
+
+  if (!(await hasPermission(user, 'settings.manage_roles'))) {
+    return NextResponse.json({ error: 'Access denied: settings.manage_roles required' }, { status: 403 });
+  }
 
   try {
     const { role_key, permissions, bulkMatrix } = await request.json();

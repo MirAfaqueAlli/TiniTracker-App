@@ -16,10 +16,11 @@ It also exposes the full **Provider API** (`/api/provider/*`) consumed by the `t
 
 | Layer | Technology |
 |---|---|
-| Framework | Next.js 16 (App Router) |
+| Framework | Next.js 15 (App Router, Turbopack) |
 | Database | MySQL via Sequelize ORM |
-| Auth | JWT (httpOnly cookies + Bearer tokens) |
-| State | Zustand (persisted) |
+| Auth (hospital users) | httpOnly Cookie (`tinitracker_token`) |
+| Auth (provider/admin) | Bearer JWT (issued at `/api/provider/auth/login`, consumed by admin's session bridge) |
+| State | Zustand (persisted to `localStorage` for UI state only — no token stored there) |
 | Notifications | WhatsApp API + in-app notifications |
 | Email / OTP | Nodemailer (optional SMTP) |
 | Cron | node-cron (notification batching) |
@@ -65,18 +66,14 @@ tinitracker-next/
 │   │       ├── settings/         #   Platform settings
 │   │       └── users/            #   Cross-hospital user view
 │   ├── change-password/          # Forced password change page
-│   ├── dashboard/                # (redirect to (app)/dashboard)
-│   ├── login/                    # (redirect alias)
-│   ├── patients/ + [id]/         # Patient pages (top-level aliases)
 │   ├── settings/                 # Hospital settings (tabs: profile, subscription, roles, staff)
 │   ├── staff/                    # Staff management page
 │   ├── stages/                   # Stage template viewer
 │   ├── notifications/            # Notification log page
 │   ├── register/                 # Hospital self-registration
-│   ├── setup/                    # Setup wizard
-│   └── provider/                 # Provider portal (login + dashboard)
-│       ├── login/
-│       └── dashboard/
+│   └── setup/                    # Setup wizard
+├── archive/
+│   └── prototypes/               # Legacy static HTML prototypes (not part of the app)
 ├── components/
 │   └── settings/                 # Settings tab components (Hospital, Roles, Staff, Subscription)
 ├── lib/
@@ -90,18 +87,24 @@ tinitracker-next/
 │   │   ├── roles.seed.js         # Default RBAC roles
 │   │   └── stageTemplates.seed.js# Pregnancy & immunization stage templates
 │   ├── services/
-│   │   └── providerEnvAuth.service.js # Env-based provider admin auth
-│   └── utils/                    # Shared utilities
+│   │   ├── providerEnvAuth.service.js   # Env-based provider admin auth
+│   │   └── platformSettings.service.js  # Platform-wide feature flags & config
+│   └── utils/
+│       ├── plans.js              # Canonical plan taxonomy helpers
+│       └── validation.js         # Shared input validation (dates, IDs, amounts, roles)
 ├── store/
-│   └── authStore.js              # Zustand auth store (cookie + localStorage)
-├── styles/                       # Global CSS
+│   └── uiStore.js                # Zustand UI store (sidebar state, theme)
 ├── scripts/
-│   └── reset-demo-db.mjs         # ⚠️  DB wipe & demo seed script
+│   ├── reset-demo-db.mjs         # ⚠️  DB wipe & demo seed script
+│   ├── migrate-schema.mjs        # One-time DDL migration (run once, not on boot)
+│   ├── migrate-wellnest-hospital.mjs  # WellNest → TiniTracker patient import
+│   └── data/
+│       └── wellnest.sql          # ⛔ PII export (gitignored — do not commit)
 ├── docs/
 │   └── roadmap.md                # Architecture & SaaS roadmap notes
 ├── .env.local                    # ⛔ Secret config (gitignored)
 ├── .env.example                  # ✅ Safe template (committed)
-└── instrumentation.js            # Auto-runs seeders on server start
+└── instrumentation.js            # Auto-runs seeders on server start (no DDL)
 ```
 
 ---
@@ -126,13 +129,21 @@ cp .env.example .env.local
 # Fill in DB credentials, JWT secret, and provider admin credentials
 ```
 
-### 3. Start the dev server
+### 3. Run schema migrations (first-time or after updates)
+
+```bash
+node scripts/migrate-schema.mjs
+```
+
+> **Important:** DDL (schema changes) no longer runs automatically on boot. Run `migrate-schema.mjs` explicitly when pulling schema changes from the team.
+
+### 4. Start the dev server
 
 ```bash
 npm run dev        # Starts on http://localhost:3000
 ```
 
-The server automatically syncs the DB schema and seeds roles, stage templates, and provider admins on every boot.
+The server seeds roles, stage templates, and provider admins on first boot. It does **not** alter the DB schema on startup.
 
 ---
 
@@ -143,11 +154,29 @@ See [`.env.example`](.env.example) for the full list. Key variables:
 | Variable | Description |
 |---|---|
 | `DB_HOST / DB_PORT / DB_NAME / DB_USER / DB_PASS` | MySQL connection |
-| `JWT_SECRET` | **Change before production!** |
+| `JWT_SECRET` | **Change before production!** Must also match `JWT_SECRET` in `tinitracker-admin`. |
 | `JWT_EXPIRES_IN` | Token lifetime (e.g. `7d`) |
 | `PROVIDER_ADMIN_EMAIL / PASSWORD` | Primary superadmin credentials |
+| `CORS_ORIGIN` | Comma-separated allowed origins (include `tinitracker-admin` URL, e.g. `http://localhost:3001`) |
+| `TRUST_PROXY` | Set to `1` behind a reverse proxy (e.g. nginx) |
+| `SETUP_TOKEN` | Secret token to initiate hospital self-registration setup |
 | `WHATSAPP_API_URL / KEY` | Global WhatsApp provider fallback |
 | `NEXT_PUBLIC_APP_NAME` | App name shown in the UI |
+
+---
+
+## Subscription Plan Taxonomy
+
+All plan-related code uses a **canonical set** of plan keys. Do not use legacy keys (`monthly`, `quarterly`, `yearly`, `migrated`, `custom`).
+
+| Plan Key | Description |
+|---|---|
+| `free_trial` | Trial period (duration set by `default_trial_days` platform setting) |
+| `starter` | Entry-level paid plan |
+| `professional` | Mid-tier plan |
+| `enterprise` | Full-featured plan |
+
+Billing frequency is a separate `billing_cycle` column: `monthly`, `quarterly`, or `yearly`.
 
 ---
 
@@ -159,7 +188,12 @@ To wipe the database and start fresh with demo data:
 node scripts/reset-demo-db.mjs
 ```
 
-This creates one demo hospital with an active subscription and seeds the provider admin account.
+To import a WellNest legacy hospital (dry-run first):
+
+```bash
+node scripts/migrate-wellnest-hospital.mjs --file=scripts/data/wellnest.sql --dry-run
+# Review output, then run without --dry-run to import
+```
 
 ---
 
@@ -171,14 +205,24 @@ This creates one demo hospital with an active subscription and seeds the provide
 
 ## API Summary
 
-All hospital-scoped routes are under `/api/` and require a valid `Authorization: Bearer <token>` header or `tinitracker_token` cookie.
+All hospital-scoped routes are under `/api/` and require a valid `Authorization: Bearer <token>` header or `tinitracker_token` httpOnly cookie.
 
-Provider routes (`/api/provider/*`) require a separate provider JWT with `type: 'provider'`.
+Provider routes (`/api/provider/*`) require a separate provider JWT with `type: 'provider'`. The `tinitracker-admin` app accesses these through its server-side proxy (`/api/provider/[...path]`), which reads an httpOnly `provider_token` cookie and adds the `Authorization` header server-side.
+
+---
+
+## Known Limitations
+
+- **WhatsApp** — requires a valid WhatsApp Business API provider. The UI shows toggle and test options, but no message is sent without a configured `WHATSAPP_API_URL`.
+- **SMS fallback / audit toggle / session timeout** — platform settings exist in the UI but their enforcement logic is not yet implemented. These are UI-only placeholders.
+- **SMTP** — email/OTP delivery requires `SMTP_*` env vars. Without them, OTP flows will fail silently.
 
 ---
 
 ## Security Notes
 
-- Tokens stored as `tinitracker_token` cookie (httpOnly on server routes) and in Zustand (`tinitracker-auth`)
+- Hospital user tokens stored as `tinitracker_token` httpOnly cookie (never `localStorage`)
+- Provider tokens issued as Bearer JWT, consumed server-side by `tinitracker-admin`'s proxy; never stored in browser storage
 - All `console.error` calls log only `.message` strings — never raw Axios objects
-- `.env.local` is gitignored; no secrets in code
+- `.env.local` is gitignored; no secrets in committed code
+- `wellnest.sql` and other `*_fresh_*.sql` files are gitignored to prevent PII exposure

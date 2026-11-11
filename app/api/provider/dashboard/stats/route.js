@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { Op } from 'sequelize';
 import { withProviderAuth } from '@/lib/middleware/withProviderAuth';
 import { Hospital, User, Patient, Subscription, Payment, ProviderAdmin } from '@/lib/db/models/index';
+import { normalizePlanKey } from '@/lib/utils/plans';
 
 // GET /api/provider/dashboard/stats
 export async function GET(request) {
@@ -35,10 +36,9 @@ export async function GET(request) {
 
     const plansBreakdown = {
       free_trial: 0,
-      monthly: 0,
-      quarterly: 0,
-      yearly: 0,
-      custom: 0,
+      starter: 0,
+      professional: 0,
+      enterprise: 0,
       none: 0,
     };
 
@@ -52,10 +52,13 @@ export async function GET(request) {
         continue;
       }
 
-      if (plansBreakdown[sub.plan] !== undefined) {
-        plansBreakdown[sub.plan]++;
+      // Normalize any legacy plan keys (monthly→starter, quarterly→professional, etc.)
+      const canonicalPlan = normalizePlanKey(sub.plan);
+      if (plansBreakdown[canonicalPlan] !== undefined) {
+        plansBreakdown[canonicalPlan]++;
       } else {
-        plansBreakdown[sub.plan] = 1;
+        // Unknown plan — default to professional bucket
+        plansBreakdown.professional = (plansBreakdown.professional || 0) + 1;
       }
 
       const isExpired = sub.ends_at < today;

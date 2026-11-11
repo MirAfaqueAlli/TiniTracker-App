@@ -1,0 +1,2310 @@
+<!doctype html>
+<html lang="en">
+<head><script type="application/json" data-od-external-dependencies>["https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,600&display=swap"]</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Amina Rahman · TiniTracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,600&display=swap" rel="stylesheet">
+<style>
+/* OD-LAYOUT-PRIMITIVES v1 — structure only: display, flex/grid, overflow, wrapping, ratio, geometry.
+   Put this @layer first; product CSS outside the layer wins ordinary layout rules.
+   Native hidden and closed-dialog states take precedence over component display rules. */
+@layer od-layout {
+  [hidden]:not([hidden="until-found" i]) { display: none !important; }
+  dialog:not([open]) { display: none !important; }
+
+  :where(.od-stack,.od-row,.od-row-top,.od-cluster,.od-grid,.od-field,.od-stat,.od-cell,.od-tile) > :where(*) { min-width: 0; }
+
+  /* containers */
+  .od-stack   { display: flex; flex-direction: column; gap: var(--od-gap, 8px); }
+  .od-row     { display: flex; align-items: center; gap: var(--od-gap, 8px); }
+  .od-row-top { display: flex; align-items: flex-start; gap: var(--od-gap, 8px); }
+  .od-cluster { display: flex; flex-wrap: wrap; align-items: center; gap: var(--od-gap, 8px); }
+  .od-fill    { flex: 1 1 0; min-width: 0; }
+  .od-fixed   { flex: none; }
+  .od-grid    { display: grid; gap: var(--od-gap, 12px); grid-template-columns: repeat(var(--od-cols, 3), minmax(0, 1fr)); }
+
+  /* stacked information: each piece is its own line — never sibling inline spans */
+  .od-stat, .od-field, .od-cell { display: grid; gap: var(--od-gap, 2px); }
+  :where(.od-stat,.od-field,.od-cell) > :where(*) { display: block; }
+  .od-tile { display: grid; grid-template-rows: auto 1fr; }
+  :where(.od-tile) > :where(*) { display: block; }
+
+  /* media keeps its intrinsic ratio by default; never a distorted or cropped
+     cover by accident. height:auto lets the ratio win over an <img height="…">
+     attribute. Cropping to a uniform box is an explicit opt-in: set --od-ratio
+     AND add .od-media-cover together. */
+  .od-media { display: block; width: 100%; height: auto; aspect-ratio: var(--od-ratio, auto); }
+  .od-media-cover { object-fit: cover; }
+
+  /* functional inline SVG icons opt into bounded geometry; content SVGs keep their own */
+  .od-icon { display: inline-block; inline-size: var(--od-icon-size, 1em); block-size: var(--od-icon-size, 1em); flex: none; }
+
+  /* data text only — authored copy is rewritten to its budget instead */
+  .od-truncate { display: block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .od-clamp-2, .od-clamp-3 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+  .od-clamp-2 { -webkit-line-clamp: 2; }
+  .od-clamp-3 { -webkit-line-clamp: 3; }
+  .od-lines-2 { min-height: calc(2 * 1.4em); }
+  .od-nowrap  { white-space: nowrap; }
+  .od-keep    { word-break: keep-all; overflow-wrap: anywhere; }
+
+  /* screen skeleton (optional): bars take their own space, the middle scrolls */
+  .od-screen { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; }
+  .od-scroll { overflow-y: auto; overscroll-behavior: contain; min-height: 0; }
+
+  /* horizontal rail: the next item peeks at the edge */
+  .od-rail { display: flex; gap: var(--od-gap, 8px); overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none;
+             padding-inline: var(--od-rail-pad, 16px); scroll-padding-inline: var(--od-rail-pad, 16px); }
+  .od-rail::-webkit-scrollbar { display: none; }
+  :where(.od-rail) > :where(*) { flex: none; scroll-snap-align: start; }
+  :where(.od-rail) > :where(:last-child) { margin-inline-end: var(--od-rail-pad, 16px); }
+
+  .od-spacer { flex: none; visibility: hidden; pointer-events: none; }
+  .od-touch  { min-width: 44px; min-height: 44px; }
+}
+:root [hidden]:where(:not([hidden="until-found" i])) { display: none; }
+/* /OD-LAYOUT-PRIMITIVES v1 */
+
+:root{
+  --bg:#eef2f1;
+  --surface:#ffffff;
+  --surface-2:#f5f8f7;
+  --line:#dde5e3;
+  --line-soft:#eaf0ee;
+  --line-strong:#c4d2ce;
+  --ink:#12201d;
+  --ink-2:#4c5c58;
+  --ink-3:#5d6d65;
+  --brand:#0d6b58;
+  --brand-dark:#0a5749;
+  --brand-deep:#08483d;
+  --brand-soft:#e6f2ee;
+  --danger:#9c2a1e;
+  --danger-soft:#fbe9e6;
+  --warn:#8a5a0b;
+  --warn-soft:#fdf2dc;
+  --imm:#3c5f8c;
+  --imm-soft:#e9eff8;
+  --radius:14px;
+  --radius-sm:10px;
+  --shadow:0 1px 2px rgba(14,32,28,.06);
+  --font-ui:'Manrope', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-serif:'Source Serif 4', Georgia, 'Times New Roman', serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font:400 14px/1.5 var(--font-ui);
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+h1,h2,h3,h4,p{margin:0}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+button{font-family:inherit}
+.i14{--od-icon-size:14px}
+.i16{--od-icon-size:16px}
+.i18{--od-icon-size:18px}
+.i20{--od-icon-size:20px}
+.i22{--od-icon-size:22px}
+
+/* ---------- app shell ---------- */
+.app{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:100vh}
+.sidebar{
+  position:sticky;top:0;height:100vh;overflow-y:auto;
+  background:#0e2622;color:#cfe3dc;
+  padding:18px 14px 16px;display:flex;flex-direction:column;gap:22px;
+}
+.brand{display:flex;align-items:center;gap:10px;padding:4px 6px 0}
+.brand-mark{width:34px;height:34px;border-radius:10px;background:#1b6b58;display:grid;place-items:center;color:#eaf5f1;flex:none}
+.brand-text{min-width:0}
+.brand-name{display:block;font:700 15.5px/1.2 var(--font-ui);color:#f0f7f4;letter-spacing:-.01em}
+.brand-sub{display:block;font:500 11px/1.3 var(--font-ui);color:#8fb3a9;margin-top:2px}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav-label{font:700 10.5px/1 var(--font-ui);letter-spacing:.1em;text-transform:uppercase;color:#7b9f95;padding:0 8px 6px}
+.nav button{
+  display:flex;align-items:center;gap:10px;width:100%;
+  padding:9px 9px;border:0;border-radius:9px;background:none;cursor:pointer;
+  font:500 13.5px/1.2 var(--font-ui);color:#a9c6bd;text-align:left;
+  transition:background-color .16s ease,color .16s ease;
+}
+.nav button:hover{background:rgba(255,255,255,.07);color:#f0f7f4}
+.nav button[aria-current="page"]{background:#1a4b3f;color:#f0f7f4;font-weight:600}
+.nav button:focus-visible{outline:2px solid #7fd0bb;outline-offset:2px}
+.nav .nav-count{margin-left:auto;font:600 10.5px/1 var(--font-ui);background:#1d5147;color:#cfe3dc;padding:3px 6px;border-radius:999px}
+.side-foot{margin-top:auto;display:flex;flex-direction:column;gap:10px}
+.clinic-card{background:rgba(255,255,255,.07);border-radius:11px;padding:11px 12px}
+.clinic-card .k{display:block;font:700 10px/1 var(--font-ui);letter-spacing:.09em;text-transform:uppercase;color:#8fb3a9}
+.clinic-card .v{display:block;font:600 12.5px/1.4 var(--font-ui);color:#eaf5f1;margin-top:5px}
+.clinic-card .s{display:block;font:500 11.5px/1.4 var(--font-ui);color:#a9c6bd;margin-top:2px}
+.user-line{display:flex;align-items:center;gap:9px;padding:2px 4px}
+.user-avatar{width:28px;height:28px;border-radius:8px;background:#1d5147;color:#dcece6;display:grid;place-items:center;font:700 11px/1 var(--font-ui);flex:none}
+
+/* ---------- topbar ---------- */
+.workspace{min-width:0;display:flex;flex-direction:column}
+.topbar{
+  position:sticky;top:0;z-index:30;
+  display:flex;align-items:center;gap:16px;
+  padding:10px 26px;background:var(--surface);border-bottom:1px solid var(--line);
+}
+.crumbs{display:flex;align-items:center;gap:7px;font:500 13px/1.2 var(--font-ui);color:var(--ink-3);min-width:0}
+.crumbs .sep{color:var(--line-strong)}
+.crumbs strong{color:var(--ink);font-weight:600}
+.search-wrap{position:relative;flex:1 1 auto;max-width:360px;margin-left:auto}
+.search-wrap .od-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--ink-3);pointer-events:none}
+.search-wrap input{
+  width:100%;padding:8px 12px 8px 34px;border:1px solid var(--line-strong);border-radius:9px;
+  background:var(--surface-2);font:400 13px/1.4 var(--font-ui);color:var(--ink);
+}
+.search-wrap input::placeholder{color:#7c8b86}
+.search-wrap input:focus{outline:2px solid var(--brand);outline-offset:1px;background:#fff}
+.top-meta{display:flex;align-items:center;gap:14px;flex:none}
+.top-date{font:500 12.5px/1.2 var(--font-ui);color:var(--ink-3);font-variant-numeric:tabular-nums}
+.icon-btn{
+  width:36px;height:36px;border-radius:9px;border:1px solid var(--line);background:#fff;
+  display:grid;place-items:center;color:var(--ink-2);cursor:pointer;position:relative;
+}
+.icon-btn:hover{background:var(--surface-2);color:var(--ink)}
+.icon-btn:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.icon-btn .dot{position:absolute;top:7px;right:8px;width:6px;height:6px;border-radius:50%;background:var(--danger);border:1.5px solid #fff}
+.staff{display:flex;align-items:center;gap:8px}
+.staff-avatar{width:32px;height:32px;border-radius:9px;background:var(--brand-soft);color:var(--brand-dark);display:grid;place-items:center;font:700 11.5px/1 var(--font-ui);border:1px solid #cfe4dd}
+.staff-name{display:block;font:600 12.5px/1.2 var(--font-ui);color:var(--ink)}
+.staff-role{display:block;font:500 11px/1.2 var(--font-ui);color:var(--ink-3)}
+
+/* ---------- content ---------- */
+.content{padding:22px 26px 44px;display:flex;flex-direction:column;gap:14px;max-width:1400px;width:100%}
+
+.patient-card{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:18px 20px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:20px;align-items:start;
+  box-shadow:var(--shadow);
+}
+.patient-id{display:flex;gap:15px;align-items:flex-start;min-width:0}
+.avatar-lg{
+  width:58px;height:58px;border-radius:15px;background:var(--brand-soft);color:var(--brand-dark);
+  display:grid;place-items:center;font:700 19px/1 var(--font-ui);letter-spacing:.02em;flex:none;
+  border:1px solid #cfe4dd;
+}
+.patient-name{font:600 27px/1.18 var(--font-serif);letter-spacing:-.01em;color:var(--ink)}
+.name-meta{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:7px}
+.chip{font:600 11px/1 var(--font-ui);padding:4px 7px;border-radius:6px;background:#eef2f1;color:var(--ink-2);white-space:nowrap}
+.chip-line{background:#fff;border:1px solid var(--line-strong)}
+.chip-live{background:var(--brand-soft);color:var(--brand-dark)}
+.chip-danger{background:var(--danger-soft);color:var(--danger)}
+.meta-line{font:400 12.5px/1.5 var(--font-ui);color:var(--ink-2);margin-top:8px}
+.meta-line b{color:var(--ink);font-weight:600}
+.contact-chips{display:flex;gap:16px;flex-wrap:wrap;margin-top:9px;font:500 12.5px/1.4 var(--font-ui);color:var(--ink-2)}
+.contact-chips span{display:inline-flex;align-items:center;gap:6px;min-width:0}
+.contact-chips .od-icon{color:var(--ink-3)}
+.head-right{display:flex;flex-direction:column;gap:11px;align-items:flex-end}
+.edd-widget{background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:11px 15px;min-width:242px}
+.eyebrow{display:block;font:700 10px/1 var(--font-ui);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+.edd-date{display:block;font:600 20px/1.25 var(--font-serif);color:var(--ink);margin:5px 0 3px}
+.edd-sub{font:500 12.5px/1.4 var(--font-ui);color:var(--ink-2)}
+.edd-sub b{color:var(--ink);font-weight:700}
+.mini-bar{height:5px;border-radius:999px;background:#e2eae7;overflow:hidden;margin-top:9px}
+.mini-bar i{display:block;height:100%;background:var(--brand);border-radius:inherit}
+.edd-foot{font:500 11px/1.3 var(--font-ui);color:var(--ink-3);margin-top:6px}
+.head-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+
+/* buttons */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  border:1px solid transparent;border-radius:9px;padding:8px 13px;min-height:38px;
+  font:600 13px/1.2 var(--font-ui);cursor:pointer;white-space:nowrap;
+  transition:background-color .16s ease,border-color .16s ease,color .16s ease;
+}
+.btn-primary{background:var(--brand-dark);color:#fff;border-color:var(--brand-dark)}
+.btn-primary:hover{background:var(--brand-deep)}
+.btn-outline{background:#fff;color:var(--ink);border-color:var(--line-strong)}
+.btn-outline:hover{background:var(--surface-2);border-color:#a9bdb8}
+.btn-ghost{background:transparent;color:var(--ink-2);border-color:transparent}
+.btn-ghost:hover{background:#eef2f1;color:var(--ink)}
+.btn:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-sm{min-height:32px;padding:6px 10px;font-size:12.5px;border-radius:8px}
+
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.stat-card{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:14px 15px;display:flex;flex-direction:column;gap:9px;box-shadow:var(--shadow);
+}
+.stat-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.stat-label{font:700 10.5px/1.2 var(--font-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.stat-icon{color:var(--ink-3);opacity:.85}
+.stat-value{display:flex;align-items:baseline;gap:6px;color:var(--ink);font:600 25px/1.05 var(--font-serif)}
+.stat-value small{font:600 12.5px/1 var(--font-ui);color:var(--ink-3)}
+.stat-value.nowrap{white-space:nowrap}
+.stat-sub{font:500 12px/1.45 var(--font-ui);color:var(--ink-2)}
+.stat-sub b{color:var(--ink);font-weight:700}
+.bar{height:6px;border-radius:999px;background:#e7eceb;overflow:hidden;margin-top:2px}
+.bar i{display:block;height:100%;border-radius:inherit;background:var(--brand)}
+.bar.bar-imm i{background:var(--imm)}
+
+/* next steps */
+.top-grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:14px;align-items:start}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.panel-head{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  padding:12px 16px;border-bottom:1px solid var(--line);
+}
+.panel-title{font:700 13.5px/1.3 var(--font-ui);color:var(--ink);display:flex;align-items:center;gap:8px}
+.panel-note{font:500 11.5px/1.3 var(--font-ui);color:var(--ink-3)}
+.next-list{display:flex;flex-direction:column}
+.next-item{display:flex;gap:12px;padding:13px 16px;align-items:flex-start;border-bottom:1px solid var(--line-soft)}
+.next-item:last-child{border-bottom:0}
+.next-badge{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;flex:none}
+.next-item.danger .next-badge{background:var(--danger-soft);color:var(--danger)}
+.next-item.info .next-badge{background:var(--brand-soft);color:var(--brand-dark)}
+.next-item.muted .next-badge{background:#eef2f1;color:var(--ink-2)}
+.next-main{flex:1 1 auto;min-width:0}
+.next-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font:600 14px/1.35 var(--font-ui);color:var(--ink)}
+.next-sub{font:500 12.5px/1.45 var(--font-ui);color:var(--ink-2);margin-top:3px}
+.note-quote{
+  margin-top:9px;padding:9px 11px;border-radius:9px;border:1px solid var(--line);
+  background:var(--surface-2);font:400 12.5px/1.55 var(--font-ui);color:var(--ink-2);max-width:74ch;
+}
+.note-quote .k{display:block;font:700 9.5px/1 var(--font-ui);letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);margin-bottom:5px}
+.next-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.next-item .od-column{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none}
+
+.qa-list{display:flex;flex-direction:column;gap:7px;padding:13px 16px 15px}
+.qa-list .btn{justify-content:flex-start;width:100%}
+.qa-hint{font:500 11.5px/1.5 var(--font-ui);color:var(--ink-3);padding:0 2px 2px}
+
+/* records panel */
+.tabs{display:flex;gap:2px;background:#eef2f1;padding:3px;border-radius:10px}
+.tab{
+  border:0;background:none;padding:7px 12px;border-radius:8px;cursor:pointer;
+  font:600 13px/1.2 var(--font-ui);color:var(--ink-2);display:inline-flex;align-items:center;gap:6px;
+  transition:background-color .16s ease,color .16s ease;
+}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected="true"]{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(14,32,28,.08)}
+.tab .count{font:600 10.5px/1 var(--font-ui);background:#dfe8e5;color:var(--ink-2);padding:3px 5px;border-radius:5px}
+.tab[aria-selected="true"] .count{background:var(--brand-soft);color:var(--brand-dark)}
+.tab:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+
+.filters{display:flex;gap:7px;align-items:center;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--line-soft);background:#fbfcfc}
+.filter-label{font:600 11px/1.2 var(--font-ui);color:var(--ink-3);margin-right:2px}
+.chipfilter{
+  border:1px solid var(--line);background:#fff;color:var(--ink-2);border-radius:999px;
+  padding:5px 10px;font:600 12px/1.2 var(--font-ui);cursor:pointer;
+  transition:background-color .16s ease,border-color .16s ease,color .16s ease;
+}
+.chipfilter:hover{background:var(--surface-2);color:var(--ink)}
+.chipfilter[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+.chipfilter:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.filter-spacer{margin-left:auto}
+.result-count{font:500 11.5px/1.3 var(--font-ui);color:var(--ink-3);white-space:nowrap}
+
+/* timeline */
+.timeline{padding:4px 16px 12px}
+.tl-row{
+  display:grid;grid-template-columns:30px minmax(0,1fr) 142px minmax(96px,max-content) minmax(0,auto);
+  gap:12px;padding:13px 0;border-bottom:1px solid var(--line-soft);align-items:start;
+}
+.tl-row:last-child{border-bottom:0}
+.tl-marker{position:relative;display:flex;justify-content:center;padding-top:1px}
+.tl-marker::before{
+  content:'';position:absolute;top:-13px;bottom:-13px;left:50%;width:1.5px;
+  background:#e3eae8;transform:translateX(-50%);
+}
+.tl-row:first-of-type .tl-marker::before{top:0}
+.tl-row:last-child .tl-marker::before{bottom:0}
+.tl-dot{
+  position:relative;z-index:1;width:25px;height:25px;border-radius:50%;
+  display:grid;place-items:center;font:700 11px/1 var(--font-ui);
+  background:#fff;border:1.5px solid var(--line-strong);color:var(--ink-2);
+}
+.tl-dot.done{background:var(--brand);border-color:var(--brand);color:#fff}
+.tl-dot.due{background:#fff;border:1.5px solid var(--brand);color:var(--brand-dark)}
+.tl-dot.overdue{background:var(--danger);border-color:var(--danger);color:#fff}
+.tl-dot.skipped{border-style:dashed;color:var(--ink-3)}
+.tl-main{min-width:0;padding-top:1px}
+.tl-title{font:600 14px/1.35 var(--font-ui);color:var(--ink)}
+.tl-tags{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:4px}
+.tag{font:700 9.5px/1 var(--font-ui);letter-spacing:.07em;text-transform:uppercase;padding:3px 6px;border-radius:5px;white-space:nowrap}
+.tag-preg{background:var(--brand-soft);color:#0a5749}
+.tag-imm{background:var(--imm-soft);color:var(--imm)}
+.tl-detail{font:400 12.5px/1.45 var(--font-ui);color:var(--ink-2);margin-top:5px}
+.tl-meta{font-variant-numeric:tabular-nums}
+.tl-meta .k{font:700 9.5px/1 var(--font-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.tl-meta .v{font:500 12.5px/1.4 var(--font-ui);color:var(--ink)}
+.tl-meta .v.muted{color:var(--ink-3)}
+.tl-status{padding-top:1px}
+.status{
+  display:inline-flex;align-items:center;gap:5px;border-radius:6px;
+  font:600 11px/1.2 var(--font-ui);padding:5px 7px;white-space:nowrap;
+}
+.status i{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+.status-completed{background:var(--brand-soft);color:#0a5749}
+.status-due{background:var(--warn-soft);color:var(--warn)}
+.status-upcoming{background:#eef2f1;color:var(--ink-2)}
+.status-overdue{background:var(--danger-soft);color:var(--danger)}
+.status-skipped{background:#f0f0ee;color:#66655f}
+.tl-actions{display:flex;gap:1px;flex-wrap:wrap;justify-content:flex-end}
+.linkbtn{
+  border:0;background:none;border-radius:7px;padding:6px 7px;cursor:pointer;
+  font:600 12px/1.2 var(--font-ui);color:var(--ink-2);white-space:nowrap;
+  transition:background-color .16s ease,color .16s ease;
+}
+.linkbtn:hover{background:#eef2f1;color:var(--ink)}
+.linkbtn.act-primary{color:var(--brand-dark)}
+.linkbtn.act-primary:hover{background:var(--brand-soft);color:var(--brand-deep)}
+.linkbtn:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
+.tl-now{display:flex;align-items:center;gap:11px;padding:9px 0 3px}
+.tl-now::before,.tl-now::after{content:'';flex:1;height:1px;background:var(--line-strong)}
+.tl-now span{
+  font:700 10px/1 var(--font-ui);letter-spacing:.09em;text-transform:uppercase;
+  color:var(--brand-dark);background:var(--brand-soft);padding:5px 9px;border-radius:999px;
+}
+.empty{
+  padding:28px 16px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;
+  color:var(--ink-2);font:500 13px/1.5 var(--font-ui);
+}
+.empty .od-icon{color:var(--ink-3)}
+.empty .btn{margin-top:8px}
+
+/* audit */
+.audit{padding:2px 16px 14px}
+.audit-summary{
+  display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;
+  padding:10px 0 4px;font:500 11.5px/1.4 var(--font-ui);color:var(--ink-3);
+}
+.audit-item{display:grid;grid-template-columns:150px minmax(0,1fr);gap:14px;padding:12px 0;border-bottom:1px solid var(--line-soft)}
+.audit-item:last-child{border-bottom:0}
+.audit-when{font:500 12px/1.5 var(--font-ui);color:var(--ink-3);font-variant-numeric:tabular-nums;padding-top:1px}
+.audit-action{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font:600 13.5px/1.3 var(--font-ui);color:var(--ink)}
+.audit-cat{font:700 9px/1 var(--font-ui);letter-spacing:.08em;text-transform:uppercase;padding:3px 5px;border-radius:4px;background:#eef2f1;color:var(--ink-2)}
+.audit-cat.cat-reminder{background:var(--warn-soft);color:var(--warn)}
+.audit-cat.cat-visit{background:var(--brand-soft);color:#0a5749}
+.audit-cat.cat-record{background:var(--imm-soft);color:var(--imm)}
+.audit-cat.cat-system{background:#eceef0;color:#4d5560}
+.audit-detail{font:400 12.5px/1.55 var(--font-ui);color:var(--ink-2);margin-top:4px;max-width:82ch}
+.audit-meta{display:flex;gap:7px;flex-wrap:wrap;font:500 11px/1.4 var(--font-ui);color:var(--ink-3);margin-top:5px}
+.audit-meta .sep{color:var(--line-strong)}
+
+/* bottom rail */
+.rail{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:start}
+.rail-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:15px 16px;box-shadow:var(--shadow)}
+.rail-card h2{font:700 13px/1.3 var(--font-ui);color:var(--ink);margin-bottom:12px;display:flex;align-items:center;gap:7px}
+.rail-card h2 .od-icon{color:var(--ink-3)}
+.kv{display:grid;gap:9px}
+.kv-row{display:grid;gap:2px}
+.kv-row .k{font:700 9.5px/1.2 var(--font-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.kv-row .v{font:500 13px/1.5 var(--font-ui);color:var(--ink);overflow-wrap:anywhere}
+.kv-row .v.sub{font-weight:400;font-size:12.5px;color:var(--ink-2)}
+.child-progress{margin-top:12px}
+.child-progress .rowline{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font:500 12px/1.4 var(--font-ui);color:var(--ink-2);margin-bottom:5px}
+.child-progress .rowline b{font-weight:700;color:var(--ink)}
+.imm-alert{display:flex;gap:8px;align-items:flex-start;margin-top:11px;padding:8px 10px;border-radius:8px;background:var(--danger-soft);color:var(--danger);font:600 11.5px/1.45 var(--font-ui)}
+.linkbtn.inline{margin-top:10px;padding-left:0;color:var(--brand-dark)}
+.page-foot{font:500 11.5px/1.6 var(--font-ui);color:var(--ink-3);padding:2px 2px 0}
+
+/* dialogs */
+.dlg{
+  border:0;border-radius:16px;padding:0;width:min(560px,calc(100vw - 32px));
+  max-height:calc(100vh - 40px);background:var(--surface);color:var(--ink);
+  box-shadow:0 24px 64px rgba(11,26,23,.26);
+}
+.dlg::backdrop{background:rgba(10,24,21,.44)}
+.dlg-form{display:flex;flex-direction:column;max-height:calc(100vh - 40px)}
+.dlg-head{
+  display:flex;justify-content:space-between;align-items:flex-start;gap:12px;
+  padding:16px 18px 13px;border-bottom:1px solid var(--line);
+}
+.dlg-title{font:600 19px/1.3 var(--font-serif);color:var(--ink)}
+.dlg-sub{font:500 11.5px/1.4 var(--font-ui);color:var(--ink-3);margin-top:3px}
+.dlg-body{padding:15px 18px;overflow-y:auto;min-height:0;display:grid;gap:13px}
+.dlg-foot{
+  display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;
+  padding:12px 18px 15px;border-top:1px solid var(--line);background:#fbfcfc;
+}
+.close-x{
+  width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:#fff;
+  display:grid;place-items:center;color:var(--ink-2);cursor:pointer;flex:none;
+}
+.close-x:hover{background:var(--surface-2);color:var(--ink)}
+.close-x:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.field{display:grid;gap:5px}
+.field > label{font:600 12.5px/1.3 var(--font-ui);color:var(--ink)}
+.field .hint{font:500 11.5px/1.4 var(--font-ui);color:var(--ink-3)}
+.field .req{color:var(--danger);font-weight:700}
+.field input,.field select,.field textarea{
+  width:100%;padding:8px 10px;border:1px solid var(--line-strong);border-radius:8px;
+  font:400 13.5px/1.4 var(--font-ui);color:var(--ink);background:#fff;
+}
+.field textarea{resize:vertical;min-height:70px}
+.field input:focus,.field select:focus,.field textarea:focus{outline:2px solid var(--brand);outline-offset:1px;border-color:var(--brand)}
+.field [aria-invalid="true"]{border-color:var(--danger);box-shadow:0 0 0 3px rgba(156,42,30,.1)}
+.err{font:600 11.5px/1.4 var(--font-ui);color:var(--danger)}
+.form-summary{font:600 12.5px/1.4 var(--font-ui);color:var(--danger);background:var(--danger-soft);border-radius:8px;padding:8px 10px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.stage-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px}
+.stage-grid .kv-row .v{font-size:13px}
+.stage-note{background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:10px 11px}
+.stage-note .k{font:700 9.5px/1.2 var(--font-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin-bottom:5px}
+.stage-note p{font:400 12.5px/1.55 var(--font-ui);color:var(--ink-2)}
+.preview{
+  background:var(--brand-soft);border-radius:9px;padding:10px 11px;
+  font:500 12.5px/1.55 var(--font-ui);color:var(--brand-deep);
+}
+.dl-summary{display:flex;gap:14px;flex-wrap:wrap;padding:10px 11px;background:var(--surface-2);border-radius:9px;font:500 12.5px/1.4 var(--font-ui);color:var(--ink-2)}
+.dl-summary b{color:var(--ink);font-weight:700}
+
+/* toasts */
+.toasts{position:fixed;right:18px;bottom:18px;z-index:70;display:flex;flex-direction:column;gap:8px;max-width:min(360px,calc(100vw - 36px))}
+.toast{
+  background:#12201d;color:#f1f7f5;border-radius:10px;padding:10px 13px;
+  font:500 12.5px/1.45 var(--font-ui);box-shadow:0 10px 28px rgba(11,26,23,.28);
+  animation:toastIn .2s ease-out;
+}
+.toast.err{background:#5f1c14}
+.toast .toast-k{display:block;font:700 9.5px/1 var(--font-ui);letter-spacing:.09em;text-transform:uppercase;color:#8fd0bd;margin-bottom:3px}
+.toast.err .toast-k{color:#f3b7ae}
+@keyframes toastIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* responsive */
+@media (max-width:1180px){
+  .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .tl-row{grid-template-columns:30px minmax(0,1fr) 132px minmax(96px,max-content)}
+  .tl-actions{grid-column:2 / -1;justify-content:flex-start;margin-top:-2px;padding-bottom:2px}
+}
+@media (max-width:1024px){
+  .app{grid-template-columns:1fr}
+  .sidebar{
+    position:static;height:auto;flex-direction:row;align-items:center;gap:14px;
+    padding:9px 14px;z-index:40;
+  }
+  .brand-sub,.side-foot,.nav-label{display:none}
+  .brand{padding:0;flex:none}
+  .nav{flex-direction:row;gap:2px;overflow-x:auto;scrollbar-width:none;flex:1 1 auto}
+  .nav::-webkit-scrollbar{display:none}
+  .nav button{width:auto;white-space:nowrap;padding:7px 10px}
+  .nav .nav-count{display:none}
+  .topbar{top:0;padding:9px 16px}
+  .content{padding:16px 16px 40px;gap:12px}
+  .top-grid{grid-template-columns:1fr}
+  .patient-card{grid-template-columns:1fr;gap:14px}
+  .head-right{align-items:flex-start;width:100%}
+  .edd-widget{width:100%;min-width:0}
+  .head-actions{justify-content:flex-start}
+  .rail{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:820px){
+  .tl-row{grid-template-columns:26px minmax(0,1fr) auto;gap:10px;padding:12px 0}
+  .tl-marker{grid-row:1}
+  .tl-main{grid-column:2 / 3}
+  .tl-status{grid-column:3;grid-row:1;justify-self:end}
+  .tl-meta{grid-column:2 / -1;grid-template-columns:auto 1fr;gap:2px 10px;align-items:baseline}
+  .tl-meta .k{display:inline}
+  .tl-meta .v{display:inline}
+  .tl-actions{grid-column:2 / -1;margin-top:0}
+  .tl-dot{width:23px;height:23px;font-size:10.5px}
+  .tl-marker::before{left:13px}
+}
+@media (max-width:700px){
+  .stats{grid-template-columns:1fr}
+  .topbar{flex-wrap:wrap;gap:8px;padding:8px 14px}
+  .crumbs{flex:1 1 auto;font-size:12.5px}
+  .search-wrap{order:3;flex:1 1 100%;max-width:none;margin-left:0}
+  .top-date{display:none}
+  .staff-name,.staff-role{display:none}
+  .rail{grid-template-columns:1fr}
+  .audit-item{grid-template-columns:1fr;gap:4px}
+  .audit-when{padding-top:0}
+  .grid-2,.stage-grid{grid-template-columns:1fr}
+  .patient-name{font-size:24px}
+  .btn{min-height:44px}
+  .btn-sm{min-height:36px}
+  .linkbtn{min-height:44px;padding:9px 10px}
+  .chipfilter{padding:9px 12px;min-height:40px}
+  .tab{padding:9px 12px}
+  .dlg{width:calc(100vw - 20px)}
+  .content{padding:14px 14px 36px}
+  .patient-card{padding:15px}
+  .panel-head{padding:11px 14px}
+  .filters{padding:9px 14px}
+  .timeline,.audit{padding-inline:14px}
+  .next-item{padding:12px 14px}
+}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important;scroll-behavior:auto !important}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg class="od-icon i20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h3.2l1.8-5 2.6 10 2.2-6 1.6 3H21"/></svg>
+      </span>
+      <span class="brand-text">
+        <span class="brand-name">TiniTracker</span>
+        <span class="brand-sub">Maternal &amp; child care</span>
+      </span>
+    </div>
+
+    <nav class="nav" aria-label="Main">
+      <span class="nav-label">Clinic</span>
+      <button type="button" data-action="nav" data-view="overview">
+        <svg class="od-icon i18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        Overview
+      </button>
+      <button type="button" data-action="nav" data-view="patients" aria-current="page">
+        <svg class="od-icon i18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20"/><circle cx="9" cy="7.5" r="3.5"/><path d="M17 11.5h5M19.5 9v5"/></svg>
+        Patients
+        <span class="nav-count">24</span>
+      </button>
+      <button type="button" data-action="nav" data-view="schedules">
+        <svg class="od-icon i18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 3v3M16 3v3"/></svg>
+        Schedules
+      </button>
+      <button type="button" data-action="nav" data-view="reminders">
+        <svg class="od-icon i18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 9a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6"/><path d="M10.5 20a2 2 0 0 0 3 0"/></svg>
+        Reminders
+      </button>
+      <button type="button" data-action="nav" data-view="reports">
+        <svg class="od-icon i18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+        Reports
+      </button>
+      <button type="button" data-action="nav" data-view="settings">
+        <svg class="od-icon i18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+        Settings
+      </button>
+    </nav>
+
+    <div class="side-foot">
+      <div class="clinic-card">
+        <span class="k">Active clinic</span>
+        <span class="v">St. Mary's Maternity</span>
+        <span class="s">Dhanmondi, Dhaka · 128 patients</span>
+      </div>
+      <div class="user-line">
+        <span class="user-avatar" aria-hidden="true">NJ</span>
+        <span>
+          <span class="staff-name">Nusrat Jahan</span>
+          <span class="staff-role">Registered midwife</span>
+        </span>
+      </div>
+    </div>
+  </aside>
+
+  <div class="workspace">
+    <header class="topbar">
+      <div class="crumbs">
+        <span>Patients</span>
+        <span class="sep">/</span>
+        <strong>Amina Rahman</strong>
+      </div>
+      <div class="search-wrap">
+        <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
+        <label class="sr-only" for="global-search">Search care stages</label>
+        <input id="global-search" type="search" placeholder="Search stages, e.g. 28-week or PCV" autocomplete="off">
+      </div>
+      <div class="top-meta">
+        <span class="top-date">Tue, 10 Nov 2026</span>
+        <button type="button" class="icon-btn" data-action="notifications" aria-label="Notifications, 2 unread">
+          <svg class="od-icon i18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 9a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6"/><path d="M10.5 20a2 2 0 0 0 3 0"/></svg>
+          <span class="dot" aria-hidden="true"></span>
+        </button>
+        <div class="staff">
+          <span class="staff-avatar" aria-hidden="true">NJ</span>
+          <span class="staff-name" id="staff-name">Nusrat Jahan</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="content">
+      <!-- patient header -->
+      <section class="patient-card" aria-labelledby="patient-name">
+        <div class="patient-id">
+          <div class="avatar-lg" aria-hidden="true">AR</div>
+          <div style="min-width:0">
+            <h1 class="patient-name" id="patient-name">Amina Rahman</h1>
+            <div class="name-meta" id="patient-badges">
+              <span class="chip chip-line">G2 P1</span>
+              <span class="chip chip-live" id="care-state">Antenatal care active</span>
+              <span class="chip chip-danger" id="dropoff-chip">1 overdue item</span>
+            </div>
+            <p class="meta-line">
+              MRN <b>TT-2041-0892</b> · <b>27 years</b> · Female · Blood group O+ · Registered 3 Jul 2026
+            </p>
+            <div class="contact-chips">
+              <span>
+                <svg class="od-icon i14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h3l2 5-2.5 1.5a12 12 0 0 0 6 6L15 13l5 2v3a2 2 0 0 1-2.2 2A17 17 0 0 1 3 5.2 2 2 0 0 1 5 3Z"/></svg>
+                +880 1712 448 902
+              </span>
+              <span style="min-width:0">
+                <svg class="od-icon i14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1Z"/></svg>
+                <span class="od-truncate" title="House 14, Road 7, Dhanmondi, Dhaka 1205">House 14, Road 7, Dhanmondi, Dhaka 1205</span>
+              </span>
+              <span>
+                <svg class="od-icon i14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 3v3M16 3v3"/></svg>
+                <span id="next-visit-chip">Next visit Fri, 20 Nov</span>
+              </span>
+            </div>
+          </div>
+        </div>
+        <div class="head-right">
+          <div class="edd-widget" id="edd-widget"></div>
+          <div class="head-actions">
+            <button type="button" class="btn btn-ghost" data-action="reminder">
+              <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 9a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6"/><path d="M10.5 20a2 2 0 0 0 3 0"/></svg>
+              Send reminder
+            </button>
+            <button type="button" class="btn btn-outline" data-action="open-edd">
+              <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 3v3M16 3v3M12 12.5v4M10 14.5h4"/></svg>
+              Update EDD
+            </button>
+            <button type="button" class="btn btn-primary" id="btn-delivery" data-action="open-delivery">
+              <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-4.6-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.4-7 10-7 10Z"/></svg>
+              Record delivery
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- stats -->
+      <section class="stats" aria-label="Care progress">
+        <div class="stat-card">
+          <div class="stat-top">
+            <span class="stat-label">Antenatal contacts</span>
+            <svg class="od-icon i16 stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1Z"/></svg>
+          </div>
+          <div class="stat-value"><span id="stat-anc-value">6</span><small id="stat-anc-total">of 10 completed</small></div>
+          <div class="bar" role="img" aria-label="Antenatal completion" id="stat-anc-bar-wrap"><i id="stat-anc-bar" style="width:60%"></i></div>
+          <div class="stat-sub" id="stat-anc-sub"></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-top">
+            <span class="stat-label">Zayan's immunizations</span>
+            <svg class="od-icon i16 stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14 4 6 6M17 7l-9.5 9.5M9 5.5 5 9.5l3 3M15.5 12l4 4-4 4-4-4M4 20l3-3"/></svg>
+          </div>
+          <div class="stat-value"><span id="stat-imm-value">5</span><small id="stat-imm-total">of 9 doses</small></div>
+          <div class="bar bar-imm" role="img" aria-label="Immunization completion" id="stat-imm-bar-wrap"><i id="stat-imm-bar" style="width:56%"></i></div>
+          <div class="stat-sub" id="stat-imm-sub"></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-top">
+            <span class="stat-label">Gestational age</span>
+            <svg class="od-icon i16 stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 1.8"/></svg>
+          </div>
+          <div class="stat-value nowrap"><span id="stat-ga-value">26w 4d</span></div>
+          <div class="stat-sub" id="stat-ga-sub">Second trimester · 40-week term</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-top">
+            <span class="stat-label">Next antenatal</span>
+            <svg class="od-icon i16 stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 3v3M16 3v3"/></svg>
+          </div>
+          <div class="stat-value"><span id="stat-next-value">Fri 20 Nov</span></div>
+          <div class="stat-sub" id="stat-next-sub">28-week visit · in 10 days</div>
+        </div>
+      </section>
+
+      <div class="top-grid">
+        <!-- next steps -->
+        <section class="panel" aria-labelledby="next-title">
+          <div class="panel-head">
+            <h2 class="panel-title" id="next-title">
+              <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3.4"/></svg>
+              Next steps &amp; handover
+            </h2>
+            <span class="panel-note" id="next-count">2 items need attention</span>
+          </div>
+          <div class="next-list" id="next-steps-body"></div>
+        </section>
+
+        <!-- quick actions -->
+        <section class="panel" aria-labelledby="qa-title">
+          <div class="panel-head">
+            <h2 class="panel-title" id="qa-title">
+              <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H12Z"/></svg>
+              Quick actions
+            </h2>
+          </div>
+          <div class="qa-list">
+            <button type="button" class="btn btn-outline" data-action="open-edd">
+              <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 3v3M16 3v3"/></svg>
+              Update EDD &amp; re-base schedule
+            </button>
+            <button type="button" class="btn btn-outline" id="qa-delivery" data-action="open-delivery">
+              <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-4.6-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.4-7 10-7 10Z"/></svg>
+              Record delivery
+            </button>
+            <button type="button" class="btn btn-outline" data-action="reminder">
+              <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16v10H8l-4 4Z"/><path d="M8 10h8M8 13h5"/></svg>
+              Send SMS reminder
+            </button>
+            <button type="button" class="btn btn-outline" data-action="tab" data-tab="audit">
+              <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M9 9h7M9 13h7M9 17h4"/></svg>
+              View full audit log
+            </button>
+            <p class="qa-hint">Every change is written to the audit trail with the acting user and source.</p>
+          </div>
+        </section>
+      </div>
+
+      <!-- records panel -->
+      <section class="panel" aria-label="Patient records">
+        <div class="panel-head">
+          <div class="tabs" role="tablist" aria-label="Patient records">
+            <button type="button" class="tab" role="tab" id="tab-timeline" aria-selected="true" aria-controls="panel-timeline" data-action="tab" data-tab="timeline">
+              Care timeline <span class="count" id="tab-timeline-count">19</span>
+            </button>
+            <button type="button" class="tab" role="tab" id="tab-audit" aria-selected="false" aria-controls="panel-audit" tabindex="-1" data-action="tab" data-tab="audit">
+              Audit log <span class="count" id="tab-audit-count">16</span>
+            </button>
+          </div>
+          <span class="panel-note" id="records-note">Pregnancy 10 stages · Immunization 9 stages</span>
+        </div>
+
+        <div id="panel-timeline" role="tabpanel" aria-labelledby="tab-timeline">
+          <div class="filters" id="track-filters">
+            <span class="filter-label">Track</span>
+            <button type="button" class="chipfilter" data-action="track" data-track="all" aria-pressed="true">All stages</button>
+            <button type="button" class="chipfilter" data-action="track" data-track="pregnancy" aria-pressed="false">Pregnancy</button>
+            <button type="button" class="chipfilter" data-action="track" data-track="immunization" aria-pressed="false">Immunization</button>
+            <span class="filter-spacer"></span>
+            <span class="result-count" id="timeline-count"></span>
+          </div>
+          <div class="timeline" id="timeline"></div>
+        </div>
+
+        <div id="panel-audit" role="tabpanel" aria-labelledby="tab-audit" hidden>
+          <div class="filters" id="audit-filters">
+            <span class="filter-label">Show</span>
+            <button type="button" class="chipfilter" data-action="audit-cat" data-cat="all" aria-pressed="true">All entries</button>
+            <button type="button" class="chipfilter" data-action="audit-cat" data-cat="visit" aria-pressed="false">Visits</button>
+            <button type="button" class="chipfilter" data-action="audit-cat" data-cat="reminder" aria-pressed="false">Reminders</button>
+            <button type="button" class="chipfilter" data-action="audit-cat" data-cat="record" aria-pressed="false">Records</button>
+            <button type="button" class="chipfilter" data-action="audit-cat" data-cat="system" aria-pressed="false">System</button>
+          </div>
+          <div class="audit" id="audit-list"></div>
+        </div>
+      </section>
+
+      <!-- bottom rail -->
+      <div class="rail">
+        <section class="rail-card" aria-labelledby="contact-title">
+          <h2 id="contact-title">
+            <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1Z"/></svg>
+            Contact &amp; address
+          </h2>
+          <div class="kv">
+            <div class="kv-row"><span class="k">Address</span><span class="v">House 14, Road 7, Dhanmondi, Dhaka 1205</span></div>
+            <div class="kv-row"><span class="k">Phone</span><span class="v">+880 1712 448 902</span></div>
+            <div class="kv-row"><span class="k">Email</span><span class="v">amina.rahman@mail.com</span></div>
+            <div class="kv-row"><span class="k">Emergency contact</span><span class="v">Rafiq Rahman (husband)</span><span class="v sub">+880 1811 220 774</span></div>
+          </div>
+        </section>
+
+        <section class="rail-card" aria-labelledby="team-title">
+          <h2 id="team-title">
+            <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.4"/><path d="M3 20v-1.4A4 4 0 0 1 7 14.6h4a4 4 0 0 1 4 4V20M17 5.2a3.4 3.4 0 0 1 0 6.6M21 20v-1.4a4 4 0 0 0-3-3.86"/></svg>
+            Care team
+          </h2>
+          <div class="kv">
+            <div class="kv-row"><span class="k">Midwife</span><span class="v">Nusrat Jahan, RM</span><span class="v sub">Lead for antenatal &amp; reminders</span></div>
+            <div class="kv-row"><span class="k">Obstetrician</span><span class="v">Dr. Farhana Karim</span><span class="v sub">Review at 28 and 36 weeks</span></div>
+            <div class="kv-row"><span class="k">Facility</span><span class="v">St. Mary's Maternity, Dhanmondi</span><span class="v sub">ANC Room 2 · Immunization room</span></div>
+          </div>
+        </section>
+
+        <section class="rail-card" aria-labelledby="child-title">
+          <h2 id="child-title">
+            <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 12h.01M15 12h.01M10 16c.9.8 2.2 1.2 3 1.2s2.1-.4 3-1.2"/><circle cx="12" cy="11" r="8"/><path d="M12 3c-1.4 1.6-1.6 3.6-1.4 5"/></svg>
+            Linked child
+          </h2>
+          <div class="kv">
+            <div class="kv-row"><span class="k">Name</span><span class="v">Zayan Rahman</span></div>
+            <div class="kv-row"><span class="k">Age &amp; MRN</span><span class="v">14 months · TT-2041-0892-C</span></div>
+          </div>
+          <div class="child-progress">
+            <div class="rowline"><span>Immunization schedule</span><b id="child-imm-text">5 of 9 doses</b></div>
+            <div class="bar bar-imm" role="img" aria-label="Child immunization completion"><i id="child-imm-bar" style="width:56%"></i></div>
+            <div class="imm-alert" id="child-alert">
+              <svg class="od-icon i14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.6 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
+              <span id="child-alert-text">PCV booster 59 days overdue</span>
+            </div>
+            <button type="button" class="linkbtn inline" data-action="open-child">Open child record</button>
+          </div>
+        </section>
+      </div>
+
+      <p class="page-foot">Prototype record for demonstration. Not a live medical record — TiniTracker, St. Mary's Maternity.</p>
+    </main>
+  </div>
+</div>
+
+<!-- ============ dialogs ============ -->
+<dialog class="dlg" id="dlg-stage" aria-labelledby="dlg-stage-title">
+  <div class="dlg-form">
+    <div class="dlg-head">
+      <div style="min-width:0">
+        <h2 class="dlg-title" id="dlg-stage-title">Stage detail</h2>
+        <p class="dlg-sub" id="dlg-stage-sub"></p>
+      </div>
+      <button type="button" class="close-x" data-close aria-label="Close stage detail">
+        <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="dlg-body" id="stage-body"></div>
+    <div class="dlg-foot">
+      <button type="button" class="btn btn-outline" data-close>Close</button>
+      <button type="button" class="btn btn-primary" id="stage-primary" hidden>Mark as visit</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog class="dlg" id="dlg-reschedule" aria-labelledby="dlg-rs-title">
+  <form class="dlg-form" id="form-rs" novalidate>
+    <div class="dlg-head">
+      <div style="min-width:0">
+        <h2 class="dlg-title" id="dlg-rs-title">Reschedule stage</h2>
+        <p class="dlg-sub" id="rs-sub"></p>
+      </div>
+      <button type="button" class="close-x" data-close aria-label="Close reschedule">
+        <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="dlg-body">
+      <p class="form-summary" id="rs-summary" hidden></p>
+      <div class="dl-summary"><span>Currently scheduled <b id="rs-current"></b></span></div>
+      <div class="field">
+        <label for="rs-date">New scheduled date <span class="req" aria-hidden="true">*</span></label>
+        <input id="rs-date" name="rs-date" type="date" required aria-describedby="rs-date-err">
+        <p class="err" id="rs-date-err" hidden></p>
+      </div>
+      <div class="field">
+        <label for="rs-reason">Reason for rescheduling <span class="req" aria-hidden="true">*</span></label>
+        <select id="rs-reason" name="rs-reason" required aria-describedby="rs-reason-err">
+          <option value="">Select a reason</option>
+          <option>Transport difficulty</option>
+          <option>Patient request</option>
+          <option>Clinical advice</option>
+          <option>Clinic closure</option>
+          <option>Other</option>
+        </select>
+        <p class="err" id="rs-reason-err" hidden></p>
+      </div>
+      <div class="field">
+        <label for="rs-note">Note for the care team <span class="hint">(optional)</span></label>
+        <textarea id="rs-note" name="rs-note" rows="2" placeholder="Anything the next clinician should know"></textarea>
+      </div>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" class="btn btn-outline" data-close>Cancel</button>
+      <button type="submit" class="btn btn-primary">Save new date</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="dlg" id="dlg-skip" aria-labelledby="dlg-skip-title">
+  <form class="dlg-form" id="form-skip" novalidate>
+    <div class="dlg-head">
+      <div style="min-width:0">
+        <h2 class="dlg-title" id="dlg-skip-title">Skip stage</h2>
+        <p class="dlg-sub" id="skip-sub"></p>
+      </div>
+      <button type="button" class="close-x" data-close aria-label="Close skip stage">
+        <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="dlg-body">
+      <p class="form-summary" id="skip-summary" hidden></p>
+      <div class="field">
+        <label for="skip-reason">Why is this stage being skipped? <span class="req" aria-hidden="true">*</span></label>
+        <select id="skip-reason" name="skip-reason" required aria-describedby="skip-reason-err">
+          <option value="">Select a reason</option>
+          <option>Patient declined</option>
+          <option>Moved to another facility</option>
+          <option>Clinical decision — no longer required</option>
+          <option>Could not be reached</option>
+          <option>Other</option>
+        </select>
+        <p class="err" id="skip-reason-err" hidden></p>
+      </div>
+      <div class="field">
+        <label for="skip-note">Note <span class="hint">(optional)</span></label>
+        <textarea id="skip-note" name="skip-note" rows="2" placeholder="Context for the audit trail"></textarea>
+      </div>
+      <p class="stage-note"><span class="k">What happens next</span>The stage stays in the timeline marked as skipped, and the next stage stays scheduled. You can still record a visit for it later.</p>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" class="btn btn-outline" data-close>Cancel</button>
+      <button type="submit" class="btn btn-primary">Skip stage</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="dlg" id="dlg-visit" aria-labelledby="dlg-visit-title">
+  <form class="dlg-form" id="form-visit" novalidate>
+    <div class="dlg-head">
+      <div style="min-width:0">
+        <h2 class="dlg-title" id="dlg-visit-title">Mark as visit</h2>
+        <p class="dlg-sub" id="visit-sub"></p>
+      </div>
+      <button type="button" class="close-x" data-close aria-label="Close visit form">
+        <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="dlg-body">
+      <p class="form-summary" id="visit-summary" hidden></p>
+      <div class="grid-2">
+        <div class="field">
+          <label for="visit-date">Visit date <span class="req" aria-hidden="true">*</span></label>
+          <input id="visit-date" name="visit-date" type="date" required aria-describedby="visit-date-err">
+          <p class="err" id="visit-date-err" hidden></p>
+        </div>
+        <div class="field">
+          <label for="visit-provider">Seen by</label>
+          <input id="visit-provider" name="visit-provider" type="text" value="Nusrat Jahan, RM">
+        </div>
+      </div>
+      <div class="field">
+        <label for="visit-notes">Visit notes <span class="hint">(optional)</span></label>
+        <textarea id="visit-notes" name="visit-notes" rows="3" placeholder="Findings, counselling given, next steps"></textarea>
+      </div>
+      <p class="stage-note"><span class="k">Audit</span>Recording the visit closes this stage, updates the progress counters, and stamps the audit log with your name.</p>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" class="btn btn-outline" data-close>Cancel</button>
+      <button type="submit" class="btn btn-primary">Record visit</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="dlg" id="dlg-edd" aria-labelledby="dlg-edd-title">
+  <form class="dlg-form" id="form-edd" novalidate>
+    <div class="dlg-head">
+      <div style="min-width:0">
+        <h2 class="dlg-title" id="dlg-edd-title">Update estimated delivery date</h2>
+        <p class="dlg-sub">Future antenatal stages shift with the new date.</p>
+      </div>
+      <button type="button" class="close-x" data-close aria-label="Close EDD form">
+        <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="dlg-body">
+      <p class="form-summary" id="edd-summary" hidden></p>
+      <div class="dl-summary">
+        <span>Current EDD <b id="edd-current"></b></span>
+        <span>Gestational age <b id="edd-ga"></b></span>
+      </div>
+      <div class="field">
+        <label for="edd-date">New EDD <span class="req" aria-hidden="true">*</span></label>
+        <input id="edd-date" name="edd-date" type="date" required aria-describedby="edd-date-err">
+        <p class="err" id="edd-date-err" hidden></p>
+      </div>
+      <div class="field">
+        <label for="edd-method">How was the date determined?</label>
+        <select id="edd-method" name="edd-method">
+          <option>Dating ultrasound</option>
+          <option>LMP recall</option>
+          <option>Clinical estimate</option>
+          <option>Other</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="edd-reason">Reason for the change <span class="req" aria-hidden="true">*</span></label>
+        <textarea id="edd-reason" name="edd-reason" rows="2" required aria-describedby="edd-reason-err" placeholder="e.g. Dating scan at 8w 2d corrected the LMP estimate"></textarea>
+        <p class="err" id="edd-reason-err" hidden></p>
+      </div>
+      <p class="preview" id="edd-preview">Choose a new date to preview the effect on the schedule.</p>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" class="btn btn-outline" data-close>Cancel</button>
+      <button type="submit" class="btn btn-primary">Update EDD</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="dlg" id="dlg-delivery" aria-labelledby="dlg-delivery-title">
+  <form class="dlg-form" id="form-delivery" novalidate>
+    <div class="dlg-head">
+      <div style="min-width:0">
+        <h2 class="dlg-title" id="dlg-delivery-title">Record delivery</h2>
+        <p class="dlg-sub">Closes the antenatal track and starts the postnatal handover.</p>
+      </div>
+      <button type="button" class="close-x" data-close aria-label="Close delivery form">
+        <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="dlg-body">
+      <p class="form-summary" id="dl-summary" hidden></p>
+      <div class="grid-2">
+        <div class="field">
+          <label for="dl-date">Delivery date <span class="req" aria-hidden="true">*</span></label>
+          <input id="dl-date" name="dl-date" type="date" required aria-describedby="dl-date-err">
+          <p class="err" id="dl-date-err" hidden></p>
+        </div>
+        <div class="field">
+          <label for="dl-time">Time</label>
+          <input id="dl-time" name="dl-time" type="time" value="09:30">
+        </div>
+        <div class="field">
+          <label for="dl-mode">Mode of delivery</label>
+          <select id="dl-mode" name="dl-mode">
+            <option>Spontaneous vaginal (SVD)</option>
+            <option>Assisted vaginal</option>
+            <option>Caesarean section</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="dl-outcome">Outcome</label>
+          <select id="dl-outcome" name="dl-outcome">
+            <option>Live birth</option>
+            <option>Stillbirth</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="dl-sex">Baby's sex</label>
+          <select id="dl-sex" name="dl-sex">
+            <option>Female</option>
+            <option>Male</option>
+            <option>Not recorded</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="dl-weight">Birth weight (kg)</label>
+          <input id="dl-weight" name="dl-weight" type="number" step="0.01" min="0.5" max="7" value="3.1">
+        </div>
+      </div>
+      <div class="field">
+        <label for="dl-notes">Delivery notes <span class="hint">(optional)</span></label>
+        <textarea id="dl-notes" name="dl-notes" rows="2" placeholder="Labour, complications, skin-to-skin, feeding support"></textarea>
+      </div>
+      <p class="stage-note"><span class="k">Effect on this record</span>The delivery stage is completed, remaining antenatal stages close, and the newborn's immunization schedule is opened for the clinic.</p>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" class="btn btn-outline" data-close>Cancel</button>
+      <button type="submit" class="btn btn-primary" id="dl-submit">Record delivery</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toasts" id="toasts" role="status" aria-live="polite" aria-atomic="false"></div>
+
+<script>
+(function(){
+  'use strict';
+
+  var DEMO_TODAY = new Date(2026, 10, 10);
+  var KEY = 'tinittracker-patient-ar-v1';
+  var i18nDate = new Intl.DateTimeFormat('en-GB', { weekday:'short', day:'2-digit', month:'short', year:'numeric' });
+  var i18nDateShort = new Intl.DateTimeFormat('en-GB', { day:'2-digit', month:'short' });
+  var i18nDateYear = new Intl.DateTimeFormat('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+  var i18nWhen = new Intl.DateTimeFormat('en-GB', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit', hour12:false });
+
+  var CURRENT_USER = 'Nusrat Jahan, RM';
+
+  /* ---------------- date helpers ---------------- */
+  function parseISO(s){ var p = String(s).split('-').map(Number); return new Date(p[0], p[1]-1, p[2]); }
+  function toISO(d){
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+  function addDays(d, n){ var c = new Date(d.getTime()); c.setDate(c.getDate() + n); return c; }
+  function dayDiff(from, toISOString){
+    var a = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+    var b = parseISO(toISOString);
+    return Math.round((b - a) / 86400000);
+  }
+  function fmtDate(iso){ return i18nDate.format(parseISO(iso)); }
+  function fmtShort(iso){ return i18nDateShort.format(parseISO(iso)); }
+  function fmtSmart(iso){
+    var d = parseISO(iso);
+    return d.getFullYear() === DEMO_TODAY.getFullYear() ? i18nDateShort.format(d) : i18nDateYear.format(d);
+  }
+  function esc(v){
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function(c){
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
+    });
+  }
+  function todayISO(){ return toISO(DEMO_TODAY); }
+
+  /* ---------------- seed data ---------------- */
+  var SEED = {
+    patient: {
+      name: 'Amina Rahman',
+      mrn: 'TT-2041-0892',
+      age: 27,
+      edd: '2027-02-12'
+    },
+    child: { name: 'Zayan Rahman', dob: '2025-09-12', mrn: 'TT-2041-0892-C' },
+    delivered: null,
+    stages: [
+      /* ---- pregnancy ---- */
+      { id:'p1', track:'pregnancy', no:1, name:'Booking visit & dating scan', status:'completed', scheduled:'2026-07-03', actual:'2026-07-03',
+        detail:'Registration, history, baseline bloods and dating ultrasound',
+        provider:'Dr. Farhana Karim', location:'ANC Room 2',
+        vitals:'BP 108/68 mmHg · weight 55.2 kg · urine protein negative',
+        notes:'Registered at 8w 2d. LMP 08 May 2026, EDD 12 Feb 2027. Folic acid and calcium started. Td status checked.' },
+      { id:'p2', track:'pregnancy', no:2, name:'12-week screening & NT scan', status:'completed', scheduled:'2026-07-31', actual:'2026-07-31',
+        detail:'Nuchal translucency, combined screening, bloods',
+        provider:'Dr. Farhana Karim', location:'Ultrasound suite',
+        vitals:'BP 106/66 mmHg · weight 56.0 kg',
+        notes:'NT 1.6 mm, nasal bone present. Combined risk low (1:4,820). No further screening offered.' },
+      { id:'p3', track:'pregnancy', no:3, name:'16-week antenatal contact', status:'completed', scheduled:'2026-08-28', actual:'2026-08-28',
+        detail:'Fundal height, fetal heart, supplement review',
+        provider:'Nusrat Jahan, RM', location:'ANC Room 2',
+        vitals:'BP 110/70 mmHg · weight 58.1 kg · fundal height 16 cm · FHR 152 bpm',
+        notes:'Growth on track. Iron and calcium adherence good. Danger signs counselled.' },
+      { id:'p4', track:'pregnancy', no:4, name:'20-week anomaly scan', status:'completed', scheduled:'2026-09-25', actual:'2026-09-25',
+        detail:'Fetal anatomy, placental site, growth estimate',
+        provider:'Dr. Farhana Karim', location:'Ultrasound suite',
+        vitals:'BP 112/70 mmHg · weight 59.3 kg · EFW 340 g',
+        notes:'Anatomy complete, no anomalies. Placenta posterior, grade I. Cervical length 38 mm.' },
+      { id:'p5', track:'pregnancy', no:5, name:'24-week antenatal visit & OGTT', status:'completed', scheduled:'2026-10-23', actual:'2026-10-23',
+        detail:'Glucose tolerance test, haemoglobin, Td dose 2',
+        provider:'Dr. Farhana Karim', location:'ANC Room 2',
+        vitals:'BP 112/72 mmHg · weight 60.2 kg · fundal height 24 cm · FHR 150 bpm',
+        notes:'OGTT normal (fasting 4.9, 2-hour 7.1 mmol/L). Hb 10.9 g/dL. Td dose 2 given. Anaemia prophylaxis reinforced.' },
+      { id:'p6', track:'pregnancy', no:6, name:'26-week anaemia review', status:'completed', scheduled:'2026-11-06', actual:'2026-11-06',
+        detail:'Extra contact after low haemoglobin at 24 weeks',
+        provider:'Dr. Farhana Karim', location:'ANC Room 2',
+        vitals:'BP 110/70 mmHg · weight 61.4 kg · fundal height 27 cm · FHR 148 bpm · Hb 10.4 g/dL',
+        notes:'Hb 10.4 g/dL, ferritin 11 ng/mL. Ferrous sulphate 200 mg twice daily started; repeat CBC and reticulocyte count at the 28-week visit. Fetal movements normal.' },
+      { id:'p7', track:'pregnancy', no:7, name:'28-week antenatal visit', status:'scheduled', scheduled:'2026-11-20',
+        detail:'Repeat CBC and reticulocyte count, BP, fundal height, movement review',
+        provider:'Dr. Farhana Karim', location:'ANC Room 2', notes:'' },
+      { id:'p8', track:'pregnancy', no:8, name:'32-week antenatal visit', status:'scheduled', scheduled:'2026-12-18',
+        detail:'Growth scan, Hb recheck, birth preparedness counselling',
+        provider:'Dr. Farhana Karim', location:'ANC Room 2', notes:'' },
+      { id:'p9', track:'pregnancy', no:9, name:'36-week visit & birth plan', status:'scheduled', scheduled:'2027-01-15',
+        detail:'Presentation check, birth plan, danger-sign drill, facility plan',
+        provider:'Nusrat Jahan, RM', location:'ANC Room 2', notes:'' },
+      { id:'p10', track:'pregnancy', no:10, name:'Delivery & postnatal handover', status:'scheduled', scheduled:'2027-02-12',
+        detail:'Expected delivery date — record outcome and start postnatal care',
+        provider:'Dr. Farhana Karim', location:'Labour ward', notes:'' },
+
+      /* ---- immunization (child Zayan) ---- */
+      { id:'i1', track:'immunization', no:1, name:'Birth dose', status:'completed', scheduled:'2025-09-12', actual:'2025-09-12',
+        detail:'BCG · OPV-0 · Hepatitis B birth dose',
+        provider:'Nusrat Jahan, RM', location:'Labour ward',
+        notes:'Given before discharge. No adverse reaction observed at 30 minutes.' },
+      { id:'i2', track:'immunization', no:2, name:'6-week immunizations', status:'completed', scheduled:'2025-10-24', actual:'2025-10-24',
+        detail:'Penta-1 · OPV-1 · PCV-1 · Rotavirus-1',
+        provider:'Nusrat Jahan, RM', location:'Immunization room',
+        notes:'Mother counselled on expected mild fever. Next dose booked by SMS.' },
+      { id:'i3', track:'immunization', no:3, name:'10-week immunizations', status:'completed', scheduled:'2025-11-21', actual:'2025-11-21',
+        detail:'Penta-2 · OPV-2 · PCV-2 · Rotavirus-2',
+        provider:'Nusrat Jahan, RM', location:'Immunization room', notes:'No adverse event following immunization.' },
+      { id:'i4', track:'immunization', no:4, name:'14-week immunizations', status:'completed', scheduled:'2025-12-19', actual:'2025-12-19',
+        detail:'Penta-3 · OPV-3 · PCV-3 · IPV',
+        provider:'Nusrat Jahan, RM', location:'Immunization room', notes:'Weight 6.4 kg. Growth and feeding review normal.' },
+      { id:'i5', track:'immunization', no:5, name:'9-month immunizations', status:'completed', scheduled:'2026-06-12', actual:'2026-06-12',
+        detail:'Measles–Rubella 1 · Vitamin A',
+        provider:'Nusrat Jahan, RM', location:'Immunization room', notes:'Given with Vitamin A 100,000 IU. No reaction.' },
+      { id:'i6', track:'immunization', no:6, name:'12-month PCV booster', status:'scheduled', scheduled:'2026-09-12',
+        detail:'Pneumococcal conjugate booster dose',
+        provider:'Nusrat Jahan, RM', location:'Immunization room',
+        notes:'Family was travelling; visit not attended. Three SMS reminders sent, no response yet.' },
+      { id:'i7', track:'immunization', no:7, name:'15-month immunizations', status:'scheduled', scheduled:'2026-12-12',
+        detail:'MMR-1 · DTP booster',
+        provider:'Nusrat Jahan, RM', location:'Immunization room', notes:'' },
+      { id:'i8', track:'immunization', no:8, name:'18-month immunizations', status:'scheduled', scheduled:'2027-03-12',
+        detail:'DTP booster 2 · OPV booster',
+        provider:'Nusrat Jahan, RM', location:'Immunization room', notes:'' },
+      { id:'i9', track:'immunization', no:9, name:'24-month immunizations', status:'scheduled', scheduled:'2027-09-12',
+        detail:'MMR-2 · Typhoid conjugate vaccine',
+        provider:'Nusrat Jahan, RM', location:'Immunization room', notes:'' }
+    ],
+    audit: [
+      { at:'2026-11-10T09:42', actor:'Automated reminder', action:'Reminder sent', category:'reminder',
+        detail:'SMS for the 28-week antenatal visit (20 Nov 2026) delivered to +880 1712 448 902.',
+        source:'SMS gateway' },
+      { at:'2026-11-09T17:10', actor:'Clinic system', action:'Drop-off risk flagged', category:'system',
+        detail:'PCV booster for Zayan Rahman is 58 days overdue. Escalated to the assigned midwife.',
+        source:'Automated rule' },
+      { at:'2026-11-06T11:24', actor:'Dr. Farhana Karim', action:'Visit recorded', category:'visit',
+        detail:'26-week anaemia review completed. BP 110/70, weight 61.4 kg, fundal height 27 cm, FHR 148 bpm.',
+        source:'Clinic desktop' },
+      { at:'2026-11-06T11:20', actor:'Dr. Farhana Karim', action:'Clinical note added', category:'record',
+        detail:'Hb 10.4 g/dL, ferritin 11 ng/mL. Ferrous sulphate 200 mg twice daily started; repeat CBC and reticulocyte count at 28 weeks.',
+        source:'Clinic desktop' },
+      { at:'2026-11-06T10:58', actor:'Nusrat Jahan, RM', action:'Vitals recorded', category:'visit',
+        detail:'BP 110/70 mmHg · weight 61.4 kg · urine protein negative.',
+        source:'Tablet · ANC Room 2' },
+      { at:'2026-10-23T12:12', actor:'Dr. Farhana Karim', action:'Visit recorded', category:'visit',
+        detail:'24-week antenatal visit and OGTT completed. Td dose 2 administered.',
+        source:'Clinic desktop' },
+      { at:'2026-10-23T12:05', actor:'Laboratory', action:'Result uploaded', category:'record',
+        detail:'OGTT: fasting 4.9 mmol/L, 2-hour 7.1 mmol/L — within range. Hb 10.9 g/dL.',
+        source:'Lab interface' },
+      { at:'2026-10-21T08:30', actor:'Automated reminder', action:'Reminder sent', category:'reminder',
+        detail:'SMS for the 24-week antenatal visit delivered to +880 1712 448 902.',
+        source:'SMS gateway' },
+      { at:'2026-09-25T14:02', actor:'Dr. Farhana Karim', action:'Visit recorded', category:'visit',
+        detail:'20-week anomaly scan reviewed: no anomalies, EFW 340 g, placenta posterior grade I.',
+        source:'Clinic desktop' },
+      { at:'2026-09-12T09:20', actor:'Nusrat Jahan, RM', action:'Immunization scheduled', category:'record',
+        detail:'PCV booster (12 months) scheduled for Zayan Rahman on 12 Sep 2026.',
+        source:'Clinic desktop' },
+      { at:'2026-09-12T09:05', actor:'Automated reminder', action:'Reminder sent', category:'reminder',
+        detail:"SMS for Zayan Rahman's 12-month PCV booster delivered to +880 1712 448 902.",
+        source:'SMS gateway' },
+      { at:'2026-07-20T16:40', actor:'Dr. Farhana Karim', action:'EDD updated', category:'record',
+        detail:'EDD revised from 18 Feb 2027 to 12 Feb 2027 after dating ultrasound (CRL 8w 2d).',
+        source:'Clinic desktop' },
+      { at:'2026-07-03T10:15', actor:'Nusrat Jahan, RM', action:'Patient registered', category:'system',
+        detail:'Antenatal record created at 8w 2d. LMP 08 May 2026. Gravida 2, para 1.',
+        source:'Reception desk' },
+      { at:'2026-06-12T11:05', actor:'Nusrat Jahan, RM', action:'Immunization given', category:'visit',
+        detail:'MR-1 and Vitamin A administered to Zayan Rahman (9 months). No adverse reaction.',
+        source:'Immunization room' },
+      { at:'2025-12-19T10:40', actor:'Nusrat Jahan, RM', action:'Immunization given', category:'visit',
+        detail:'Penta-3, OPV-3, PCV-3 and IPV administered to Zayan Rahman (14 weeks).',
+        source:'Immunization room' },
+      { at:'2025-09-12T15:30', actor:'Nusrat Jahan, RM', action:'Patient registered', category:'system',
+        detail:'Newborn record created for Zayan Rahman, delivered 12 Sep 2025.',
+        source:'Reception desk' }
+    ]
+  };
+
+  var state = JSON.parse(JSON.stringify(SEED));
+  try {
+    var raw = localStorage.getItem(KEY);
+    if (raw) {
+      var saved = JSON.parse(raw);
+      if (saved && saved.v === 1 && saved.state && Array.isArray(saved.state.stages)) {
+        state = saved.state;
+      }
+    }
+  } catch (err) { /* in-memory fallback */ }
+
+  function save(){
+    try { localStorage.setItem(KEY, JSON.stringify({ v:1, state: state })); } catch (err) { /* in-memory only */ }
+  }
+
+  /* ---------------- derived values ---------------- */
+  function getStage(id){ return state.stages.filter(function(s){ return s.id === id; })[0] || null; }
+
+  function trackStats(track){
+    var list = state.stages.filter(function(s){ return s.track === track; });
+    var done = list.filter(function(s){ return s.status === 'completed'; }).length;
+    return { done: done, total: list.length, pct: list.length ? Math.round(done / list.length * 100) : 0 };
+  }
+
+  function displayStatus(s){
+    if (s.status === 'completed') return { key:'completed', label:'Completed' };
+    if (s.status === 'skipped') return { key:'skipped', label:'Skipped' };
+    var d = dayDiff(DEMO_TODAY, s.scheduled);
+    if (d < 0) return { key:'overdue', label:'Overdue · ' + Math.abs(d) + 'd' };
+    if (d === 0) return { key:'due', label:'Due today' };
+    if (d <= 21) return { key:'due', label:'Due in ' + d + 'd' };
+    return { key:'upcoming', label:'In ' + d + 'd' };
+  }
+
+  function gaInfo(){
+    if (state.delivered) return null;
+    var edd = parseISO(state.patient.edd);
+    var lmp = addDays(edd, -280);
+    var days = Math.round((DEMO_TODAY - lmp) / 86400000);
+    return {
+      weeks: Math.floor(days / 7),
+      days: days % 7,
+      toGo: Math.round((edd - DEMO_TODAY) / 86400000),
+      lmp: lmp
+    };
+  }
+
+  function gaFromEdd(iso){
+    var edd = parseISO(iso);
+    var lmp = addDays(edd, -280);
+    var days = Math.round((DEMO_TODAY - lmp) / 86400000);
+    return { weeks: Math.floor(days / 7), days: days % 7, totalDays: days };
+  }
+
+  function pendingStages(){
+    return state.stages.filter(function(s){ return s.status === 'scheduled'; })
+      .sort(function(a,b){ return a.scheduled.localeCompare(b.scheduled); });
+  }
+
+  function overdueStages(){
+    return pendingStages().filter(function(s){ return parseISO(s.scheduled) < DEMO_TODAY; });
+  }
+
+  /* ---------------- icons ---------------- */
+  function icon(name, size){
+    var paths = {
+      alert:'<path d="M10.3 3.6 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/>',
+      bell:'<path d="M18 9a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6"/><path d="M10.5 20a2 2 0 0 0 3 0"/>',
+      check:'<path d="m4 12.5 5 5L20 6.5"/>',
+      clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 1.8"/>',
+      syringe:'<path d="m14 4 6 6M17 7l-9.5 9.5M9 5.5 5 9.5l3 3M15.5 12l4 4-4 4-4-4M4 20l3-3"/>',
+      info:'<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8h.01"/>',
+      note:'<path d="M6 3h9l4 4v14H6z"/><path d="M9 9h6M9 13h6M9 17h4"/>',
+      calendar:'<rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 3v3M16 3v3"/>',
+      search:'<circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/>',
+      heart:'<path d="M12 21s-7-4.6-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.4-7 10-7 10Z"/>'
+    };
+    return '<svg class="od-icon i' + (size || 16) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (paths[name] || '') + '</svg>';
+  }
+
+  /* ---------------- header + stats ---------------- */
+  function renderEdd(){
+    var el = document.getElementById('edd-widget');
+    if (state.delivered) {
+      var d = state.delivered;
+      el.innerHTML =
+        '<span class="eyebrow">Delivered</span>' +
+        '<strong class="edd-date">' + esc(fmtDate(d.date)) + '</strong>' +
+        '<span class="edd-sub">' + esc(d.mode) + ' · ' + esc(d.outcome.toLowerCase()) +
+        (d.weight ? ' · <b>' + esc(d.weight) + ' kg</b>' : '') + '</span>' +
+        '<div class="edd-foot">Antenatal track closed. Postnatal checks and the newborn schedule are active.</div>';
+      return;
+    }
+    var ga = gaInfo();
+    var pct = Math.min(100, Math.round((ga.weeks * 7 + ga.days) / 280 * 100));
+    var tri = ga.weeks >= 28 ? 'Third trimester' : ga.weeks >= 14 ? 'Second trimester' : 'First trimester';
+    el.innerHTML =
+      '<span class="eyebrow">Estimated delivery</span>' +
+      '<strong class="edd-date">' + esc(fmtDate(state.patient.edd)) + '</strong>' +
+      '<span class="edd-sub"><b>' + ga.toGo + ' days</b> to go · <b>' + ga.weeks + 'w ' + ga.days + 'd</b> today</span>' +
+      '<div class="mini-bar" role="img" aria-label="Pregnancy progress ' + pct + '%"><i style="width:' + pct + '%"></i></div>' +
+      '<div class="edd-foot">' + tri + ' · LMP ' + fmtDate(toISO(ga.lmp)).replace(/^\w+,\s*/, '') + '</div>';
+  }
+
+  function renderStats(){
+    var p = trackStats('pregnancy');
+    var i = trackStats('immunization');
+    var overdue = overdueStages();
+
+    document.getElementById('stat-anc-value').textContent = p.done;
+    document.getElementById('stat-anc-total').textContent = 'of ' + p.total + ' completed';
+    document.getElementById('stat-anc-bar').style.width = p.pct + '%';
+    document.getElementById('stat-anc-bar-wrap').setAttribute('aria-label', 'Antenatal completion ' + p.pct + '%');
+    document.getElementById('stat-anc-sub').innerHTML = state.delivered
+      ? 'Delivered ' + esc(fmtDate(state.delivered.date))
+      : '<b>' + (p.total - p.done) + ' contacts</b> left before delivery';
+
+    document.getElementById('stat-imm-value').textContent = i.done;
+    document.getElementById('stat-imm-total').textContent = 'of ' + i.total + ' doses';
+    document.getElementById('stat-imm-bar').style.width = i.pct + '%';
+    document.getElementById('stat-imm-bar-wrap').setAttribute('aria-label', 'Immunization completion ' + i.pct + '%');
+    var immOver = overdue.filter(function(s){ return s.track === 'immunization'; }).length;
+    document.getElementById('stat-imm-sub').innerHTML = immOver
+      ? '<b>' + immOver + ' overdue</b> · Zayan, 14 months'
+      : 'Zayan, 14 months · no overdue doses';
+
+    var ga = gaInfo();
+    if (ga) {
+      document.getElementById('stat-ga-value').textContent = ga.weeks + 'w ' + ga.days + 'd';
+      document.getElementById('stat-ga-sub').textContent =
+        (ga.weeks >= 28 ? 'Third trimester' : ga.weeks >= 14 ? 'Second trimester' : 'First trimester') + ' · 40-week term';
+    } else {
+      document.getElementById('stat-ga-value').textContent = 'Closed';
+      document.getElementById('stat-ga-sub').textContent = 'Postnatal period';
+    }
+
+    var nextAnte = pendingStages().filter(function(s){ return s.track === 'pregnancy'; })[0];
+    if (nextAnte) {
+      var dLeft = dayDiff(DEMO_TODAY, nextAnte.scheduled);
+      document.getElementById('stat-next-value').textContent = fmtSmart(nextAnte.scheduled);
+      document.getElementById('stat-next-sub').textContent = nextAnte.name + (dLeft >= 0 ? ' · in ' + dLeft + ' days' : ' · ' + Math.abs(dLeft) + ' days late');
+      document.getElementById('next-visit-chip').textContent = 'Next visit ' + fmtSmart(nextAnte.scheduled);
+    } else {
+      document.getElementById('stat-next-value').textContent = state.delivered ? 'Postnatal' : 'None';
+      document.getElementById('stat-next-sub').textContent = state.delivered ? '48-hour home check recommended' : 'No antenatal stages scheduled';
+      document.getElementById('next-visit-chip').textContent = state.delivered
+        ? 'Postnatal home check'
+        : 'No antenatal visit booked';
+    }
+
+    var badge = document.getElementById('dropoff-chip');
+    if (overdue.length) {
+      badge.textContent = overdue.length + ' overdue item' + (overdue.length > 1 ? 's' : '');
+      badge.hidden = false;
+    } else {
+      badge.hidden = true;
+    }
+
+    document.getElementById('care-state').textContent = state.delivered ? 'Postnatal care active' : 'Antenatal care active';
+
+    var btn = document.getElementById('btn-delivery');
+    var qa = document.getElementById('qa-delivery');
+    btn.disabled = !!state.delivered;
+    qa.disabled = !!state.delivered;
+    if (state.delivered) {
+      btn.textContent = 'Delivery recorded';
+      btn.insertAdjacentHTML('afterbegin', icon('check', 16));
+      qa.textContent = 'Delivery recorded';
+    }
+
+    document.getElementById('staff-name').textContent = CURRENT_USER.split(',')[0];
+
+    renderChildCard(i, overdue);
+  }
+
+  function renderChildCard(i, overdue){
+    document.getElementById('child-imm-text').textContent = i.done + ' of ' + i.total + ' doses';
+    document.getElementById('child-imm-bar').style.width = i.pct + '%';
+    var alertEl = document.getElementById('child-alert');
+    var text = document.getElementById('child-alert-text');
+    var immOver = overdue.filter(function(s){ return s.track === 'immunization'; });
+    if (immOver.length) {
+      var s = immOver[0];
+      var late = Math.abs(dayDiff(DEMO_TODAY, s.scheduled));
+      text.textContent = s.name.replace(/ immunizations?$/, '') + ' ' + late + ' days overdue';
+      alertEl.hidden = false;
+    } else {
+      alertEl.hidden = true;
+    }
+  }
+
+  /* ---------------- next steps ---------------- */
+  function previousCompleted(track, beforeDate){
+    var list = state.stages.filter(function(s){
+      return s.track === track && s.status === 'completed' && s.actual && s.actual <= beforeDate;
+    }).sort(function(a,b){ return b.actual.localeCompare(a.actual); });
+    return list[0] || null;
+  }
+
+  function renderNextSteps(){
+    var body = document.getElementById('next-steps-body');
+    var overdue = overdueStages();
+    var rows = [];
+
+    if (overdue.length) {
+      var o = overdue[0];
+      var late = Math.abs(dayDiff(DEMO_TODAY, o.scheduled));
+      rows.push(
+        '<div class="next-item danger">' +
+          '<span class="next-badge" aria-hidden="true">' + icon('alert', 18) + '</span>' +
+          '<div class="next-main">' +
+            '<div class="next-title">' + esc(o.name) + ' is ' + late + ' days late' +
+              '<span class="status status-overdue"><i></i>Overdue</span>' +
+            '</div>' +
+            '<p class="next-sub">' + esc(state.child.name) + ' · scheduled ' + esc(fmtDate(o.scheduled)) + ' · ' + esc(o.detail) + '</p>' +
+            '<div class="next-actions">' +
+              '<button type="button" class="btn btn-sm btn-primary" data-action="visit" data-id="' + o.id + '">Record dose</button>' +
+              '<button type="button" class="btn btn-sm btn-outline" data-action="reminder">Send reminder</button>' +
+              '<button type="button" class="btn btn-sm btn-ghost" data-action="view" data-id="' + o.id + '">View record</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>'
+      );
+    } else {
+      var nextImm = pendingStages().filter(function(s){ return s.track === 'immunization'; })[0];
+      if (nextImm) {
+        rows.push(
+          '<div class="next-item info">' +
+            '<span class="next-badge" aria-hidden="true">' + icon('syringe', 18) + '</span>' +
+            '<div class="next-main">' +
+              '<div class="next-title">' + esc(nextImm.name) + '<span class="status status-upcoming"><i></i>' + esc(displayStatus(nextImm).label) + '</span></div>' +
+              '<p class="next-sub">' + esc(state.child.name) + ' · ' + esc(fmtDate(nextImm.scheduled)) + ' · ' + esc(nextImm.detail) + '</p>' +
+              '<div class="next-actions"><button type="button" class="btn btn-sm btn-outline" data-action="view" data-id="' + nextImm.id + '">View stage</button></div>' +
+            '</div>' +
+          '</div>'
+        );
+      }
+    }
+
+    if (!state.delivered) {
+      var nextAnte = pendingStages().filter(function(s){ return s.track === 'pregnancy'; })[0];
+      if (nextAnte) {
+        var prev = previousCompleted('pregnancy', nextAnte.scheduled);
+        var dLeft = dayDiff(DEMO_TODAY, nextAnte.scheduled);
+        rows.push(
+          '<div class="next-item info">' +
+            '<span class="next-badge" aria-hidden="true">' + icon('heart', 18) + '</span>' +
+            '<div class="next-main">' +
+              '<div class="next-title">' + esc(nextAnte.name) +
+                '<span class="status status-due"><i></i>' + esc(displayStatus(nextAnte).label) + '</span>' +
+              '</div>' +
+              '<p class="next-sub">' + esc(fmtDate(nextAnte.scheduled)) + ' · ' + esc(nextAnte.location || 'ANC Room 2') + ' · ' + esc(nextAnte.detail) + '</p>' +
+              (prev && prev.notes
+                ? '<div class="note-quote"><span class="k">Handover from ' + esc(fmtShort(prev.actual)) + ' — ' + esc(prev.name) + '</span>' + esc(prev.notes) + '</div>'
+                : '') +
+              '<div class="next-actions">' +
+                '<button type="button" class="btn btn-sm btn-outline" data-action="view" data-id="' + nextAnte.id + '">Open stage</button>' +
+                '<button type="button" class="btn btn-sm btn-ghost" data-action="reschedule" data-id="' + nextAnte.id + '">Reschedule</button>' +
+              '</div>' +
+            '</div>' +
+          '</div>'
+        );
+      }
+    } else {
+      rows.push(
+        '<div class="next-item muted">' +
+          '<span class="next-badge" aria-hidden="true">' + icon('check', 18) + '</span>' +
+          '<div class="next-main">' +
+            '<div class="next-title">Pregnancy track closed<span class="status status-completed"><i></i>Delivered</span></div>' +
+            '<p class="next-sub">Postnatal handover on ' + esc(fmtDate(state.delivered.date)) + '. Schedule the 48-hour home check and the newborn immunization visit.</p>' +
+          '</div>' +
+        '</div>'
+      );
+    }
+
+    body.innerHTML = rows.join('');
+    document.getElementById('next-count').textContent = overdue.length
+      ? overdue.length + ' item' + (overdue.length > 1 ? 's need attention' : ' needs attention')
+      : 'On track · no overdue items';
+  }
+
+  /* ---------------- timeline ---------------- */
+  var activeTrack = 'all';
+  var searchQuery = '';
+
+  function renderTimeline(){
+    var wrap = document.getElementById('timeline');
+    var rows = state.stages.slice().sort(function(a,b){
+      var ea = a.actual || a.scheduled;
+      var eb = b.actual || b.scheduled;
+      if (ea === eb) return a.track.localeCompare(b.track);
+      return ea.localeCompare(eb);
+    });
+
+    if (activeTrack !== 'all') {
+      rows = rows.filter(function(s){ return s.track === activeTrack; });
+    }
+    if (searchQuery) {
+      var q = searchQuery.toLowerCase();
+      rows = rows.filter(function(s){
+        return (s.name + ' ' + s.detail + ' ' + (s.notes || '')).toLowerCase().indexOf(q) > -1;
+      });
+    }
+
+    document.getElementById('timeline-count').textContent = rows.length + ' of ' + state.stages.length + ' stages';
+
+    if (!rows.length) {
+      wrap.innerHTML =
+        '<div class="empty">' + icon('search', 22) +
+          '<span>No stages match “' + esc(searchQuery || activeTrack) + '”.</span>' +
+          '<button type="button" class="btn btn-sm btn-outline" data-action="clear-search">Clear filters</button>' +
+        '</div>';
+      return;
+    }
+
+    var html = '';
+    var dividerPlaced = false;
+    rows.forEach(function(s){
+      var effective = s.actual || s.scheduled;
+      if (!dividerPlaced && parseISO(effective) > DEMO_TODAY) {
+        dividerPlaced = true;
+        html += '<div class="tl-now" role="separator"><span>Today · ' + esc(fmtDate(todayISO())) + '</span></div>';
+      }
+      html += stageRow(s);
+    });
+
+    wrap.innerHTML = html;
+  }
+
+  function stageRow(s){
+    var d = displayStatus(s);
+    var tagClass = s.track === 'pregnancy' ? 'tag-preg' : 'tag-imm';
+    var tagLabel = s.track === 'pregnancy' ? 'Pregnancy' : 'Immunization';
+    var actions = '<button type="button" class="linkbtn" data-action="view" data-id="' + s.id + '" aria-label="View ' + esc(s.name) + '">View</button>';
+
+    if (s.status === 'scheduled') {
+      if (s.id !== 'p10') {
+        actions += '<button type="button" class="linkbtn" data-action="reschedule" data-id="' + s.id + '" aria-label="Reschedule ' + esc(s.name) + '">Reschedule</button>';
+      }
+      actions += '<button type="button" class="linkbtn" data-action="skip" data-id="' + s.id + '" aria-label="Skip ' + esc(s.name) + '">Skip</button>';
+      actions += '<button type="button" class="linkbtn act-primary" data-action="visit" data-id="' + s.id + '" aria-label="' + (s.id === 'p10' ? 'Record delivery for ' : 'Mark ') + esc(s.name) + (s.id === 'p10' ? '' : ' as visit') + '">' + (s.id === 'p10' ? 'Record delivery' : 'Mark as visit') + '</button>';
+    } else if (s.status === 'skipped') {
+      actions += '<button type="button" class="linkbtn" data-action="visit" data-id="' + s.id + '" aria-label="Record a visit for skipped stage ' + esc(s.name) + '">Record visit</button>';
+    }
+
+    var visitCell = s.actual
+      ? '<span class="v">' + esc(fmtDate(s.actual)) + '</span>'
+      : (s.status === 'skipped'
+          ? '<span class="v muted">Skipped</span>'
+          : '<span class="v muted">Not yet</span>');
+
+    return '<article class="tl-row" data-id="' + s.id + '">' +
+      '<div class="tl-marker"><span class="tl-dot ' + d.key + '">' + s.no + '</span></div>' +
+      '<div class="tl-main">' +
+        '<h3 class="tl-title">' + esc(s.name) + '</h3>' +
+        '<div class="tl-tags"><span class="tag ' + tagClass + '">' + tagLabel + '</span></div>' +
+        '<p class="tl-detail od-clamp-2">' + esc(s.detail) + '</p>' +
+      '</div>' +
+      '<div class="tl-meta od-stat">' +
+        '<span class="k">Scheduled</span><span class="v">' + esc(fmtDate(s.scheduled)) + '</span>' +
+        '<span class="k">Visit date</span>' + visitCell +
+      '</div>' +
+      '<div class="tl-status"><span class="status status-' + d.key + '"><i></i>' + esc(d.label) + '</span></div>' +
+      '<div class="tl-actions">' + actions + '</div>' +
+    '</article>';
+  }
+
+  /* ---------------- audit ---------------- */
+  var auditFilter = 'all';
+
+  function renderAudit(){
+    var list = state.audit.slice().sort(function(a,b){ return b.at.localeCompare(a.at); });
+    if (auditFilter !== 'all') {
+      list = list.filter(function(a){ return a.category === auditFilter; });
+    }
+    var wrap = document.getElementById('audit-list');
+
+    var summary = '<div class="audit-summary"><span>Showing ' + list.length + ' of ' + state.audit.length + ' entries · newest first</span>' +
+      '<span>Retention 7 years · immutable</span></div>';
+
+    if (!list.length) {
+      wrap.innerHTML = summary + '<div class="empty">' + icon('note', 22) + '<span>No audit entries in this category yet.</span></div>';
+      return;
+    }
+
+    wrap.innerHTML = summary + list.map(function(a){
+      var when = new Date(a.at.length === 16 ? a.at + ':00' : a.at);
+      var catLabel = ({'visit':'Visit','reminder':'Reminder','record':'Record','system':'System'})[a.category] || a.category;
+      return '<div class="audit-item">' +
+        '<div class="audit-when">' + esc(i18nWhen.format(when)) + '</div>' +
+        '<div>' +
+          '<div class="audit-action">' + esc(a.action) +
+            '<span class="audit-cat cat-' + esc(a.category) + '">' + esc(catLabel) + '</span>' +
+          '</div>' +
+          '<p class="audit-detail">' + esc(a.detail) + '</p>' +
+          '<div class="audit-meta"><span>' + esc(a.actor) + '</span><span class="sep">·</span><span>' + esc(a.source) + '</span>' +
+            '<span class="sep">·</span><span>' + esc(state.patient.mrn) + '</span></div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  /* ---------------- render all ---------------- */
+  function renderAll(){
+    renderEdd();
+    renderStats();
+    renderNextSteps();
+    renderTimeline();
+    renderAudit();
+    document.getElementById('tab-timeline-count').textContent = state.stages.length;
+    document.getElementById('tab-audit-count').textContent = state.audit.length;
+    document.getElementById('records-note').textContent =
+      'Pregnancy ' + trackStats('pregnancy').total + ' stages · Immunization ' + trackStats('immunization').total + ' stages';
+  }
+
+  /* ---------------- toast ---------------- */
+  function toast(message, kind){
+    var wrap = document.getElementById('toasts');
+    var el = document.createElement('div');
+    el.className = 'toast' + (kind === 'err' ? ' err' : '');
+    var k = document.createElement('span');
+    k.className = 'toast-k';
+    k.textContent = kind === 'err' ? 'Not saved' : kind === 'info' ? 'TiniTracker' : 'Saved';
+    var t = document.createElement('span');
+    t.textContent = message;
+    el.appendChild(k);
+    el.appendChild(t);
+    wrap.appendChild(el);
+    window.setTimeout(function(){
+      if (el.parentNode) el.parentNode.removeChild(el);
+    }, 4200);
+  }
+
+  /* ---------------- focus management ---------------- */
+  var focusBack = null;
+
+  function rememberFocus(action, id){
+    focusBack = { action: action, id: id };
+  }
+
+  function restoreFocus(){
+    if (!focusBack) return;
+    var selector = '[data-action="' + focusBack.action + '"]';
+    if (focusBack.id) selector += '[data-id="' + focusBack.id + '"]';
+    var el = document.querySelector(selector);
+    if (!el) el = document.querySelector('[data-action="tab"][data-tab="timeline"]');
+    if (el) el.focus();
+    focusBack = null;
+  }
+
+  var stampMinutes = (10 * 60) + 5;
+
+  function syncStampCursor(){
+    var prefix = todayISO() + 'T';
+    state.audit.forEach(function(a){
+      if (String(a.at).indexOf(prefix) === 0) {
+        var parts = a.at.slice(11, 16).split(':');
+        var mins = Number(parts[0]) * 60 + Number(parts[1]);
+        if (mins >= stampMinutes) stampMinutes = mins + 1;
+      }
+    });
+  }
+
+  function nextStamp(){
+    stampMinutes += 1 + Math.floor(Math.random() * 3);
+    var h = Math.floor(stampMinutes / 60) % 24;
+    var m = stampMinutes % 60;
+    return todayISO() + 'T' + String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+  }
+
+  function appendAudit(entry){
+    var full = {
+      at: nextStamp(),
+      actor: entry.actor || CURRENT_USER,
+      action: entry.action,
+      category: entry.category || 'record',
+      detail: entry.detail,
+      source: entry.source || 'Clinic desktop'
+    };
+    state.audit.unshift(full);
+  }
+
+  /* ---------------- dialogs ---------------- */
+  function openDialog(dlg, focusEl){
+    clearAllErrors(dlg);
+    if (typeof dlg.showModal === 'function') dlg.showModal();
+    else dlg.setAttribute('open', '');
+    if (focusEl) {
+      window.setTimeout(function(){ focusEl.focus(); }, 30);
+    }
+  }
+
+  function closeDialog(dlg){
+    if (typeof dlg.close === 'function') dlg.close();
+    else dlg.removeAttribute('open');
+  }
+
+  function clearAllErrors(scope){
+    scope.querySelectorAll('[aria-invalid="true"]').forEach(function(el){ el.removeAttribute('aria-invalid'); });
+    scope.querySelectorAll('.err').forEach(function(el){ el.hidden = true; el.textContent = ''; });
+    scope.querySelectorAll('.form-summary').forEach(function(el){ el.hidden = true; el.textContent = ''; });
+  }
+
+  function setErr(input, errEl, message){
+    if (message) {
+      input.setAttribute('aria-invalid', 'true');
+      errEl.hidden = false;
+      errEl.textContent = message;
+    } else {
+      input.removeAttribute('aria-invalid');
+      errEl.hidden = true;
+      errEl.textContent = '';
+    }
+  }
+
+  function errorSummary(summaryEl, messages){
+    var real = messages.filter(Boolean);
+    if (real.length > 1) {
+      summaryEl.hidden = false;
+      summaryEl.textContent = 'Please fix ' + real.length + ' fields before saving.';
+    } else {
+      summaryEl.hidden = true;
+      summaryEl.textContent = '';
+    }
+  }
+
+  /* ---- stage detail ---- */
+  function openStage(id){
+    var s = getStage(id);
+    if (!s) return;
+    var d = displayStatus(s);
+    rememberFocus('view', id);
+
+    var track = s.track === 'pregnancy' ? 'Pregnancy · Amina Rahman' : 'Immunization · Zayan Rahman, 14 months';
+    var rowsHTML =
+      '<div class="kv-row"><span class="k">Track</span><span class="v">' + esc(track) + '</span></div>' +
+      '<div class="kv-row"><span class="k">Scheduled</span><span class="v">' + esc(fmtDate(s.scheduled)) + '</span></div>' +
+      '<div class="kv-row"><span class="k">Status</span><span class="v">' + esc(d.label) + '</span></div>' +
+      '<div class="kv-row"><span class="k">Visit date</span><span class="v">' + (s.actual ? esc(fmtDate(s.actual)) : 'Not recorded') + '</span></div>' +
+      '<div class="kv-row"><span class="k">Provider</span><span class="v">' + esc(s.provider || '—') + '</span></div>' +
+      '<div class="kv-row"><span class="k">Location</span><span class="v">' + esc(s.location || '—') + '</span></div>';
+
+    var html = '<div class="stage-grid">' + rowsHTML + '</div>';
+    html += '<div class="stage-note"><span class="k">What this stage covers</span><p>' + esc(s.detail) + '</p></div>';
+    if (s.vitals) {
+      html += '<div class="stage-note"><span class="k">Vitals recorded</span><p>' + esc(s.vitals) + '</p></div>';
+    }
+    if (s.notes) {
+      html += '<div class="stage-note"><span class="k">Clinical note</span><p>' + esc(s.notes) + '</p></div>';
+    }
+    if (s.visitNotes) {
+      html += '<div class="stage-note"><span class="k">Visit note</span><p>' + esc(s.visitNotes) + '</p></div>';
+    }
+    if (s.skipReason) {
+      html += '<div class="stage-note"><span class="k">Skip reason</span><p>' + esc(s.skipReason) + '</p></div>';
+    }
+    document.getElementById('dlg-stage-title').textContent = s.name;
+    document.getElementById('dlg-stage-sub').textContent = track + ' · stage ' + s.no + ' of ' + trackStats(s.track).total;
+    document.getElementById('stage-body').innerHTML = html;
+
+    var primary = document.getElementById('stage-primary');
+    if (s.status === 'scheduled') {
+      primary.hidden = false;
+      primary.textContent = id === 'p10' ? 'Record delivery' : 'Mark as visit';
+      primary.setAttribute('data-stage-id', id);
+    } else {
+      primary.hidden = true;
+      primary.removeAttribute('data-stage-id');
+    }
+
+    var dlg = document.getElementById('dlg-stage');
+    openDialog(dlg, dlg.querySelector('[data-close]'));
+  }
+
+  /* ---- reschedule ---- */
+  var rsStageId = null;
+
+  function openReschedule(id){
+    var s = getStage(id);
+    if (!s) return;
+    if (id === 'p10') { openDelivery(); return; }
+    rsStageId = id;
+    rememberFocus('reschedule', id);
+    document.getElementById('rs-sub').textContent = s.name + ' · stage ' + s.no + ' of ' + trackStats(s.track).total;
+    document.getElementById('rs-current').textContent = fmtDate(s.scheduled);
+    var input = document.getElementById('rs-date');
+    input.value = s.scheduled;
+    input.min = todayISO();
+    document.getElementById('rs-reason').value = '';
+    document.getElementById('rs-note').value = '';
+    var dlg = document.getElementById('dlg-reschedule');
+    openDialog(dlg, input);
+  }
+
+  document.getElementById('form-rs').addEventListener('submit', function(e){
+    e.preventDefault();
+    var s = getStage(rsStageId);
+    if (!s) return;
+    var dateEl = document.getElementById('rs-date');
+    var reasonEl = document.getElementById('rs-reason');
+    var dateMsg = '';
+    var reasonMsg = '';
+
+    if (!dateEl.value) dateMsg = 'Choose the new visit date.';
+    else if (dateEl.value < todayISO()) dateMsg = 'The new date cannot be in the past — pick today or later.';
+    else if (dateEl.value === s.scheduled) dateMsg = 'That is already the scheduled date. Pick a different day.';
+    if (!reasonEl.value) reasonMsg = 'Select why the visit is moving.';
+
+    setErr(dateEl, document.getElementById('rs-date-err'), dateMsg);
+    setErr(reasonEl, document.getElementById('rs-reason-err'), reasonMsg);
+    errorSummary(document.getElementById('rs-summary'), [dateMsg, reasonMsg]);
+
+    if (dateMsg) { dateEl.focus(); return; }
+    if (reasonMsg) { reasonEl.focus(); return; }
+
+    var old = s.scheduled;
+    s.scheduled = dateEl.value;
+    s.status = 'scheduled';
+    var note = document.getElementById('rs-note').value.trim();
+    appendAudit({
+      action: 'Visit rescheduled',
+      category: 'record',
+      detail: s.name + ' moved from ' + fmtDate(old) + ' to ' + fmtDate(s.scheduled) + '. Reason: ' + reasonEl.value + '.' +
+        (note ? ' Note: ' + note : '')
+    });
+    save();
+    renderAll();
+    closeDialog(document.getElementById('dlg-reschedule'));
+    toast(s.name + ' moved to ' + fmtDate(s.scheduled));
+    restoreFocus();
+  });
+
+  /* ---- skip ---- */
+  var skipStageId = null;
+
+  function openSkip(id){
+    var s = getStage(id);
+    if (!s) return;
+    skipStageId = id;
+    rememberFocus('skip', id);
+    document.getElementById('skip-sub').textContent = s.name + ' · scheduled ' + fmtDate(s.scheduled);
+    document.getElementById('skip-reason').value = '';
+    document.getElementById('skip-note').value = '';
+    var dlg = document.getElementById('dlg-skip');
+    openDialog(dlg, document.getElementById('skip-reason'));
+  }
+
+  document.getElementById('form-skip').addEventListener('submit', function(e){
+    e.preventDefault();
+    var s = getStage(skipStageId);
+    if (!s) return;
+    var reasonEl = document.getElementById('skip-reason');
+    var msg = reasonEl.value ? '' : 'Choose why this stage is being skipped.';
+    setErr(reasonEl, document.getElementById('skip-reason-err'), msg);
+    errorSummary(document.getElementById('skip-summary'), [msg]);
+    if (msg) { reasonEl.focus(); return; }
+
+    var note = document.getElementById('skip-note').value.trim();
+    s.status = 'skipped';
+    s.skipReason = reasonEl.value + (note ? ' — ' + note : '');
+    appendAudit({
+      action: 'Stage skipped',
+      category: 'record',
+      detail: s.name + ' (scheduled ' + fmtDate(s.scheduled) + ') marked as skipped. Reason: ' + reasonEl.value + '.' +
+        (note ? ' Note: ' + note : '')
+    });
+    save();
+    renderAll();
+    closeDialog(document.getElementById('dlg-skip'));
+    toast(s.name + ' marked as skipped');
+    restoreFocus();
+  });
+
+  /* ---- mark as visit ---- */
+  var visitStageId = null;
+
+  function openVisit(id){
+    var s = getStage(id);
+    if (!s) return;
+    if (id === 'p10') { openDelivery(); return; }
+    visitStageId = id;
+    rememberFocus('visit', id);
+    document.getElementById('visit-sub').textContent = s.name + ' · scheduled ' + fmtDate(s.scheduled);
+    var dateEl = document.getElementById('visit-date');
+    dateEl.value = todayISO();
+    dateEl.max = todayISO();
+    document.getElementById('visit-provider').value = s.track === 'pregnancy' ? 'Nusrat Jahan, RM' : 'Nusrat Jahan, RM';
+    document.getElementById('visit-notes').value = '';
+    var dlg = document.getElementById('dlg-visit');
+    openDialog(dlg, dateEl);
+  }
+
+  document.getElementById('form-visit').addEventListener('submit', function(e){
+    e.preventDefault();
+    var s = getStage(visitStageId);
+    if (!s) return;
+    var dateEl = document.getElementById('visit-date');
+    var msg = '';
+    if (!dateEl.value) msg = 'Enter the date the visit took place.';
+    else if (dateEl.value > todayISO()) msg = 'A visit cannot be recorded in the future.';
+    setErr(dateEl, document.getElementById('visit-date-err'), msg);
+    errorSummary(document.getElementById('visit-summary'), [msg]);
+    if (msg) { dateEl.focus(); return; }
+
+    var provider = document.getElementById('visit-provider').value.trim() || CURRENT_USER;
+    var notes = document.getElementById('visit-notes').value.trim();
+
+    s.status = 'completed';
+    s.actual = dateEl.value;
+    s.provider = provider;
+    if (notes) s.visitNotes = notes;
+    delete s.skipReason;
+
+    appendAudit({
+      action: s.track === 'pregnancy' && s.id === 'p10' ? 'Delivery recorded' : 'Visit recorded',
+      category: 'visit',
+      detail: s.name + ' completed on ' + fmtDate(s.actual) + ' by ' + provider + '.' + (notes ? ' ' + notes : ''),
+      actor: provider
+    });
+    save();
+    renderAll();
+    closeDialog(document.getElementById('dlg-visit'));
+    toast(s.name + ' recorded for ' + fmtDate(s.actual));
+    restoreFocus();
+  });
+
+  /* ---- EDD ---- */
+  function openEdd(){
+    if (state.delivered) { toast('EDD cannot be changed after delivery.', 'err'); return; }
+    rememberFocus('open-edd');
+    var ga = gaInfo();
+    document.getElementById('edd-current').textContent = fmtDate(state.patient.edd);
+    document.getElementById('edd-ga').textContent = ga.weeks + 'w ' + ga.days + 'd';
+    var dateEl = document.getElementById('edd-date');
+    dateEl.value = state.patient.edd;
+    dateEl.min = todayISO();
+    document.getElementById('edd-method').value = 'Dating ultrasound';
+    document.getElementById('edd-reason').value = '';
+    document.getElementById('edd-preview').textContent = 'Choose a new date to preview the effect on the schedule.';
+    var dlg = document.getElementById('dlg-edd');
+    openDialog(dlg, dateEl);
+  }
+
+  function updateEddPreview(){
+    var dateEl = document.getElementById('edd-date');
+    var out = document.getElementById('edd-preview');
+    if (!dateEl.value) {
+      out.textContent = 'Choose a new date to preview the effect on the schedule.';
+      return;
+    }
+    var delta = dayDiff(parseISO(state.patient.edd), dateEl.value);
+    var ga = gaFromEdd(dateEl.value);
+    var shiftable = state.stages.filter(function(s){
+      return s.track === 'pregnancy' && s.status === 'scheduled' && s.id !== 'p10' && s.scheduled >= todayISO();
+    }).length;
+    var gaText = ga.weeks + 'w ' + ga.days + 'd';
+    if (delta === 0) {
+      out.textContent = 'This is the current EDD. Gestational age stays at ' + gaText + '.';
+    } else {
+      out.textContent = 'New EDD gives ' + gaText + ' today (' + (delta > 0 ? '+' : '') + delta + ' days). ' +
+        shiftable + ' upcoming antenatal stage' + (shiftable === 1 ? '' : 's') + ' will shift by the same amount.';
+    }
+  }
+  document.getElementById('edd-date').addEventListener('input', updateEddPreview);
+  document.getElementById('edd-date').addEventListener('change', updateEddPreview);
+
+  document.getElementById('form-edd').addEventListener('submit', function(e){
+    e.preventDefault();
+    var dateEl = document.getElementById('edd-date');
+    var reasonEl = document.getElementById('edd-reason');
+    var dateMsg = '';
+    var reasonMsg = '';
+
+    if (!dateEl.value) dateMsg = 'Enter the corrected estimated delivery date.';
+    else if (dateEl.value <= todayISO()) dateMsg = 'The EDD must be in the future.';
+    else if (dateEl.value === state.patient.edd) dateMsg = 'That is already the recorded EDD.';
+    if (!reasonEl.value.trim()) reasonMsg = 'Explain why the EDD is changing — it is stored in the audit log.';
+
+    setErr(dateEl, document.getElementById('edd-date-err'), dateMsg);
+    setErr(reasonEl, document.getElementById('edd-reason-err'), reasonMsg);
+    errorSummary(document.getElementById('edd-summary'), [dateMsg, reasonMsg]);
+    if (dateMsg) { dateEl.focus(); return; }
+    if (reasonMsg) { reasonEl.focus(); return; }
+
+    var oldEdd = state.patient.edd;
+    var delta = dayDiff(parseISO(oldEdd), dateEl.value);
+    var method = document.getElementById('edd-method').value;
+    var shifted = 0;
+
+    state.stages.forEach(function(s){
+      if (s.track === 'pregnancy' && s.status === 'scheduled' && s.id !== 'p10' && s.scheduled >= todayISO()) {
+        s.scheduled = toISO(addDays(parseISO(s.scheduled), delta));
+        shifted += 1;
+      }
+    });
+    var deliveryStage = getStage('p10');
+    if (deliveryStage && deliveryStage.status === 'scheduled') {
+      deliveryStage.scheduled = toISO(addDays(parseISO(deliveryStage.scheduled), delta));
+    }
+    state.patient.edd = dateEl.value;
+
+    appendAudit({
+      action: 'EDD updated',
+      category: 'record',
+      detail: 'EDD revised from ' + fmtDate(oldEdd) + ' to ' + fmtDate(state.patient.edd) + ' (' + (delta > 0 ? '+' : '') + delta + ' days) using ' + method + '. ' +
+        shifted + ' upcoming antenatal stage' + (shifted === 1 ? '' : 's') + ' rescheduled. Reason: ' + reasonEl.value.trim() + '.'
+    });
+    save();
+    renderAll();
+    closeDialog(document.getElementById('dlg-edd'));
+    toast('EDD updated · ' + shifted + ' upcoming stage' + (shifted === 1 ? '' : 's') + ' rescheduled');
+    restoreFocus();
+  });
+
+  /* ---- delivery ---- */
+  function openDelivery(){
+    if (state.delivered) {
+      toast('Delivery is already recorded on ' + fmtDate(state.delivered.date) + '.', 'err');
+      return;
+    }
+    rememberFocus('open-delivery');
+    var dateEl = document.getElementById('dl-date');
+    dateEl.value = todayISO();
+    dateEl.max = todayISO();
+    document.getElementById('dl-time').value = '09:30';
+    document.getElementById('dl-mode').value = 'Spontaneous vaginal (SVD)';
+    document.getElementById('dl-outcome').value = 'Live birth';
+    document.getElementById('dl-notes').value = '';
+    document.getElementById('dl-weight').value = '3.1';
+    var dlg = document.getElementById('dlg-delivery');
+    openDialog(dlg, dateEl);
+  }
+
+  document.getElementById('form-delivery').addEventListener('submit', function(e){
+    e.preventDefault();
+    if (state.delivered) return;
+    var dateEl = document.getElementById('dl-date');
+    var msg = '';
+    if (!dateEl.value) msg = 'Enter the delivery date.';
+    else if (dateEl.value > todayISO()) msg = 'The delivery date cannot be in the future.';
+    setErr(dateEl, document.getElementById('dl-date-err'), msg);
+    errorSummary(document.getElementById('dl-summary'), [msg]);
+    if (msg) { dateEl.focus(); return; }
+
+    var mode = document.getElementById('dl-mode').value;
+    var outcome = document.getElementById('dl-outcome').value;
+    var sex = document.getElementById('dl-sex').value;
+    var weight = document.getElementById('dl-weight').value;
+    var notes = document.getElementById('dl-notes').value.trim();
+
+    state.delivered = {
+      date: dateEl.value,
+      time: document.getElementById('dl-time').value || '09:30',
+      mode: mode,
+      outcome: outcome,
+      sex: sex,
+      weight: weight,
+      notes: notes
+    };
+
+    var deliveryStage = getStage('p10');
+    if (deliveryStage) {
+      deliveryStage.status = 'completed';
+      deliveryStage.actual = dateEl.value;
+      deliveryStage.provider = 'Dr. Farhana Karim';
+      deliveryStage.visitNotes = outcome + ' · ' + mode + ' · ' + sex.toLowerCase() + (weight ? ' · ' + weight + ' kg' : '') + (notes ? '. ' + notes : '.');
+      delete deliveryStage.skipReason;
+    }
+
+    state.stages.forEach(function(s){
+      if (s.track === 'pregnancy' && s.status === 'scheduled' && s.id !== 'p10') {
+        s.status = 'skipped';
+        s.skipReason = 'Closed at delivery on ' + fmtDate(dateEl.value) + ' before the stage was reached.';
+      }
+    });
+
+    appendAudit({
+      action: 'Delivery recorded',
+      category: 'visit',
+      detail: outcome + ' · ' + mode + ' · ' + sex.toLowerCase() + ' · ' + weight + ' kg' + (notes ? '. ' + notes : '.') +
+        ' Antenatal track closed; newborn immunization schedule opened.',
+      actor: 'Dr. Farhana Karim'
+    });
+    save();
+    renderAll();
+    closeDialog(document.getElementById('dlg-delivery'));
+    toast('Delivery recorded. Antenatal track closed, newborn schedule opened.');
+    restoreFocus();
+  });
+
+  /* ---------------- generic actions ---------------- */
+  var navCopy = {
+    overview: 'The clinic overview lives outside this patient record.',
+    schedules: 'The clinic schedule lives outside this patient record.',
+    reminders: 'The reminder queue lives outside this patient record.',
+    reports: 'Reporting lives outside this patient record.',
+    settings: 'Settings live outside this patient record.'
+  };
+
+  document.addEventListener('click', function(e){
+    var cd = e.target.closest('[data-close]');
+    if (cd) {
+      var parentDlg = cd.closest('dialog');
+      if (parentDlg) {
+        closeDialog(parentDlg);
+        restoreFocus();
+      }
+      return;
+    }
+
+    var btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    var action = btn.getAttribute('data-action');
+
+    if (action === 'view') { openStage(btn.getAttribute('data-id')); }
+    else if (action === 'reschedule') { openReschedule(btn.getAttribute('data-id')); }
+    else if (action === 'skip') { openSkip(btn.getAttribute('data-id')); }
+    else if (action === 'visit') { openVisit(btn.getAttribute('data-id')); }
+    else if (action === 'open-edd') { openEdd(); }
+    else if (action === 'open-delivery') { openDelivery(); }
+    else if (action === 'open-child') {
+      toast('Child record opens from the immunization view — this page keeps the linked summary.', 'info');
+    }
+    else if (action === 'reminder') { sendReminder(); }
+    else if (action === 'notifications') {
+      switchTab('audit');
+      var late = overdueStages();
+      toast(late.length
+        ? late.length + ' overdue item' + (late.length > 1 ? 's' : '') + ' — ' + late[0].name + ' for ' + (late[0].track === 'pregnancy' ? 'Amina' : 'Zayan') + '.'
+        : 'No open alerts. Reminders and overdue doses appear here.', 'info');
+    }
+    else if (action === 'tab') { switchTab(btn.getAttribute('data-tab')); }
+    else if (action === 'track') { setTrack(btn.getAttribute('data-track')); }
+    else if (action === 'audit-cat') { setAuditCat(btn.getAttribute('data-cat')); }
+    else if (action === 'nav') {
+      var view = btn.getAttribute('data-view');
+      if (view === 'patients') {
+        toast('You are already in the patients section.', 'info');
+      } else {
+        toast(navCopy[view] || 'That section lives outside this patient record.', 'info');
+      }
+    }
+    else if (action === 'clear-search') { clearFilters(); }
+  });
+
+  var stagePrimary = document.getElementById('stage-primary');
+  stagePrimary.addEventListener('click', function(){
+    var id = stagePrimary.getAttribute('data-stage-id');
+    var dlg = document.getElementById('dlg-stage');
+    closeDialog(dlg);
+    if (!id) return;
+    if (id === 'p10') { openDelivery(); return; }
+    window.setTimeout(function(){ openVisit(id); }, 60);
+  });
+
+  /* ---------------- tabs and filters ---------------- */
+  function switchTab(name){
+    var isTimeline = name === 'timeline';
+    var tabT = document.getElementById('tab-timeline');
+    var tabA = document.getElementById('tab-audit');
+    tabT.setAttribute('aria-selected', String(isTimeline));
+    tabA.setAttribute('aria-selected', String(!isTimeline));
+    tabT.tabIndex = isTimeline ? 0 : -1;
+    tabA.tabIndex = isTimeline ? -1 : 0;
+    document.getElementById('panel-timeline').hidden = !isTimeline;
+    document.getElementById('panel-audit').hidden = isTimeline;
+  }
+
+  ['tab-timeline','tab-audit'].forEach(function(id){
+    var el = document.getElementById(id);
+    el.addEventListener('keydown', function(e){
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        var goAudit = id === 'tab-timeline';
+        switchTab(goAudit ? 'audit' : 'timeline');
+        document.getElementById(goAudit ? 'tab-audit' : 'tab-timeline').focus();
+      }
+    });
+  });
+
+  function setTrack(track){
+    activeTrack = track;
+    document.querySelectorAll('#track-filters .chipfilter').forEach(function(b){
+      b.setAttribute('aria-pressed', String(b.getAttribute('data-track') === track));
+    });
+    renderTimeline();
+  }
+
+  function setAuditCat(cat){
+    auditFilter = cat;
+    document.querySelectorAll('#audit-filters .chipfilter').forEach(function(b){
+      b.setAttribute('aria-pressed', String(b.getAttribute('data-cat') === cat));
+    });
+    renderAudit();
+  }
+
+  function clearFilters(){
+    activeTrack = 'all';
+    searchQuery = '';
+    document.getElementById('global-search').value = '';
+    document.querySelectorAll('#track-filters .chipfilter').forEach(function(b){
+      b.setAttribute('aria-pressed', String(b.getAttribute('data-track') === 'all'));
+    });
+    renderTimeline();
+  }
+
+  var searchEl = document.getElementById('global-search');
+  searchEl.addEventListener('input', function(){
+    searchQuery = searchEl.value.trim();
+    if (searchQuery) switchTab('timeline');
+    renderTimeline();
+  });
+
+  function sendReminder(){
+    var target = overdueStages()[0] || pendingStages()[0];
+    if (!target) { toast('Nothing is pending for this patient.', 'err'); return; }
+    appendAudit({
+      action: 'Reminder sent',
+      category: 'reminder',
+      detail: 'SMS reminder for ' + target.name + ' (' + fmtDate(target.scheduled) + ') queued to +880 1712 448 902.',
+      actor: CURRENT_USER,
+      source: 'SMS gateway'
+    });
+    save();
+    renderAll();
+    toast('SMS reminder queued for ' + target.name);
+  }
+
+  /* ---------------- init ---------------- */
+  syncStampCursor();
+  renderAll();
+})();
+</script>
+</body>
+</html>

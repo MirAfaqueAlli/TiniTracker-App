@@ -8,7 +8,7 @@ import PasswordStrengthMeter, { evaluatePassword } from '@/components/PasswordSt
 
 export default function ChangePasswordPage() {
   const router    = useRouter();
-  const { user, setAuth, token } = useAuthStore();
+  const { user, setAuth } = useAuthStore();
 
   const [form, setForm] = useState({ current: '', newPass: '', confirm: '' });
   const [showCurrent, setShowCurrent] = useState(false);
@@ -45,7 +45,7 @@ export default function ChangePasswordPage() {
 
       // Update stored user to clear the forced flag
       if (user) {
-        setAuth(token, { ...user, force_password_change: false }, true);
+        setAuth(null, { ...user, force_password_change: false }, true);
       }
 
       setSuccess(true);

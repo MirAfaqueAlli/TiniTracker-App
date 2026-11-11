@@ -7,10 +7,17 @@ import {
   Patient,
   PatientStage,
   StageTemplate,
-  Notification,
   Subscription,
   Payment,
+  ProviderAdmin,
 } from '@/lib/db/models/index';
+
+const SOURCE_LIMIT = 1000;
+const CAP_NOTE = `Each audit source is limited to ${SOURCE_LIMIT} rows before in-memory pagination.`;
+
+function actor(name, role, id = null) {
+  return { id, name: name || 'System', role: role || 'system' };
+}
 
 // GET /api/provider/logs — cross-hospital audit activity trail
 export async function GET(request) {
@@ -28,13 +35,30 @@ export async function GET(request) {
     const search = searchParams.get('search');
     const offset = (page - 1) * limit;
 
-    const hospFilter = hospitalId && hospitalId !== 'ALL' ? { id: hospitalId } : {};
     const dateFilter = (col) => {
       const w = {};
       if (fromDate) w[Op.gte] = new Date(fromDate + 'T00:00:00.000Z');
       if (toDate) w[Op.lte] = new Date(toDate + 'T23:59:59.999Z');
       return Object.keys(w).length ? { [col]: w } : {};
     };
+
+    // Provider-admin actors (subscriptions / payments are provider actions).
+    const providerAdmins = await ProviderAdmin.findAll({ attributes: ['id', 'name', 'role'] });
+    const adminMap = Object.fromEntries(providerAdmins.map(a => [a.id, a]));
+    const providerActor = (id) => {
+      const a = id ? adminMap[id] : null;
+      return a ? actor(a.name, a.role, a.id) : actor('System', 'system');
+    };
+
+    async function userActorMap(ids) {
+      const unique = [...new Set(ids.filter(Boolean))];
+      if (!unique.length) return {};
+      const users = await User.findAll({
+        where: { id: { [Op.in]: unique } },
+        attributes: ['id', 'name', 'role'],
+      });
+      return Object.fromEntries(users.map(u => [u.id, u]));
+    }
 
     const logs = [];
 
@@ -45,7 +69,7 @@ export async function GET(request) {
       const hosps = await Hospital.findAll({
         where,
         order: [['createdAt', 'DESC']],
-        limit: 100,
+        limit: SOURCE_LIMIT,
       });
       for (const h of hosps) {
         logs.push({
@@ -53,7 +77,7 @@ export async function GET(request) {
           type: 'hospital',
           subtype: 'hospital_created',
           hospital: { id: h.id, name: h.name },
-          user: { name: 'Provider Admin', role: 'superadmin' },
+          user: actor('System', 'system'),
           description: `Hospital "${h.name}" onboarded into system`,
           time: h.createdAt,
         });
@@ -68,7 +92,7 @@ export async function GET(request) {
         where,
         include: [{ model: Hospital, attributes: ['id', 'name'] }],
         order: [['createdAt', 'DESC']],
-        limit: 100,
+        limit: SOURCE_LIMIT,
       });
       for (const s of subs) {
         logs.push({
@@ -76,7 +100,7 @@ export async function GET(request) {
           type: 'subscription',
           subtype: 'subscription_created',
           hospital: { id: s.hospital_id, name: s.Hospital?.name || `Hospital #${s.hospital_id}` },
-          user: { name: 'Provider Admin', role: 'superadmin' },
+          user: providerActor(s.created_by),
           description: `Subscription activated: ${s.plan?.replace('_', ' ')} until ${s.ends_at}`,
           time: s.createdAt,
         });
@@ -91,7 +115,7 @@ export async function GET(request) {
         where,
         include: [{ model: Hospital, attributes: ['id', 'name'] }],
         order: [['createdAt', 'DESC']],
-        limit: 100,
+        limit: SOURCE_LIMIT,
       });
       for (const p of payments) {
         logs.push({
@@ -99,7 +123,7 @@ export async function GET(request) {
           type: 'payment',
           subtype: 'payment_received',
           hospital: { id: p.hospital_id, name: p.Hospital?.name || `Hospital #${p.hospital_id}` },
-          user: { name: 'Provider Admin', role: 'superadmin' },
+          user: providerActor(p.recorded_by),
           description: `Payment recorded: ₹${Number(p.amount).toLocaleString('en-IN')} via ${p.method || 'UPI'}`,
           time: p.createdAt || p.payment_date,
         });
@@ -114,15 +138,17 @@ export async function GET(request) {
         where,
         include: [{ model: Hospital, attributes: ['id', 'name'] }],
         order: [['createdAt', 'DESC']],
-        limit: 100,
+        limit: SOURCE_LIMIT,
       });
+      const userMap = await userActorMap(patients.map(p => p.registered_by));
       for (const pt of patients) {
+        const u = pt.registered_by ? userMap[pt.registered_by] : null;
         logs.push({
           id: `pat-${pt.id}`,
           type: 'registration',
           subtype: pt.patient_type === 'immunization' ? 'child_registered' : 'mother_registered',
           hospital: { id: pt.hospital_id, name: pt.Hospital?.name || `Hospital #${pt.hospital_id}` },
-          user: { name: 'Hospital Staff', role: 'staff' },
+          user: u ? actor(u.name, u.role, u.id) : actor('System', 'system'),
           description: `Patient "${pt.name}" registered for ${pt.patient_type === 'immunization' ? 'immunization tracking' : 'antenatal care'}`,
           time: pt.createdAt,
         });
@@ -153,18 +179,20 @@ export async function GET(request) {
           }
         ],
         order: [['updatedAt', 'DESC']],
-        limit: 100,
+        limit: SOURCE_LIMIT,
       });
+      const userMap = await userActorMap(stages.map(s => s.recorded_by));
 
       for (const s of stages) {
         const hName = s.Patient?.Hospital?.name || 'Hospital';
         const stName = s.template?.stage_name || 'Care Stage';
+        const u = s.recorded_by ? userMap[s.recorded_by] : null;
         logs.push({
           id: `stage-${s.id}`,
           type: 'stage',
           subtype: s.status === 'visited' ? 'stage_visited' : 'stage_skipped',
           hospital: { id: s.Patient?.hospital_id, name: hName },
-          user: { name: 'Clinical Staff', role: 'doctor' },
+          user: u ? actor(u.name, u.role, u.id) : actor('System', 'system'),
           description: s.status === 'visited'
             ? `${stName} completed for patient "${s.Patient?.name || '—'}"`
             : `${stName} skipped for patient "${s.Patient?.name || '—'}"`,
@@ -173,10 +201,8 @@ export async function GET(request) {
       }
     }
 
-    // Sort descending by time
     logs.sort((a, b) => new Date(b.time) - new Date(a.time));
 
-    // Filter by search if provided
     let filteredLogs = logs;
     if (search) {
       const q = search.toLowerCase();
@@ -196,6 +222,8 @@ export async function GET(request) {
       limit,
       pages: Math.ceil(total / limit),
       logs: paged,
+      capped: true,
+      cap_note: CAP_NOTE,
     });
   } catch (err) {
     console.error('Provider logs error:', err);

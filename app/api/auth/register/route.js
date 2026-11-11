@@ -4,9 +4,18 @@ import jwt from 'jsonwebtoken';
 import { Hospital, User, Subscription, sequelize } from '@/lib/db/models/index';
 import { isEmailVerified, deleteOtp } from '@/lib/otpStore';
 import { seedRolesAndPermissionsForHospital } from '@/lib/seeders/roles.seed.js';
+import { getPlatformSettings } from '@/lib/services/platformSettings.service';
 
 export async function POST(request) {
   try {
+    const platformSettings = await getPlatformSettings();
+    if (!platformSettings.allow_hospital_registration) {
+      return NextResponse.json({
+        error:   'registration_disabled',
+        message: 'Hospital self-registration is currently disabled by the platform administrator.',
+      }, { status: 403 });
+    }
+
     const body = await request.json();
 
     const {
@@ -23,6 +32,13 @@ export async function POST(request) {
       password,
       confirm_password,
     } = body;
+
+    // ── Fail closed if the signing secret is missing or too weak ─────────────
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret || jwtSecret.length < 32) {
+      console.error('[register] JWT_SECRET is missing or shorter than 32 characters.');
+      return NextResponse.json({ error: 'Server misconfiguration.' }, { status: 500 });
+    }
 
     // ── Validation ───────────────────────────────────────────────────────────
     if (!hospital_name?.trim())
@@ -42,7 +58,6 @@ export async function POST(request) {
     // 1. Primary: Cryptographically signed verification token (stateless & persists across server reloads/lambdas)
     if (email_verification_token) {
       try {
-        const jwtSecret = process.env.JWT_SECRET || 'tinitraker_jwt_secret_key_2026';
         const decoded = jwt.verify(email_verification_token, jwtSecret);
         if (
           decoded &&
@@ -100,20 +115,24 @@ export async function POST(request) {
         phone:   fullPhone,
       }, { transaction: t });
 
-      // 14-day free trial
+      // Trial length is controlled by the platform administrator.
+      const trialDays = Number(platformSettings.default_trial_days) > 0
+        ? Number(platformSettings.default_trial_days)
+        : 14;
       const today    = new Date();
       const trialEnd = new Date(today);
-      trialEnd.setDate(trialEnd.getDate() + 14);
+      trialEnd.setDate(trialEnd.getDate() + trialDays);
 
       const toDateStr = (d) => d.toISOString().split('T')[0]; // YYYY-MM-DD
 
       await Subscription.create({
         hospital_id: createdHospital.id,
         plan:        'free_trial',
+        billing_cycle: 'monthly',
         starts_at:   toDateStr(today),
         ends_at:     toDateStr(trialEnd),
         is_active:   true,
-        notes:       'Self-registered via Free Trial signup',
+        notes:       `Self-registered via ${trialDays}-day free trial`,
         created_by:  null,
       }, { transaction: t });
 
@@ -138,7 +157,7 @@ export async function POST(request) {
     }
 
     const token = jwt.sign(
-      { id: createdUser.id, role: createdUser.role, hospital_id: createdHospital.id },
+      { id: createdUser.id, type: 'user', role: createdUser.role, hospital_id: createdHospital.id },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
@@ -170,6 +189,8 @@ export async function POST(request) {
       path: '/',
       maxAge: 30 * 24 * 60 * 60,
       sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      httpOnly: true,
     });
 
     return res;

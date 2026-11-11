@@ -1,0 +1,1436 @@
+<!doctype html>
+<html lang="en">
+<head><script type="application/json" data-od-external-dependencies>["https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,600&display=swap"]</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Schedules &amp; reminders · TiniTracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,600&display=swap" rel="stylesheet">
+<style>
+/* OD-LAYOUT-PRIMITIVES v1 — structure only: display, flex/grid, overflow, wrapping, ratio, geometry.
+   Put this @layer first; product CSS outside the layer wins ordinary layout rules.
+   Native hidden and closed-dialog states take precedence over component display rules. */
+@layer od-layout {
+  [hidden]:not([hidden="until-found" i]) { display: none !important; }
+  dialog:not([open]) { display: none !important; }
+
+  :where(.od-stack,.od-row,.od-row-top,.od-cluster,.od-grid,.od-field,.od-stat,.od-cell,.od-tile) > :where(*) { min-width: 0; }
+
+  /* containers */
+  .od-stack   { display: flex; flex-direction: column; gap: var(--od-gap, 8px); }
+  .od-row     { display: flex; align-items: center; gap: var(--od-gap, 8px); }
+  .od-row-top { display: flex; align-items: flex-start; gap: var(--od-gap, 8px); }
+  .od-cluster { display: flex; flex-wrap: wrap; align-items: center; gap: var(--od-gap, 8px); }
+  .od-fill    { flex: 1 1 0; min-width: 0; }
+  .od-fixed   { flex: none; }
+  .od-grid    { display: grid; gap: var(--od-gap, 12px); grid-template-columns: repeat(var(--od-cols, 3), minmax(0, 1fr)); }
+
+  /* stacked information: each piece is its own line — never sibling inline spans */
+  .od-stat, .od-field, .od-cell { display: grid; gap: var(--od-gap, 2px); }
+  :where(.od-stat,.od-field,.od-cell) > :where(*) { display: block; }
+  .od-tile { display: grid; grid-template-rows: auto 1fr; }
+  :where(.od-tile) > :where(*) { display: block; }
+
+  /* media keeps its intrinsic ratio by default; never a distorted or cropped
+     cover by accident. height:auto lets the ratio win over an <img height="…">
+     attribute. Cropping to a uniform box is an explicit opt-in: set --od-ratio
+     AND add .od-media-cover together. */
+  .od-media { display: block; width: 100%; height: auto; aspect-ratio: var(--od-ratio, auto); }
+  .od-media-cover { object-fit: cover; }
+
+  /* functional inline SVG icons opt into bounded geometry; content SVGs keep their own */
+  .od-icon { display: inline-block; inline-size: var(--od-icon-size, 1em); block-size: var(--od-icon-size, 1em); flex: none; }
+
+  /* data text only — authored copy is rewritten to its budget instead */
+  .od-truncate { display: block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .od-clamp-2, .od-clamp-3 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+  .od-clamp-2 { -webkit-line-clamp: 2; }
+  .od-clamp-3 { -webkit-line-clamp: 3; }
+  .od-lines-2 { min-height: calc(2 * 1.4em); }
+  .od-nowrap  { white-space: nowrap; }
+  .od-keep    { word-break: keep-all; overflow-wrap: anywhere; }
+
+  /* screen skeleton (optional): bars take their own space, the middle scrolls */
+  .od-screen { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; }
+  .od-scroll { overflow-y: auto; overscroll-behavior: contain; min-height: 0; }
+
+  /* horizontal rail: the next item peeks at the edge */
+  .od-rail { display: flex; gap: var(--od-gap, 8px); overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none;
+             padding-inline: var(--od-rail-pad, 16px); scroll-padding-inline: var(--od-rail-pad, 16px); }
+  .od-rail::-webkit-scrollbar { display: none; }
+  :where(.od-rail) > :where(*) { flex: none; scroll-snap-align: start; }
+  :where(.od-rail) > :where(:last-child) { margin-inline-end: var(--od-rail-pad, 16px); }
+
+  .od-spacer { flex: none; visibility: hidden; pointer-events: none; }
+  .od-touch  { min-width: 44px; min-height: 44px; }
+}
+:root [hidden]:where(:not([hidden="until-found" i])) { display: none; }
+/* /OD-LAYOUT-PRIMITIVES v1 */
+
+:root{
+  --bg:#eef2f1;
+  --surface:#ffffff;
+  --surface-2:#f5f8f7;
+  --line:#dde5e3;
+  --line-soft:#eaf0ee;
+  --line-strong:#c4d2ce;
+  --ink:#12201d;
+  --ink-2:#4c5c58;
+  --ink-3:#5d6d65;
+  --brand:#0d6b58;
+  --brand-dark:#0a5749;
+  --brand-deep:#08483d;
+  --brand-soft:#e6f2ee;
+  --danger:#9c2a1e;
+  --danger-soft:#fbe9e6;
+  --warn:#8a5a0b;
+  --warn-soft:#fdf2dc;
+  --imm:#3c5f8c;
+  --imm-soft:#e9eff8;
+  --radius:14px;
+  --radius-sm:10px;
+  --shadow:0 1px 2px rgba(14,32,28,.06);
+  --font-ui:'Manrope', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-serif:'Source Serif 4', Georgia, 'Times New Roman', serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font:400 14px/1.5 var(--font-ui);
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+h1,h2,h3,h4,p{margin:0}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+button{font-family:inherit}
+.i14{--od-icon-size:14px}
+.i16{--od-icon-size:16px}
+.i18{--od-icon-size:18px}
+.i20{--od-icon-size:20px}
+
+/* ---------- app shell ---------- */
+.app{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:100vh}
+.sidebar{
+  position:sticky;top:0;height:100vh;overflow-y:auto;
+  background:#0e2622;color:#cfe3dc;
+  padding:18px 14px 16px;display:flex;flex-direction:column;gap:22px;
+}
+.brand{display:flex;align-items:center;gap:10px;padding:4px 6px 0}
+.brand-mark{width:34px;height:34px;border-radius:10px;background:#1b6b58;display:grid;place-items:center;color:#eaf5f1;flex:none}
+.brand-text{min-width:0}
+.brand-name{display:block;font:700 15.5px/1.2 var(--font-ui);color:#f0f7f4;letter-spacing:-.01em}
+.brand-sub{display:block;font:500 11px/1.3 var(--font-ui);color:#8fb3a9;margin-top:2px}
+.nav{display:flex;flex-direction:column;gap:2px;min-width:0}
+.nav-label{font:700 10.5px/1 var(--font-ui);letter-spacing:.1em;text-transform:uppercase;color:#7b9f95;padding:0 8px 6px}
+.nav button{
+  display:flex;align-items:center;gap:10px;width:100%;
+  padding:9px 9px;border:0;border-radius:9px;background:none;cursor:pointer;
+  font:500 13.5px/1.2 var(--font-ui);color:#a9c6bd;text-align:left;
+  transition:background-color .16s ease,color .16s ease;
+}
+.nav button:hover{background:rgba(255,255,255,.07);color:#f0f7f4}
+.nav button[aria-current="page"]{background:#1a4b3f;color:#f0f7f4;font-weight:600}
+.nav button:focus-visible{outline:2px solid #7fd0bb;outline-offset:2px}
+.nav .nav-count{margin-left:auto;font:600 10.5px/1 var(--font-ui);background:#1d5147;color:#cfe3dc;padding:3px 6px;border-radius:999px}
+.side-foot{margin-top:auto;display:flex;flex-direction:column;gap:10px}
+.clinic-card{background:rgba(255,255,255,.07);border-radius:11px;padding:11px 12px}
+.clinic-card .k{display:block;font:700 10px/1 var(--font-ui);letter-spacing:.09em;text-transform:uppercase;color:#8fb3a9}
+.clinic-card .v{display:block;font:600 12.5px/1.4 var(--font-ui);color:#eaf5f1;margin-top:5px}
+.clinic-card .s{display:block;font:500 11.5px/1.4 var(--font-ui);color:#a9c6bd;margin-top:2px}
+.user-line{display:flex;align-items:center;gap:9px;padding:2px 4px}
+.user-avatar{width:28px;height:28px;border-radius:8px;background:#1d5147;color:#dcece6;display:grid;place-items:center;font:700 11px/1 var(--font-ui);flex:none}
+.staff-name{display:block;font:600 12.5px/1.2 var(--font-ui);color:var(--ink)}
+.staff-role{display:block;font:500 11px/1.2 var(--font-ui);color:var(--ink-3)}
+.sidebar .staff-name{color:#f0f7f4}
+.sidebar .staff-role{color:#a9c6bd}
+
+/* ---------- topbar ---------- */
+.workspace{min-width:0;display:flex;flex-direction:column}
+.topbar{
+  position:sticky;top:0;z-index:30;
+  display:flex;align-items:center;gap:16px;
+  padding:10px 26px;background:var(--surface);border-bottom:1px solid var(--line);
+}
+.crumbs{display:flex;align-items:center;gap:7px;font:500 13px/1.2 var(--font-ui);color:var(--ink-3);min-width:0}
+.crumbs .sep{color:var(--line-strong)}
+.crumbs strong{color:var(--ink);font-weight:600}
+.search-wrap{position:relative;flex:1 1 auto;max-width:380px;margin-left:auto}
+.search-wrap .od-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--ink-3);pointer-events:none}
+.search-wrap input{
+  width:100%;padding:8px 12px 8px 34px;border:1px solid var(--line-strong);border-radius:9px;
+  background:var(--surface-2);font:400 13px/1.4 var(--font-ui);color:var(--ink);
+}
+.search-wrap input::placeholder{color:var(--ink-3)}
+.search-wrap input:focus{outline:2px solid var(--brand);outline-offset:1px;background:#fff}
+.top-meta{display:flex;align-items:center;gap:14px;flex:none}
+.top-date{font:500 12.5px/1.2 var(--font-ui);color:var(--ink-3);font-variant-numeric:tabular-nums}
+.icon-btn{
+  width:36px;height:36px;border-radius:9px;border:1px solid var(--line);background:#fff;
+  display:grid;place-items:center;color:var(--ink-2);cursor:pointer;position:relative;
+}
+.icon-btn:hover{background:var(--surface-2);color:var(--ink)}
+.icon-btn:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.icon-btn .dot{position:absolute;top:7px;right:8px;width:6px;height:6px;border-radius:50%;background:var(--danger);border:1.5px solid #fff}
+.staff{display:flex;align-items:center;gap:8px}
+.staff-avatar{width:32px;height:32px;border-radius:9px;background:var(--brand-soft);color:var(--brand-dark);display:grid;place-items:center;font:700 11.5px/1 var(--font-ui);border:1px solid #cfe4dd}
+
+/* ---------- content ---------- */
+.content{padding:22px 26px 44px;display:flex;flex-direction:column;gap:14px;max-width:1400px;width:100%}
+
+/* page head */
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;flex-wrap:wrap;padding:2px 2px 2px}
+.eyebrow{display:block;font:700 10px/1 var(--font-ui);letter-spacing:.11em;text-transform:uppercase;color:var(--ink-3);margin-bottom:7px}
+.page-title{font:600 30px/1.14 var(--font-serif);letter-spacing:-.015em;color:var(--ink)}
+.page-sub{font:500 13px/1.6 var(--font-ui);color:var(--ink-2);margin-top:7px;max-width:74ch}
+.page-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* buttons */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  border:1px solid transparent;border-radius:9px;padding:8px 13px;min-height:38px;
+  font:600 13px/1.2 var(--font-ui);cursor:pointer;white-space:nowrap;
+  transition:background-color .16s ease,border-color .16s ease,color .16s ease;
+  text-decoration:none;
+}
+.btn-primary{background:var(--brand-dark);color:#fff;border-color:var(--brand-dark)}
+.btn-primary:hover{background:var(--brand-deep)}
+.btn-outline{background:#fff;color:var(--ink);border-color:var(--line-strong)}
+.btn-outline:hover{background:var(--surface-2);border-color:#a9bdb8}
+.btn-ghost{background:transparent;color:var(--ink-2);border-color:transparent}
+.btn-ghost:hover{background:#eef2f1;color:var(--ink)}
+.btn:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.btn-sm{min-height:32px;padding:6px 10px;font-size:12.5px;border-radius:8px}
+
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.stat-card{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:14px 15px;display:flex;flex-direction:column;gap:7px;box-shadow:var(--shadow);
+}
+.stat-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.stat-label{font:700 10.5px/1.2 var(--font-ui);letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)}
+.stat-icon{color:var(--ink-3);opacity:.85}
+.stat-value{display:flex;align-items:baseline;gap:7px;color:var(--ink);font:600 27px/1.05 var(--font-serif);font-variant-numeric:tabular-nums}
+.stat-value small{font:600 11.5px/1.2 var(--font-ui);color:var(--ink-3);letter-spacing:0}
+.stat-sub{font:500 12px/1.45 var(--font-ui);color:var(--ink-2)}
+.stat-sub b{color:var(--ink);font-weight:700}
+
+/* panel */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.panel-head{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  padding:12px 16px;border-bottom:1px solid var(--line);
+}
+.panel-title{font:700 13.5px/1.3 var(--font-ui);color:var(--ink);display:flex;align-items:center;gap:8px}
+.panel-title .od-icon{color:var(--ink-3)}
+.panel-note{font:500 11.5px/1.4 var(--font-ui);color:var(--ink-3)}
+
+/* filters */
+.filters{display:flex;gap:7px;align-items:center;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--line-soft);background:#fbfcfc}
+.filter-label{font:600 11px/1.2 var(--font-ui);color:var(--ink-3);margin-right:2px}
+.chipfilter{
+  border:1px solid var(--line);background:#fff;color:var(--ink-2);border-radius:999px;
+  padding:5px 10px;font:600 12px/1.2 var(--font-ui);cursor:pointer;
+  display:inline-flex;align-items:center;gap:5px;
+  transition:background-color .16s ease,border-color .16s ease,color .16s ease;
+}
+.chipfilter .n{font:700 10.5px/1 var(--font-ui);opacity:.65}
+.chipfilter:hover{background:var(--surface-2);color:var(--ink)}
+.chipfilter[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+.chipfilter[aria-pressed="true"] .n{opacity:.8}
+.chipfilter:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.f-divider{width:1px;align-self:stretch;background:var(--line);margin:2px 3px}
+.select-wrap{position:relative;display:inline-flex}
+.select-wrap select{
+  appearance:none;-webkit-appearance:none;
+  border:1px solid var(--line);background:#fff;color:var(--ink-2);border-radius:999px;
+  padding:6px 27px 6px 11px;font:600 12px/1.2 var(--font-ui);cursor:pointer;
+}
+.select-wrap select:hover{background:var(--surface-2);color:var(--ink)}
+.select-wrap select:focus{outline:2px solid var(--brand);outline-offset:2px}
+.select-wrap .chev{position:absolute;right:9px;top:50%;transform:translateY(-50%);color:var(--ink-3);pointer-events:none}
+.filter-meta{display:flex;align-items:center;gap:4px;margin-left:auto}
+.result-count{font:500 11.5px/1.3 var(--font-ui);color:var(--ink-3);white-space:nowrap;font-variant-numeric:tabular-nums}
+.result-count b{color:var(--ink-2);font-weight:700}
+
+/* reminder table */
+.rem-scroll{overflow-x:auto}
+.rem-table{width:100%;border-collapse:collapse}
+.rem-table th{
+  text-align:left;font:700 9.5px/1.2 var(--font-ui);letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-3);padding:9px 16px;background:var(--surface-2);border-bottom:1px solid var(--line);white-space:nowrap;
+}
+.rem-table td{padding:12px 16px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+.rem-table tbody tr{transition:background-color .12s ease}
+.rem-table tbody tr:hover{background:#fbfcfc}
+.rem-table tbody tr:last-child td{border-bottom:0}
+.col-patient{width:22%}
+.col-contact{width:16%}
+.col-rem{width:27%}
+.col-when{width:14%}
+.col-status{width:12%}
+.col-act{width:9%;text-align:right}
+
+.p-cell{display:flex;gap:9px;align-items:flex-start;min-width:0}
+.avatar-sm{
+  width:31px;height:31px;border-radius:9px;background:var(--brand-soft);color:var(--brand-dark);
+  display:grid;place-items:center;font:700 10.5px/1 var(--font-ui);letter-spacing:.01em;flex:none;
+  border:1px solid #cfe4dd;
+}
+.avatar-sm.child{background:var(--imm-soft);color:var(--imm);border-color:#ccd9ec}
+.p-name{font:600 13px/1.35 var(--font-ui);color:var(--ink);overflow-wrap:anywhere}
+.p-sub{font:500 11.5px/1.4 var(--font-ui);color:var(--ink-3);margin-top:2px}
+.p-phone-inline{display:none;margin-top:3px;font:500 11.5px/1.4 var(--font-ui);color:var(--ink-3);font-variant-numeric:tabular-nums}
+.phone{font:500 12.5px/1.45 var(--font-ui);color:var(--ink-2);white-space:nowrap;font-variant-numeric:tabular-nums}
+.phone-sub{font:500 11px/1.4 var(--font-ui);color:var(--ink-3);margin-top:2px}
+.rem-type{font:600 13px/1.35 var(--font-ui);color:var(--ink)}
+.rem-stage{font:500 11.5px/1.45 var(--font-ui);color:var(--ink-3);margin-top:2px}
+.when{font:500 12.5px/1.4 var(--font-ui);color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.when-sub{font:500 11px/1.4 var(--font-ui);color:var(--ink-3);margin-top:2px}
+
+.status{
+  display:inline-flex;align-items:center;gap:5px;border-radius:6px;
+  font:600 11px/1.2 var(--font-ui);padding:5px 7px;white-space:nowrap;
+}
+.status i{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+.st-delivered{background:var(--brand-soft);color:#0a5749}
+.st-sent{background:var(--imm-soft);color:var(--imm)}
+.st-failed{background:var(--danger-soft);color:var(--danger)}
+.st-queued{background:#eef2f1;color:var(--ink-2)}
+.resolved-tag{display:flex;align-items:center;gap:4px;margin-top:4px;font:700 9px/1.2 var(--font-ui);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.resolved-tag .od-icon{color:var(--brand)}
+
+.linkbtn{
+  border:0;background:none;border-radius:7px;padding:6px 7px;cursor:pointer;
+  font:600 12px/1.2 var(--font-ui);color:var(--brand-dark);white-space:nowrap;
+  transition:background-color .16s ease,color .16s ease;
+}
+.linkbtn:hover{background:var(--brand-soft);color:var(--brand-deep)}
+.linkbtn:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
+.table-foot{
+  display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:10px 16px;background:#fbfcfc;border-top:1px solid var(--line-soft);
+  font:500 11.5px/1.4 var(--font-ui);color:var(--ink-3);
+}
+.table-foot b{color:var(--ink-2);font-weight:700}
+.empty{
+  padding:34px 16px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;
+  color:var(--ink-2);font:500 13px/1.5 var(--font-ui);
+}
+.empty .od-icon{color:var(--ink-3);margin-bottom:2px}
+.empty strong{color:var(--ink);font:600 14px/1.4 var(--font-ui)}
+.empty .btn{margin-top:8px}
+
+/* dialogs */
+.dlg{
+  border:0;border-radius:16px;padding:0;width:min(560px,calc(100vw - 32px));
+  max-height:calc(100vh - 40px);background:var(--surface);color:var(--ink);
+  box-shadow:0 24px 64px rgba(11,26,23,.26);
+}
+.dlg.dlg-rem{width:min(620px,calc(100vw - 32px))}
+.dlg::backdrop{background:rgba(10,24,21,.44)}
+.dlg-form{display:flex;flex-direction:column;max-height:calc(100vh - 40px)}
+.dlg-head{
+  display:flex;justify-content:space-between;align-items:flex-start;gap:12px;
+  padding:16px 18px 13px;border-bottom:1px solid var(--line);
+}
+.dlg-title{font:600 20px/1.3 var(--font-serif);color:var(--ink)}
+.dlg-sub{font:500 11.5px/1.4 var(--font-ui);color:var(--ink-3);margin-top:3px}
+.dlg-body{padding:15px 18px;overflow-y:auto;min-height:0;display:flex;flex-direction:column;gap:13px}
+.dlg-body > *{flex:0 0 auto}
+.dlg-foot{
+  display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;align-items:center;
+  padding:12px 18px 15px;border-top:1px solid var(--line);background:#fbfcfc;
+}
+.foot-spacer{flex:1 1 auto}
+.close-x{
+  width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:#fff;
+  display:grid;place-items:center;color:var(--ink-2);cursor:pointer;flex:none;
+}
+.close-x:hover{background:var(--surface-2);color:var(--ink)}
+.close-x:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+
+.rem-patient{display:flex;gap:11px;align-items:flex-start;padding:12px;border:1px solid var(--line);border-radius:11px;background:var(--surface-2)}
+.rem-patient .avatar-sm{width:38px;height:38px;border-radius:10px;font-size:12px}
+.rem-patient-main{min-width:0;flex:1 1 auto}
+.rem-patient-name{font:600 15px/1.35 var(--font-ui);color:var(--ink);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.rem-patient-sub{font:500 11.5px/1.5 var(--font-ui);color:var(--ink-3);margin-top:2px}
+.rem-patient-contact{display:flex;align-items:center;gap:5px;font:500 12px/1.4 var(--font-ui);color:var(--ink-2);margin-top:5px;font-variant-numeric:tabular-nums}
+.rem-patient-contact .od-icon{color:var(--ink-3)}
+
+.meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 18px}
+.kv-row{display:grid;gap:2px;min-width:0}
+.kv-row .k{font:700 9.5px/1.2 var(--font-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.kv-row .v{font:500 13px/1.45 var(--font-ui);color:var(--ink);overflow-wrap:anywhere}
+.kv-row .v.sub{font-weight:400;font-size:12.5px;color:var(--ink-2)}
+.kv-row .v.num{font-variant-numeric:tabular-nums}
+
+.detail-block{border:1px solid var(--line);border-radius:11px;overflow:hidden}
+.detail-block-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+  padding:8px 12px;background:var(--surface-2);border-bottom:1px solid var(--line);
+  font:700 9.5px/1.2 var(--font-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);
+}
+.detail-block-head .meta{font:600 10.5px/1.2 var(--font-ui);letter-spacing:0;text-transform:none;color:var(--ink-3)}
+
+.tl-steps{list-style:none;margin:0;padding:12px 12px 4px}
+.tl-step{display:grid;grid-template-columns:14px minmax(0,1fr);gap:9px;position:relative;padding-bottom:13px}
+.tl-step:last-child{padding-bottom:0}
+.tl-step::before{content:'';position:absolute;left:6px;top:14px;bottom:0;width:1.5px;background:#e3eae8}
+.tl-step:last-child::before{display:none}
+.tl-dot{width:13px;height:13px;border-radius:50%;border:2px solid #cfdad7;background:#fff;margin-top:2px;position:relative;z-index:1;display:grid;place-items:center}
+.tl-step.done .tl-dot{background:var(--brand);border-color:var(--brand)}
+.tl-step.fail .tl-dot{background:var(--danger);border-color:var(--danger)}
+.tl-step.pending .tl-dot{border-style:dashed;border-color:var(--line-strong)}
+.step-label{font:600 12.5px/1.4 var(--font-ui);color:var(--ink)}
+.tl-step.pending .step-label{color:var(--ink-2);font-weight:500}
+.step-note{font:500 11.5px/1.45 var(--font-ui);color:var(--ink-3);margin-top:1px}
+
+.message-box{border:1px solid var(--line);border-radius:11px;overflow:hidden;background:#fff}
+.message-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+  padding:8px 12px;background:var(--surface-2);border-bottom:1px solid var(--line);
+}
+.message-head .who{font:600 12px/1.3 var(--font-ui);color:var(--ink)}
+.message-head .chan{font:700 9.5px/1 var(--font-ui);letter-spacing:.07em;text-transform:uppercase;color:var(--brand-dark);background:var(--brand-soft);padding:4px 6px;border-radius:5px}
+.message-body{
+  padding:13px 14px;font:400 13px/1.65 var(--font-ui);color:var(--ink);
+  white-space:pre-wrap;overflow-wrap:anywhere;
+}
+.message-foot{padding:0 14px 12px;font:500 11px/1.4 var(--font-ui);color:var(--ink-3);font-variant-numeric:tabular-nums}
+.resolved-line{
+  display:flex;gap:7px;align-items:flex-start;padding:9px 11px;border-radius:9px;
+  background:var(--brand-soft);color:var(--brand-deep);font:600 12px/1.45 var(--font-ui);
+}
+.resolved-line .od-icon{margin-top:1px}
+
+/* toasts */
+.toasts{position:fixed;right:18px;bottom:18px;z-index:70;display:flex;flex-direction:column;gap:8px;max-width:min(360px,calc(100vw - 36px))}
+.toast{
+  background:#12201d;color:#f1f7f5;border-radius:10px;padding:10px 13px;
+  font:500 12.5px/1.45 var(--font-ui);box-shadow:0 10px 28px rgba(11,26,23,.28);
+  animation:toastIn .2s ease-out;
+}
+.toast.err{background:#5f1c14}
+.toast .toast-k{display:block;font:700 9.5px/1 var(--font-ui);letter-spacing:.09em;text-transform:uppercase;color:#8fd0bd;margin-bottom:3px}
+.toast.err .toast-k{color:#f3b7ae}
+@keyframes toastIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* responsive */
+@media (max-width:1180px){
+  .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .col-contact{display:none}
+  .rem-table td.c-contact{display:none}
+  .p-phone-inline{display:block}
+}
+@media (max-width:1024px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .sidebar{
+    position:static;height:auto;flex-direction:row;align-items:center;gap:14px;
+    padding:9px 14px;z-index:40;overflow:visible;min-width:0;
+  }
+  .brand-sub,.side-foot,.nav-label{display:none}
+  .brand{padding:0;flex:none}
+  .nav{flex-direction:row;gap:2px;overflow-x:auto;scrollbar-width:none;flex:1 1 auto}
+  .nav::-webkit-scrollbar{display:none}
+  .nav button{width:auto;white-space:nowrap;padding:8px 11px;min-height:44px}
+  .nav .nav-count{display:none}
+  .topbar{top:0;padding:9px 16px}
+  .content{padding:16px 16px 40px;gap:12px}
+}
+@media (max-width:900px){
+  .rem-table thead{display:none}
+  .rem-table,.rem-table tbody{display:block;width:100%}
+  .rem-table tbody tr{
+    display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px 12px;
+    padding:13px 15px;border-bottom:1px solid var(--line-soft);
+  }
+  .rem-table tbody tr:last-child{border-bottom:0}
+  .rem-table td{padding:0;border:0;min-width:0}
+  .rem-table td[colspan]{grid-column:1 / -1}
+  .rem-table td.c-patient{grid-column:1;grid-row:1}
+  .rem-table td.c-when{grid-column:2;grid-row:1;text-align:right}
+  .rem-table td.c-rem{grid-column:1;grid-row:2;margin-top:2px}
+  .rem-table td.c-status{grid-column:2;grid-row:2;justify-self:end;text-align:right}
+  .rem-table td.c-contact{grid-column:1 / -1;grid-row:3;display:block;margin-top:3px}
+  .rem-table td.c-act{grid-column:1 / -1;grid-row:4;text-align:left;margin-top:6px}
+  .rem-table td.c-act .linkbtn{
+    display:inline-flex;align-items:center;justify-content:center;width:100%;
+    border:1px solid var(--line-strong);border-radius:8px;min-height:44px;background:#fff;
+  }
+  .rem-table td.c-act .linkbtn:hover{background:var(--surface-2)}
+  .when{font-size:12px}
+  .p-phone-inline{display:none}
+  .phone{white-space:normal}
+  .rem-scroll{overflow-x:visible}
+}
+@media (max-width:700px){
+  .stats{grid-template-columns:1fr}
+  .topbar{flex-wrap:wrap;gap:8px;padding:8px 14px}
+  .crumbs{flex:1 1 auto;font-size:12.5px}
+  .search-wrap{order:3;flex:1 1 100%;max-width:none;margin-left:0}
+  .top-date{display:none}
+  .staff-name{display:none}
+  .sidebar .staff-role{display:none}
+  .content{padding:14px 14px 36px}
+  .page-head{align-items:flex-start;gap:12px}
+  .page-title{font-size:25px}
+  .page-actions{width:100%}
+  .page-actions .btn{flex:1 1 auto}
+  .filters{padding:10px 14px;gap:6px}
+  .f-divider{display:none}
+  .chipfilter{padding:8px 10px;min-height:44px}
+  .select-wrap{flex:1 1 46%}
+  .select-wrap select{width:100%;min-height:44px;padding-left:13px}
+  .filter-meta{flex:1 1 100%;order:9;margin-left:0;margin-top:2px;justify-content:space-between}
+  .result-count{flex:1 1 auto}
+  .rem-table tbody tr{padding:13px 14px}
+  .panel-head{padding:11px 14px}
+  .table-foot{padding:10px 14px}
+  .dlg{width:calc(100vw - 20px);max-height:calc(100vh - 20px)}
+  .dlg-form{max-height:calc(100vh - 20px)}
+  .dlg-head{padding:14px 15px 12px}
+  .dlg-title{font-size:18.5px}
+  .dlg-body{padding:13px 15px;gap:12px}
+  .dlg-foot{padding:11px 15px 13px}
+  .dlg-foot .btn{flex:1 1 auto;min-height:44px}
+  .foot-spacer{display:none}
+  .meta-grid{grid-template-columns:1fr}
+  .btn{min-height:44px}
+  .btn-sm{min-height:44px}
+  .linkbtn{min-height:44px}
+  .search-wrap input{min-height:44px}
+  .close-x{width:44px;height:44px}
+  .icon-btn{width:44px;height:44px}
+  .rem-patient{padding:11px}
+}
+@media (max-width:380px){
+  .page-title{font-size:23px}
+  .stat-value{font-size:25px}
+  .chipfilter .n{display:none}
+}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important;scroll-behavior:auto !important}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg class="od-icon i20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h3.2l1.8-5 2.6 10 2.2-6 1.6 3H21"/></svg>
+      </span>
+      <span class="brand-text">
+        <span class="brand-name">TiniTracker</span>
+        <span class="brand-sub">Maternal &amp; child care</span>
+      </span>
+    </div>
+
+    <nav class="nav" aria-label="Main">
+      <span class="nav-label">Clinic</span>
+      <button type="button" data-action="nav" data-view="overview">
+        <svg class="od-icon i18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        Overview
+      </button>
+      <button type="button" data-action="nav" data-view="patients">
+        <svg class="od-icon i18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20"/><circle cx="9" cy="7.5" r="3.5"/><path d="M17 11.5h5M19.5 9v5"/></svg>
+        Patients
+        <span class="nav-count">24</span>
+      </button>
+      <button type="button" data-action="nav" data-view="schedules" aria-current="page">
+        <svg class="od-icon i18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 3v3M16 3v3"/></svg>
+        Schedules
+      </button>
+      <button type="button" data-action="nav" data-view="reminders">
+        <svg class="od-icon i18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 9a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6"/><path d="M10.5 20a2 2 0 0 0 3 0"/></svg>
+        Reminders
+      </button>
+      <button type="button" data-action="nav" data-view="reports">
+        <svg class="od-icon i18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+        Reports
+      </button>
+      <button type="button" data-action="nav" data-view="settings">
+        <svg class="od-icon i18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+        Settings
+      </button>
+    </nav>
+
+    <div class="side-foot">
+      <div class="clinic-card">
+        <span class="k">Active clinic</span>
+        <span class="v">St. Mary's Maternity</span>
+        <span class="s">Dhanmondi, Dhaka · 128 patients</span>
+      </div>
+      <div class="user-line">
+        <span class="user-avatar" aria-hidden="true">NJ</span>
+        <span>
+          <span class="staff-name">Nusrat Jahan</span>
+          <span class="staff-role">Registered midwife</span>
+        </span>
+      </div>
+    </div>
+  </aside>
+
+  <div class="workspace">
+    <header class="topbar">
+      <div class="crumbs">
+        <span>Clinic</span>
+        <span class="sep">/</span>
+        <strong>Schedules &amp; reminders</strong>
+      </div>
+      <div class="search-wrap">
+        <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
+        <label class="sr-only" for="register-search">Search reminders by patient name, phone number or message text</label>
+        <input id="register-search" type="search" placeholder="Search name, phone or message" autocomplete="off">
+      </div>
+      <div class="top-meta">
+        <span class="top-date">Tue, 10 Nov 2026</span>
+        <button type="button" class="icon-btn" data-action="notifications" aria-label="Notifications, 2 unread">
+          <svg class="od-icon i18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 9a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6"/><path d="M10.5 20a2 2 0 0 0 3 0"/></svg>
+          <span class="dot" aria-hidden="true"></span>
+        </button>
+        <div class="staff">
+          <span class="staff-avatar" aria-hidden="true">NJ</span>
+          <span class="staff-name">Nusrat Jahan</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="content">
+      <div class="page-head">
+        <div>
+          <span class="eyebrow">Clinic · Reminder register</span>
+          <h1 class="page-title">Schedules &amp; reminders</h1>
+          <p class="page-sub">Every SMS, WhatsApp message and call the clinic sent or queued for mothers and children — with the exact wording the family received. Newest activity first.</p>
+        </div>
+        <div class="page-actions">
+          <button type="button" class="btn btn-ghost" data-action="delivery-report">
+            <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+            Delivery report
+          </button>
+          <button type="button" class="btn btn-primary" data-action="export">
+            <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7.5 10.5 12 15l4.5-4.5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+            Export CSV
+          </button>
+        </div>
+      </div>
+
+      <section class="stats" aria-label="Reminder delivery summary">
+        <div class="stat-card">
+          <div class="stat-top">
+            <span class="stat-label">Sent · last 7 days</span>
+            <svg class="od-icon i16 stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 3-9.5 9.5M21 3l-6.5 18-4.5-8.5L2 8Z"/></svg>
+          </div>
+          <div class="stat-value"><span id="stat-sent">10</span><small id="stat-sent-unit">reminders</small></div>
+          <div class="stat-sub" id="stat-sent-sub">Across 5 patients</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-top">
+            <span class="stat-label">Delivered · last 7 days</span>
+            <svg class="od-icon i16 stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/><path d="M22 10v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12"/></svg>
+          </div>
+          <div class="stat-value"><span id="stat-delivered">7</span><small>received</small></div>
+          <div class="stat-sub" id="stat-delivered-sub"><b>7 of 10</b> sent confirmed</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-top">
+            <span class="stat-label">Awaiting delivery</span>
+            <svg class="od-icon i16 stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          </div>
+          <div class="stat-value"><span id="stat-await">2</span><small>open</small></div>
+          <div class="stat-sub" id="stat-await-sub"><b>1 sent</b> · 1 queued</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-top">
+            <span class="stat-label">Failed · last 7 days</span>
+            <svg class="od-icon i16 stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 2.5 20h19Z"/><path d="M12 9v5M12 17.5v.5"/></svg>
+          </div>
+          <div class="stat-value"><span id="stat-failed">2</span><small>failed</small></div>
+          <div class="stat-sub" id="stat-failed-sub"><b>2 need</b> follow-up</div>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="log-title">
+        <div class="panel-head">
+          <h2 class="panel-title" id="log-title">
+            <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v18H6.5A2.5 2.5 0 0 1 4 18.5Z"/><path d="M4 5.5V18.5M8 7h8M8 11h8M8 15h5"/></svg>
+            Reminder log
+          </h2>
+          <span class="panel-note">All times clinic local (GMT+6)</span>
+        </div>
+
+        <div class="filters" aria-label="Filter reminders">
+          <span class="filter-label">Status</span>
+          <div class="od-cluster" role="group" aria-label="Filter by delivery status" id="status-filter">
+            <button type="button" class="chipfilter" data-action="status" data-status="all" aria-pressed="true">All <span class="n" data-count="all">15</span></button>
+            <button type="button" class="chipfilter" data-action="status" data-status="delivered" aria-pressed="false">Delivered <span class="n" data-count="delivered">0</span></button>
+            <button type="button" class="chipfilter" data-action="status" data-status="sent" aria-pressed="false">Sent <span class="n" data-count="sent">0</span></button>
+            <button type="button" class="chipfilter" data-action="status" data-status="failed" aria-pressed="false">Failed <span class="n" data-count="failed">0</span></button>
+            <button type="button" class="chipfilter" data-action="status" data-status="queued" aria-pressed="false">Queued <span class="n" data-count="queued">0</span></button>
+          </div>
+          <span class="f-divider" aria-hidden="true"></span>
+          <div class="select-wrap">
+            <label class="sr-only" for="type-filter">Filter by reminder type</label>
+            <select id="type-filter">
+              <option value="all">All types</option>
+              <option value="Antenatal visit">Antenatal visit</option>
+              <option value="Immunization due">Immunization due</option>
+              <option value="Test result">Test result</option>
+              <option value="Postnatal check">Postnatal check</option>
+              <option value="Missed-visit follow-up">Missed-visit follow-up</option>
+            </select>
+            <svg class="od-icon i14 chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          </div>
+          <div class="select-wrap">
+            <label class="sr-only" for="channel-filter">Filter by channel</label>
+            <select id="channel-filter">
+              <option value="all">All channels</option>
+              <option value="SMS">SMS</option>
+              <option value="WhatsApp">WhatsApp</option>
+              <option value="Voice call">Voice call</option>
+            </select>
+            <svg class="od-icon i14 chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          </div>
+          <span class="filter-meta">
+            <span class="result-count" id="result-count" aria-live="polite">Showing <b>15</b> of 15 reminders</span>
+            <button type="button" class="btn btn-ghost btn-sm" data-action="clear">Clear</button>
+          </span>
+        </div>
+
+        <div class="rem-scroll">
+          <table class="rem-table">
+            <thead>
+              <tr>
+                <th scope="col" class="col-patient">Patient</th>
+                <th scope="col" class="col-contact">Contact</th>
+                <th scope="col" class="col-rem">Reminder</th>
+                <th scope="col" class="col-when">Sent</th>
+                <th scope="col" class="col-status">Status</th>
+                <th scope="col" class="col-act"><span class="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody id="rem-body"></tbody>
+          </table>
+        </div>
+
+        <div class="table-foot">
+          <span id="foot-note">Newest activity first · 15 reminders in the register</span>
+          <span>Demo data · 10 Nov 2026</span>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<dialog class="dlg dlg-rem" id="dlg-reminder" aria-labelledby="dlg-rem-title">
+  <div class="dlg-form">
+    <div class="dlg-head">
+      <div>
+        <h2 class="dlg-title" id="dlg-rem-title">Reminder detail</h2>
+        <p class="dlg-sub" id="dlg-rem-sub"></p>
+      </div>
+      <button type="button" class="close-x" data-close aria-label="Close reminder detail">
+        <svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="dlg-body" id="dlg-rem-body"></div>
+    <div class="dlg-foot" id="dlg-rem-foot"></div>
+  </div>
+</dialog>
+
+<div class="toasts" id="toasts" role="status" aria-live="polite" aria-atomic="false"></div>
+
+<script>
+(function(){
+  'use strict';
+
+  var KEY = 'tinittracker-schedules-v1';
+  var DEMO_TODAY = new Date(2026, 10, 10);
+  var DEMO_NOW = new Date(2026, 10, 10, 11, 5);
+  var CURRENT_USER = 'Nusrat Jahan, RM';
+  var i18nDate = new Intl.DateTimeFormat('en-GB', { weekday:'short', day:'2-digit', month:'short', year:'numeric' });
+  var i18nDateShort = new Intl.DateTimeFormat('en-GB', { weekday:'short', day:'2-digit', month:'short' });
+  var i18nClock = new Intl.DateTimeFormat('en-GB', { hour:'2-digit', minute:'2-digit', hour12:false });
+
+  /* ---------------- date helpers ---------------- */
+  function parseDT(value){
+    var p = String(value).split(/[-T:]/).map(Number);
+    return new Date(p[0], p[1]-1, p[2], p[3] || 0, p[4] || 0);
+  }
+  function toDT(d){
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') +
+      'T' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  }
+  function addDays(d, n){ var c = new Date(d.getTime()); c.setDate(c.getDate() + n); return c; }
+  function pad(n){ return String(n).padStart(2,'0'); }
+  function startOfDay(d){ return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+  function sameDay(a, b){ return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
+  function fmtDay(d){
+    if (sameDay(d, DEMO_TODAY)) return 'Today';
+    if (sameDay(d, addDays(DEMO_TODAY, -1))) return 'Yesterday';
+    return i18nDateShort.format(d);
+  }
+  function fmtWhen(value){
+    if (!value) return '—';
+    var d = parseDT(value);
+    return fmtDay(d) + ', ' + i18nClock.format(d);
+  }
+  function fmtDateOnly(value){
+    if (!value) return '—';
+    return i18nDate.format(parseDT(value));
+  }
+  function esc(v){
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function(c){
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
+    });
+  }
+  function initials(name){
+    return name.split(/\s+/).filter(Boolean).map(function(p){ return p.charAt(0); }).join('').slice(0,2).toUpperCase();
+  }
+  function digits(v){ return String(v).replace(/\D/g, ''); }
+
+  /* ---------------- seed data ---------------- */
+  var SEED = [
+    {
+      id:'r1', kind:'Mother', patient:'Amina Rahman', mrn:'TT-2041-0892', phone:'+880 1712 448 902',
+      type:'Antenatal visit', channel:'SMS', stage:'28-week antenatal visit · 20 Nov 2026',
+      sentAt:'2026-11-10T09:42', deliveredAt:'2026-11-10T09:42', status:'delivered', resolved:false,
+      message:"TiniTracker: Hello Amina, this is St. Mary's Maternity. Your 28-week antenatal visit is booked for Friday 20 November at 10:30 am with Dr. Farhana Karim, ANC Room 2. Please bring your ANC card and any medicines. Reply HELP for help."
+    },
+    {
+      id:'r2', kind:'Child', patient:'Zayan Rahman', mrn:'TT-2041-0892-C', phone:'+880 1712 448 902',
+      type:'Immunization due', channel:'WhatsApp', stage:'15-month immunizations · 12 Dec 2026',
+      sentAt:'2026-11-10T08:15', deliveredAt:'2026-11-10T08:16', status:'delivered', resolved:false,
+      message:"TiniTracker: Zayan's 15-month immunizations (MMR-1 and DTP booster) are due on 12 December 2026. Reply BOOK to reserve the 9:00 am slot at St. Mary's Maternity, or call +880 2 9661 4400."
+    },
+    {
+      id:'r3', kind:'Mother', patient:'Amina Rahman', mrn:'TT-2041-0892', phone:'+880 1712 448 902',
+      type:'Test result', channel:'SMS', stage:'26-week anaemia review · 6 Nov 2026',
+      sentAt:'2026-11-09T16:05', deliveredAt:'2026-11-09T16:05', status:'delivered', resolved:false,
+      message:'TiniTracker: Your haemoglobin result from 6 November is ready: 10.4 g/dL. Dr. Farhana Karim has started ferrous sulphate 200 mg twice daily. Please continue it and return on 20 November for a repeat CBC. Reply HELP for help.'
+    },
+    {
+      id:'r4', kind:'Mother', patient:'Amina Rahman', mrn:'TT-2041-0892', phone:'+880 1712 448 902',
+      type:'Missed-visit follow-up', channel:'Voice call', stage:'12-month PCV booster · due 12 Sep 2026',
+      sentAt:'2026-11-09T11:30', deliveredAt:null, status:'failed', resolved:false,
+      failReason:'Number busy after 3 attempts. No voicemail left.',
+      message:"Assalamu alaikum, this is Nusrat Jahan from St. Mary's Maternity calling for Amina Rahman. Our system shows Zayan's 12-month PCV booster is still pending. Please call us back on +880 2 9661 4400 so we can book a catch-up dose. JazakAllah khair."
+    },
+    {
+      id:'r5', kind:'Child', patient:'Zayan Rahman', mrn:'TT-2041-0892-C', phone:'+880 1712 448 902',
+      type:'Missed-visit follow-up', channel:'SMS', stage:'12-month PCV booster · 57 days overdue',
+      sentAt:'2026-11-08T10:00', deliveredAt:'2026-11-08T10:00', status:'delivered', resolved:false,
+      message:"TiniTracker: Zayan's 12-month PCV booster is now 57 days overdue. A catch-up dose can be given any weekday between 9:00 am and 2:00 pm. Reply BOOK and we will hold a slot for you."
+    },
+    {
+      id:'r6', kind:'Mother', patient:'Rukhsana Begum', mrn:'TT-1988-0417', phone:'+880 1811 305 664',
+      type:'Postnatal check', channel:'WhatsApp', stage:'6-week postnatal check · 9 Nov 2026',
+      sentAt:'2026-11-07T14:20', deliveredAt:'2026-11-07T14:21', status:'delivered', resolved:false,
+      message:'TiniTracker: Hello Rukhsana, your 6-week postnatal check is booked for Sunday 9 November at 11:15 am with Nusrat Jahan, RM. Please bring your discharge summary and the baby\'s immunization card.'
+    },
+    {
+      id:'r7', kind:'Mother', patient:'Farzana Akter', mrn:'TT-2073-1204', phone:'+880 1913 774 210',
+      type:'Antenatal visit', channel:'SMS', stage:'24-week antenatal visit · 12 Nov 2026',
+      sentAt:'2026-11-06T09:10', deliveredAt:'2026-11-06T09:10', status:'delivered', resolved:false,
+      message:'TiniTracker: Hello Farzana, your 24-week antenatal visit is booked for Thursday 12 November at 10:00 am. Please come fasting for your glucose tolerance test and bring a urine sample.'
+    },
+    {
+      id:'r8', kind:'Child', patient:'Zayan Rahman', mrn:'TT-2041-0892-C', phone:'+880 1712 448 902',
+      type:'Immunization due', channel:'SMS', stage:'12-month PCV booster · due 12 Sep 2026',
+      sentAt:'2026-11-05T12:00', deliveredAt:null, status:'failed', resolved:false,
+      failReason:'Handset unreachable — number not in service at time of send.',
+      message:"TiniTracker: Zayan's 12-month PCV booster is overdue. Reply BOOK to arrange a catch-up dose at St. Mary's Maternity."
+    },
+    {
+      id:'r9', kind:'Mother', patient:'Salma Khatun', mrn:'TT-2019-0633', phone:'+880 1677 902 415',
+      type:'Test result', channel:'SMS', stage:'Booking bloods · 4 Nov 2026',
+      sentAt:'2026-11-04T17:45', deliveredAt:'2026-11-04T17:46', status:'delivered', resolved:false,
+      message:'TiniTracker: Your blood group and antibody screen results are ready. No action is needed before your next visit on 18 November. Reply HELP for help.'
+    },
+    {
+      id:'r10', kind:'Mother', patient:'Farzana Akter', mrn:'TT-2073-1204', phone:'+880 1913 774 210',
+      type:'Antenatal visit', channel:'SMS', stage:'24-week antenatal visit · 12 Nov 2026',
+      sentAt:'2026-11-10T10:56', deliveredAt:null, status:'sent', resolved:false,
+      message:'TiniTracker: Reminder — your 24-week antenatal visit is on Thursday 12 November at 10:00 am. Please come fasting for the glucose tolerance test.'
+    },
+    {
+      id:'r11', kind:'Mother', patient:'Amina Rahman', mrn:'TT-2041-0892', phone:'+880 1712 448 902',
+      type:'Antenatal visit', channel:'SMS', stage:'28-week antenatal visit · 20 Nov 2026',
+      queuedAt:'2026-11-10T11:00', sendOn:'2026-11-16T09:00', sentAt:null, deliveredAt:null, status:'queued', resolved:false,
+      message:'TiniTracker: Reminder — your 28-week antenatal visit is on Friday 20 November at 10:30 am with Dr. Farhana Karim. Reply HELP to reschedule.'
+    },
+    {
+      id:'r12', kind:'Child', patient:'Zayan Rahman', mrn:'TT-2041-0892-C', phone:'+880 1712 448 902',
+      type:'Immunization due', channel:'SMS', stage:'12-month PCV booster · due 12 Sep 2026',
+      sentAt:'2026-10-28T09:00', deliveredAt:'2026-10-28T09:01', status:'delivered', resolved:true,
+      resolvedAt:'2026-11-09T17:12', resolvedBy:'Nusrat Jahan, RM',
+      message:"TiniTracker: Zayan's 12-month PCV booster was due on 12 September. Reply BOOK for a catch-up appointment at St. Mary's Maternity."
+    },
+    {
+      id:'r13', kind:'Mother', patient:'Amina Rahman', mrn:'TT-2041-0892', phone:'+880 1712 448 902',
+      type:'Antenatal visit', channel:'SMS', stage:'24-week antenatal visit · 23 Oct 2026',
+      sentAt:'2026-10-21T08:30', deliveredAt:'2026-10-21T08:30', status:'delivered', resolved:false,
+      message:'TiniTracker: Your 24-week antenatal visit and glucose tolerance test are booked for Friday 23 October at 9:30 am. Please fast from 10:00 pm the night before.'
+    },
+    {
+      id:'r14', kind:'Mother', patient:'Rukhsana Begum', mrn:'TT-1988-0417', phone:'+880 1811 305 664',
+      type:'Test result', channel:'SMS', stage:'Postnatal haemoglobin · 17 Oct 2026',
+      sentAt:'2026-10-19T15:10', deliveredAt:'2026-10-19T15:11', status:'delivered', resolved:false,
+      message:'TiniTracker: Your postnatal haemoglobin is 11.6 g/dL, within the normal range. Continue your iron tablets for another 4 weeks. Reply HELP for help.'
+    },
+    {
+      id:'r15', kind:'Mother', patient:'Farzana Akter', mrn:'TT-2073-1204', phone:'+880 1913 774 210',
+      type:'Missed-visit follow-up', channel:'Voice call', stage:'20-week antenatal visit · 24 Sep 2026',
+      sentAt:'2026-10-15T11:20', deliveredAt:null, status:'failed', resolved:true,
+      resolvedAt:'2026-10-16T09:05', resolvedBy:'Nusrat Jahan, RM',
+      failReason:'No answer after 3 attempts.',
+      message:'Assalamu alaikum, this is St. Mary\'s Maternity calling for Farzana Akter. We missed you at your 20-week visit. Please call +880 2 9661 4400 to arrange a new appointment.'
+    }
+  ];
+
+  var reminders;
+  try {
+    var raw = localStorage.getItem(KEY);
+    var saved = raw ? JSON.parse(raw) : null;
+    if (saved && saved.v === 1 && Array.isArray(saved.reminders) && saved.reminders.length) {
+      reminders = saved.reminders;
+    }
+  } catch (err) { /* in-memory fallback */ }
+  if (!reminders) reminders = JSON.parse(JSON.stringify(SEED));
+
+  var seq = reminders.reduce(function(max, r){
+    var n = Number(String(r.id).replace(/^r/, ''));
+    return isFinite(n) ? Math.max(max, n) : max;
+  }, 0);
+
+  function save(){
+    try { localStorage.setItem(KEY, JSON.stringify({ v:1, reminders: reminders })); } catch (err) { /* in-memory only */ }
+  }
+
+  var filters = { status:'all', type:'all', channel:'all', q:'' };
+  var activeId = null;
+  var resendTick = 0;
+
+  /* ---------------- derived data ---------------- */
+  function activityAt(r){ return parseDT(r.sentAt || r.queuedAt); }
+  function sorted(){
+    return reminders.slice().sort(function(a, b){ return activityAt(b) - activityAt(a); });
+  }
+  function statusLabel(s){
+    return ({ delivered:'Delivered', sent:'Sent', failed:'Failed', queued:'Queued' })[s] || s;
+  }
+  function recentCutoff(){ return startOfDay(addDays(DEMO_TODAY, -6)); }
+  function recentSent(){
+    var cutoff = recentCutoff();
+    return reminders.filter(function(r){
+      if (!r.sentAt) return false;
+      return parseDT(r.sentAt) >= cutoff;
+    });
+  }
+  function summary(){
+    var recent = recentSent();
+    var delivered = recent.filter(function(r){ return r.status === 'delivered'; }).length;
+    var failed = recent.filter(function(r){ return r.status === 'failed'; }).length;
+    var awaiting = reminders.filter(function(r){ return !r.resolved && (r.status === 'sent' || r.status === 'queued'); });
+    var sentOpen = awaiting.filter(function(r){ return r.status === 'sent'; }).length;
+    var queuedOpen = awaiting.filter(function(r){ return r.status === 'queued'; }).length;
+    var failedOpen = recent.filter(function(r){ return r.status === 'failed' && !r.resolved; }).length;
+    var patients = {};
+    recent.forEach(function(r){ patients[r.patient] = true; });
+    return {
+      sent: recent.length,
+      delivered: delivered,
+      awaiting: awaiting.length,
+      sentOpen: sentOpen,
+      queuedOpen: queuedOpen,
+      failed: failed,
+      failedOpen: failedOpen,
+      patientCount: Object.keys(patients).length
+    };
+  }
+
+  function searchMatch(r){
+    var q = filters.q.trim().toLowerCase();
+    if (!q) return true;
+    if (r.patient.toLowerCase().indexOf(q) !== -1) return true;
+    if (r.mrn.toLowerCase().indexOf(q) !== -1) return true;
+    var qd = digits(q);
+    if (qd.length >= 3 && digits(r.phone).indexOf(qd) !== -1) return true;
+    if (r.message.toLowerCase().indexOf(q) !== -1) return true;
+    return false;
+  }
+  function filtered(){
+    return sorted().filter(function(r){
+      if (filters.status !== 'all' && r.status !== filters.status) return false;
+      if (filters.type !== 'all' && r.type !== filters.type) return false;
+      if (filters.channel !== 'all' && r.channel !== filters.channel) return false;
+      return searchMatch(r);
+    });
+  }
+
+  /* ---------------- rendering ---------------- */
+  function statusBadge(s){
+    return '<span class="status st-' + esc(s) + '"><i aria-hidden="true"></i>' + esc(statusLabel(s)) + '</span>';
+  }
+  function resolvedTag(r){
+    return r.resolved
+      ? '<span class="resolved-tag"><svg class="od-icon" style="--od-icon-size:11px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>Resolved</span>'
+      : '';
+  }
+  function sentCell(r){
+    if (r.status === 'queued') {
+      return '<div class="when">Not sent yet</div><div class="when-sub">Queued ' + esc(fmtWhen(r.queuedAt)) + '</div>';
+    }
+    var d = parseDT(r.sentAt);
+    var main = fmtDay(d);
+    var sub = i18nClock.format(d);
+    if (r.status === 'failed') sub += ' · not delivered';
+    else if (r.status === 'sent') sub += ' · awaiting receipt';
+    else if (r.status === 'delivered') sub += ' · received';
+    return '<div class="when">' + esc(main) + '</div><div class="when-sub">' + esc(sub) + '</div>';
+  }
+
+  function rowHTML(r){
+    var phoneInline = '<div class="p-phone-inline">' + esc(r.phone) + '</div>';
+    return '<tr>' +
+      '<td class="c-patient">' +
+        '<div class="p-cell">' +
+          '<span class="avatar-sm' + (r.kind === 'Child' ? ' child' : '') + '" aria-hidden="true">' + esc(initials(r.patient)) + '</span>' +
+          '<div style="min-width:0">' +
+            '<div class="p-name">' + esc(r.patient) + '</div>' +
+            '<div class="p-sub">' + esc(r.kind) + ' · ' + esc(r.mrn) + '</div>' +
+            phoneInline +
+          '</div>' +
+        '</div>' +
+      '</td>' +
+      '<td class="c-contact">' +
+        '<div class="phone">' + esc(r.phone) + '</div>' +
+        '<div class="phone-sub">' + esc(r.channel) + '</div>' +
+      '</td>' +
+      '<td class="c-rem">' +
+        '<div class="rem-type">' + esc(r.type) + '</div>' +
+        '<div class="rem-stage">' + esc(r.stage) + '</div>' +
+      '</td>' +
+      '<td class="c-when">' + sentCell(r) + '</td>' +
+      '<td class="c-status">' + statusBadge(r.status) + resolvedTag(r) + '</td>' +
+      '<td class="c-act"><button type="button" class="linkbtn" data-action="open" data-id="' + esc(r.id) + '">View<span class="sr-only"> reminder for ' + esc(r.patient) + '</span></button></td>' +
+    '</tr>';
+  }
+
+  function renderList(){
+    var rows = filtered();
+    var body = document.getElementById('rem-body');
+    if (!rows.length) {
+      body.innerHTML = '<tr><td colspan="6">' +
+        '<div class="empty">' +
+          '<svg class="od-icon i20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>' +
+          '<strong>No reminders match these filters</strong>' +
+          '<span>Try a different status, type or channel — or clear the search.</span>' +
+          '<button type="button" class="btn btn-outline btn-sm" data-action="clear">Reset filters</button>' +
+        '</div>' +
+      '</td></tr>';
+    } else {
+      body.innerHTML = rows.map(rowHTML).join('');
+    }
+    var filteredOn = filters.status !== 'all' || filters.type !== 'all' || filters.channel !== 'all' || filters.q;
+    document.getElementById('result-count').innerHTML = 'Showing <b>' + rows.length + '</b> of ' + reminders.length + ' reminders' + (filteredOn ? ' · filtered' : '');
+    document.getElementById('foot-note').textContent = rows.length + ' of ' + reminders.length + ' reminder' + (reminders.length === 1 ? '' : 's') + ' shown · newest activity first';
+  }
+
+  function renderCounts(){
+    var counts = { all: reminders.length, delivered:0, sent:0, failed:0, queued:0 };
+    reminders.forEach(function(r){ if (counts[r.status] != null) counts[r.status] += 1; });
+    document.querySelectorAll('#status-filter [data-count]').forEach(function(el){
+      el.textContent = counts[el.getAttribute('data-count')];
+    });
+
+    var s = summary();
+    document.getElementById('stat-sent').textContent = s.sent;
+    document.getElementById('stat-sent-sub').innerHTML = 'Across <b>' + s.patientCount + '</b> patient' + (s.patientCount === 1 ? '' : 's');
+    document.getElementById('stat-delivered').textContent = s.delivered;
+    document.getElementById('stat-delivered-sub').innerHTML = '<b>' + s.delivered + ' of ' + s.sent + '</b> sent confirmed';
+    document.getElementById('stat-await').textContent = s.awaiting;
+    document.getElementById('stat-await-sub').innerHTML = '<b>' + s.sentOpen + ' sent</b> · ' + s.queuedOpen + ' queued';
+    document.getElementById('stat-failed').textContent = s.failed;
+    document.getElementById('stat-failed-sub').innerHTML = s.failedOpen
+      ? '<b>' + s.failedOpen + ' need' + (s.failedOpen === 1 ? 's' : '') + '</b> follow-up'
+      : '<b>All</b> followed up';
+  }
+
+  function render(){
+    renderCounts();
+    renderList();
+  }
+
+  /* ---------------- detail dialog ---------------- */
+  var dlg = document.getElementById('dlg-reminder');
+  var lastFocus = null;
+
+  function getById(id){
+    return reminders.filter(function(r){ return r.id === id; })[0] || null;
+  }
+
+  function chars(r){
+    return r.message.length;
+  }
+  function channelMeta(r){
+    var n = chars(r);
+    if (r.channel === 'SMS') {
+      var parts = Math.max(1, Math.ceil(n / 160));
+      return 'SMS · ' + n + ' characters · ' + parts + ' segment' + (parts === 1 ? '' : 's');
+    }
+    if (r.channel === 'WhatsApp') return 'WhatsApp · ' + n + ' characters';
+    return 'Voice call · call script · ' + n + ' characters';
+  }
+
+  function stepsHTML(r){
+    var steps = [];
+    if (r.status === 'queued') {
+      steps.push({ kind:'done', label:'Queued', note:fmtWhen(r.queuedAt) + ' · scheduled to send ' + fmtWhen(r.sendOn) });
+      steps.push({ kind:'pending', label:'Awaiting send', note:'The gateway will attempt delivery on ' + fmtDateOnly(r.sendOn) + '.' });
+      return steps.map(stepHTML).join('');
+    }
+    var queue = r.sentAt ? toDT(new Date(parseDT(r.sentAt).getTime() - 60000)) : r.queuedAt;
+    steps.push({ kind:'done', label:'Queued', note:fmtWhen(queue) });
+    steps.push({ kind:'done', label:'Sent', note:fmtWhen(r.sentAt) + ' · ' + r.channel });
+    if (r.status === 'delivered') {
+      steps.push({ kind:'done', label:'Delivered', note:fmtWhen(r.deliveredAt) + ' · receipt confirmed' });
+    } else if (r.status === 'failed') {
+      steps.push({ kind:'fail', label:'Delivery failed', note:(r.failReason || 'The gateway could not deliver this reminder.') + (r.resolved ? ' Marked resolved ' + fmtWhen(r.resolvedAt) + '.' : '') });
+    } else {
+      steps.push({ kind:'pending', label:'Awaiting delivery receipt', note:'No receipt from the ' + r.channel + ' gateway yet.' });
+    }
+    return steps.map(stepHTML).join('');
+  }
+  function stepHTML(s){
+    return '<li class="tl-step ' + s.kind + '">' +
+      '<span class="tl-dot" aria-hidden="true"></span>' +
+      '<div><div class="step-label">' + esc(s.label) + '</div><div class="step-note">' + esc(s.note) + '</div></div>' +
+    '</li>';
+  }
+
+  function detailHTML(r){
+    var deliveredText = r.deliveredAt ? fmtWhen(r.deliveredAt) : (r.status === 'failed' ? 'Not delivered' : 'Awaiting receipt');
+    var statusLine = r.status === 'queued'
+      ? 'Queued ' + fmtWhen(r.queuedAt)
+      : (r.status === 'sent' ? 'Sent ' + fmtWhen(r.sentAt) : statusLabel(r.status) + ' ' + fmtWhen(r.deliveredAt || r.sentAt));
+    return '<div class="rem-patient">' +
+        '<span class="avatar-sm' + (r.kind === 'Child' ? ' child' : '') + '" aria-hidden="true">' + esc(initials(r.patient)) + '</span>' +
+        '<div class="rem-patient-main">' +
+          '<div class="rem-patient-name">' + esc(r.patient) + statusBadge(r.status) + '</div>' +
+          '<div class="rem-patient-sub">' + esc(r.kind) + ' · MRN ' + esc(r.mrn) + ' · ' + esc(r.type) + '</div>' +
+          '<div class="rem-patient-contact">' +
+            '<svg class="od-icon" style="--od-icon-size:13px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h3l2 5-2.5 1.5a12 12 0 0 0 6 6L15 13l5 2v3a2 2 0 0 1-2.2 2A17 17 0 0 1 3 5.2 2 2 0 0 1 5 3Z"/></svg>' +
+            esc(r.phone) +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="meta-grid">' +
+        '<div class="kv-row"><span class="k">Channel</span><span class="v">' + esc(r.channel) + '</span></div>' +
+        '<div class="kv-row"><span class="k">Status detail</span><span class="v num">' + esc(statusLine) + '</span></div>' +
+        '<div class="kv-row"><span class="k">Linked stage</span><span class="v sub">' + esc(r.stage) + '</span></div>' +
+        '<div class="kv-row"><span class="k">Delivered</span><span class="v num">' + esc(deliveredText) + '</span></div>' +
+      '</div>' +
+      '<div class="detail-block">' +
+        '<div class="detail-block-head"><span>Delivery timeline</span><span class="meta">' + esc(r.channel) + ' gateway</span></div>' +
+        '<ol class="tl-steps">' + stepsHTML(r) + '</ol>' +
+      '</div>' +
+      '<div class="message-box">' +
+        '<div class="message-head">' +
+          '<span class="who">Message sent to ' + esc(r.patient) + '</span>' +
+          '<span class="chan">' + esc(r.channel) + '</span>' +
+        '</div>' +
+        '<div class="message-body">' + esc(r.message) + '</div>' +
+        '<div class="message-foot">' + esc(channelMeta(r)) + '</div>' +
+      '</div>' +
+      (r.resolved
+        ? '<p class="resolved-line"><svg class="od-icon i14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span>Marked resolved by ' + esc(r.resolvedBy || CURRENT_USER) + ' on ' + esc(fmtWhen(r.resolvedAt)) + '.</span></p>'
+        : '');
+  }
+
+  function footerHTML(r){
+    return '<button type="button" class="btn btn-ghost" data-action="copy">' +
+        '<svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>' +
+        'Copy text</button>' +
+      '<button type="button" class="btn btn-outline" data-action="resolve"' + (r.resolved ? ' disabled' : '') + '>' +
+        '<svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>' +
+        (r.resolved ? 'Resolved' : 'Mark as resolved') + '</button>' +
+      '<span class="foot-spacer"></span>' +
+      '<button type="button" class="btn btn-outline" data-action="open-record">Open patient record</button>' +
+      '<button type="button" class="btn btn-primary" data-action="resend">' +
+        '<svg class="od-icon i16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>' +
+        'Resend</button>';
+  }
+
+  function paintDialog(r){
+    document.getElementById('dlg-rem-sub').textContent = r.status === 'queued'
+      ? 'Queued ' + fmtWhen(r.queuedAt) + ' · scheduled for ' + fmtDateOnly(r.sendOn)
+      : statusLabel(r.status) + ' · ' + fmtWhen(r.deliveredAt || r.sentAt);
+    document.getElementById('dlg-rem-body').innerHTML = detailHTML(r);
+    document.getElementById('dlg-rem-foot').innerHTML = footerHTML(r);
+  }
+
+  function openDetail(id){
+    var r = getById(id);
+    if (!r) return;
+    activeId = id;
+    lastFocus = { action:'open', id:id };
+    paintDialog(r);
+    if (typeof dlg.showModal === 'function') {
+      if (!dlg.open) dlg.showModal();
+    } else {
+      dlg.setAttribute('open', '');
+    }
+  }
+
+  function closeDetail(){
+    if (dlg.open && typeof dlg.close === 'function') dlg.close();
+    else dlg.removeAttribute('open');
+    activeId = null;
+    restoreFocus();
+  }
+
+  function restoreFocus(){
+    if (!lastFocus) return;
+    var sel = '[data-action="' + lastFocus.action + '"]';
+    if (lastFocus.id) sel += '[data-id="' + lastFocus.id + '"]';
+    var el = document.querySelector(sel);
+    if (el) el.focus();
+    lastFocus = null;
+  }
+
+  /* ---------------- actions ---------------- */
+  function toast(message, kind){
+    var wrap = document.getElementById('toasts');
+    var el = document.createElement('div');
+    el.className = 'toast' + (kind === 'err' ? ' err' : '');
+    var k = document.createElement('span');
+    k.className = 'toast-k';
+    k.textContent = kind === 'err' ? 'Not saved' : kind === 'info' ? 'TiniTracker' : 'Saved';
+    var t = document.createElement('span');
+    t.textContent = message;
+    el.appendChild(k);
+    el.appendChild(t);
+    wrap.appendChild(el);
+    window.setTimeout(function(){
+      if (el.parentNode) el.parentNode.removeChild(el);
+    }, 4200);
+  }
+
+  function nextStamp(){
+    resendTick += 1;
+    return toDT(new Date(DEMO_NOW.getTime() + resendTick * 60000));
+  }
+
+  function resendCurrent(){
+    var r = activeId ? getById(activeId) : null;
+    if (!r) return;
+    seq += 1;
+    var now = nextStamp();
+    var copy = {
+      id: 'r' + seq,
+      kind: r.kind, patient: r.patient, mrn: r.mrn, phone: r.phone,
+      type: r.type, channel: r.channel, stage: r.stage,
+      sentAt: now, deliveredAt: null, status: 'sent', resolved: false,
+      message: r.message,
+      resendOf: r.id
+    };
+    reminders.unshift(copy);
+    save();
+    filters.status = 'all';
+    document.querySelectorAll('#status-filter .chipfilter').forEach(function(b){
+      b.setAttribute('aria-pressed', String(b.getAttribute('data-status') === 'all'));
+    });
+    closeDetail();
+    render();
+    lastFocus = { action:'open', id:copy.id };
+    restoreFocus();
+    toast('Reminder resent to ' + r.patient + ' at ' + i18nClock.format(parseDT(now)) + '.', 'info');
+  }
+
+  function resolveCurrent(){
+    var r = activeId ? getById(activeId) : null;
+    if (!r || r.resolved) return;
+    r.resolved = true;
+    r.resolvedAt = nextStamp();
+    r.resolvedBy = CURRENT_USER;
+    save();
+    render();
+    paintDialog(r);
+    var again = document.querySelector('#dlg-rem-foot [data-action="resend"]');
+    if (again) again.focus();
+    toast('Marked as resolved. It stays in the register for the audit trail.', 'info');
+  }
+
+  function copyText(value){
+    function done(){ toast('Message text copied to the clipboard.', 'info'); }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(value).then(done).catch(fallback);
+    } else {
+      fallback();
+    }
+    function fallback(){
+      var ta = document.createElement('textarea');
+      ta.value = value;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.top = '-1000px';
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (err) { ok = false; }
+      document.body.removeChild(ta);
+      if (ok) toast('Message text copied to the clipboard.', 'info');
+      else toast('Copy is blocked by this browser. Select the message text instead.', 'err');
+    }
+  }
+
+  function exportCSV(){
+    var rows = filtered();
+    if (!rows.length) { toast('There is nothing to export with the current filters.', 'err'); return; }
+    var head = ['Patient','Kind','MRN','Phone','Type','Channel','Linked stage','Status','Sent at','Delivered at','Resolved','Message'];
+    function cell(v){ return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }
+    var lines = [head.map(cell).join(',')];
+    rows.forEach(function(r){
+      lines.push([
+        r.patient, r.kind, r.mrn, r.phone, r.type, r.channel, r.stage, statusLabel(r.status),
+        r.sentAt || '', r.deliveredAt || '', r.resolved ? 'Yes' : 'No', r.message
+      ].map(cell).join(','));
+    });
+    var csv = '\ufeff' + lines.join('\r\n');
+    var blob = new Blob([csv], { type:'text/csv;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'tinittracker-reminders-2026-11-10.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+    toast('Exported ' + rows.length + ' reminder' + (rows.length === 1 ? '' : 's') + ' as CSV.', 'info');
+  }
+
+  function clearFilters(){
+    filters.status = 'all';
+    filters.type = 'all';
+    filters.channel = 'all';
+    filters.q = '';
+    document.getElementById('register-search').value = '';
+    document.getElementById('type-filter').value = 'all';
+    document.getElementById('channel-filter').value = 'all';
+    document.querySelectorAll('#status-filter .chipfilter').forEach(function(b){
+      b.setAttribute('aria-pressed', String(b.getAttribute('data-status') === 'all'));
+    });
+    render();
+  }
+
+  /* ---------------- events ---------------- */
+  document.addEventListener('click', function(e){
+    var cd = e.target.closest('[data-close]');
+    if (cd) {
+      var parentDlg = cd.closest('dialog');
+      if (parentDlg) closeDetail();
+      return;
+    }
+
+    var btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    var action = btn.getAttribute('data-action');
+
+    if (action === 'open') { openDetail(btn.getAttribute('data-id')); }
+    else if (action === 'status') {
+      filters.status = btn.getAttribute('data-status');
+      document.querySelectorAll('#status-filter .chipfilter').forEach(function(b){
+        b.setAttribute('aria-pressed', String(b.getAttribute('data-status') === filters.status));
+      });
+      renderList();
+    }
+    else if (action === 'clear') { clearFilters(); }
+    else if (action === 'export') { exportCSV(); }
+    else if (action === 'resend') { resendCurrent(); }
+    else if (action === 'resolve') { resolveCurrent(); }
+    else if (action === 'copy') {
+      var r = activeId ? getById(activeId) : null;
+      if (r) copyText(r.message);
+    }
+    else if (action === 'open-record') {
+      var record = activeId ? getById(activeId) : null;
+      if (record && record.patient !== 'Amina Rahman' && record.patient !== 'Zayan Rahman') {
+        toast('Only Amina Rahman\'s patient record is included in this demo.', 'info');
+      } else {
+        window.location.href = 'index.html';
+      }
+    }
+    else if (action === 'delivery-report') {
+      var s = summary();
+      toast(s.delivered + ' of ' + s.sent + ' reminders sent in the last 7 days were received; ' + s.failedOpen + ' still need follow-up.', 'info');
+    }
+    else if (action === 'notifications') {
+      var open = reminders.filter(function(r){ return !r.resolved && (r.status === 'failed' || r.status === 'sent'); });
+      toast(open.length
+        ? open.length + ' reminder' + (open.length > 1 ? 's' : '') + ' need attention — ' + open[0].patient + ', ' + open[0].type.toLowerCase() + '.'
+        : 'No open reminder alerts.', 'info');
+    }
+    else if (action === 'nav') {
+      var view = btn.getAttribute('data-view');
+      if (view === 'patients') { window.location.href = 'index.html'; }
+      else if (view === 'schedules') { toast('You are already in the schedules register.', 'info'); }
+      else {
+        var copy = {
+          overview: 'The clinic overview lives outside this register.',
+          reminders: 'The reminder queue and this register share the same records.',
+          reports: 'Reporting lives outside this register.',
+          settings: 'Reminder settings live outside this register.'
+        };
+        toast(copy[view] || 'That section is not part of this demo.', 'info');
+      }
+    }
+  });
+
+  document.getElementById('register-search').addEventListener('input', function(e){
+    filters.q = e.target.value.trim();
+    renderList();
+  });
+
+  document.getElementById('type-filter').addEventListener('change', function(e){
+    filters.type = e.target.value;
+    renderList();
+  });
+  document.getElementById('channel-filter').addEventListener('change', function(e){
+    filters.channel = e.target.value;
+    renderList();
+  });
+
+  dlg.addEventListener('close', function(){
+    if (activeId) {
+      activeId = null;
+      restoreFocus();
+    }
+  });
+
+  dlg.addEventListener('click', function(e){
+    if (e.target === dlg) closeDetail();
+  });
+
+  /* ---------------- init ---------------- */
+  render();
+
+  var navEl = document.querySelector('.nav');
+  var navCurrent = navEl ? navEl.querySelector('[aria-current="page"]') : null;
+  if (navEl && navCurrent && navEl.scrollWidth > navEl.clientWidth) {
+    var navBox = navEl.getBoundingClientRect();
+    var curBox = navCurrent.getBoundingClientRect();
+    var itemLeft = curBox.left - navBox.left + navEl.scrollLeft;
+    navEl.scrollLeft = Math.max(0, itemLeft - (navEl.clientWidth - curBox.width) / 2);
+  }
+})();
+</script>
+</body>
+</html>

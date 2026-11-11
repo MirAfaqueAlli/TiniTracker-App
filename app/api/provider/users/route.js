@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { Op } from 'sequelize';
 import { withProviderAuth } from '@/lib/middleware/withProviderAuth';
 import { User, Hospital } from '@/lib/db/models/index';
+import { parsePagination } from '@/lib/utils/validation';
 
 // GET /api/provider/users — list all users across all hospitals
 export async function GET(request) {
@@ -14,6 +15,7 @@ export async function GET(request) {
     const role = searchParams.get('role');
     const status = searchParams.get('status');
     const search = searchParams.get('search');
+    const { limit, offset } = parsePagination(searchParams, 50, 200);
 
     const where = {};
     if (hospitalId && hospitalId !== 'ALL') {
@@ -46,6 +48,8 @@ export async function GET(request) {
         }
       ],
       order: [['createdAt', 'DESC']],
+      limit,
+      offset,
     });
 
     return NextResponse.json({ users });

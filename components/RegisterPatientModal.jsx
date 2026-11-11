@@ -224,7 +224,10 @@ export default function RegisterPatientModal({ onClose, onSuccess, initialType }
     if (!crossHospitalPatient) return;
     setTransferring(true);
     try {
-      await api.post(`/patients/${crossHospitalPatient.id}/transfer`, { confirm: true });
+      await api.post(`/patients/${crossHospitalPatient.id}/transfer`, {
+        confirm: true,
+        whatsapp_number: crossHospitalPatient.whatsapp_number,
+      });
       onSuccess();
     } catch (err) {
       setError(err.response?.data?.error || 'Transfer failed');
@@ -338,7 +341,7 @@ export default function RegisterPatientModal({ onClose, onSuccess, initialType }
               </div>
 
               <p style={{ fontSize: '0.82rem', color: '#475569', marginBottom: '1.1rem', lineHeight: 1.5 }}>
-                Is this the same patient? Clicking <strong>"Yes, bring patient"</strong> will transfer all their past stages, visits and history to your hospital.
+                Is this the same patient? Clicking <strong>&quot;Yes, bring patient&quot;</strong> will transfer all their past stages, visits and history to your hospital.
               </p>
 
               {/* Actions */}
@@ -418,25 +421,17 @@ export default function RegisterPatientModal({ onClose, onSuccess, initialType }
 
           {/* ── Same-hospital collision: inline banner ── */}
           {sameHospitalPatient && (
-            <div style={{
-              padding: '0.9rem 1rem', borderRadius: '12px',
-              background: '#fffbeb', border: '1px solid #fde68a',
-              display: 'flex', flexDirection: 'column', gap: '0.6rem',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700, color: '#92400e' }}>
+            <div className="rpm-dup-banner">
+              <div className="rpm-dup-head">
                 <AlertTriangle size={16} /> Already registered at your hospital
               </div>
-              <div style={{ fontSize: '0.82rem', color: '#78350f' }}>
+              <div className="rpm-dup-text">
                 <strong>{sameHospitalPatient.name}</strong> ({sameHospitalPatient.patient_type?.replace('_', ' ')}) is already in your patient list.
               </div>
               <Link
                 href={`/patients/${sameHospitalPatient.id}`}
                 onClick={onClose}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-                  padding: '0.4rem 0.85rem', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 600,
-                  background: '#f59e0b', color: '#fff', textDecoration: 'none', alignSelf: 'flex-start',
-                }}
+                className="rpm-dup-link"
               >
                 View Patient Profile →
               </Link>

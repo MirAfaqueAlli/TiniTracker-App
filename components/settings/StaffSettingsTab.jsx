@@ -2,58 +2,43 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Users, Plus, X, Search, ChevronLeft, ChevronRight,
-  RefreshCw, ShieldCheck, Stethoscope, Activity,
-  Mail, Calendar, Eye, EyeOff, CheckCircle2,
-  AlertCircle, ChevronDown, UserPlus, HeartPulse, Baby,
-  Pencil, Check
+  RefreshCw, Calendar, Eye, EyeOff, AlertCircle,
+  ChevronDown, UserPlus, Pencil, Check,
 } from 'lucide-react';
 import api from '@/lib/api';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore, hasUserPermission } from '@/store/authStore';
 import PasswordStrengthMeter, { evaluatePassword } from '@/components/PasswordStrengthMeter';
 
 const LIMIT = 10;
 
-/* ── Role styling and configuration ── */
 const ROLE_CONFIG = {
   doctor_pregnancy: {
     label: 'Doctor – Pregnancy',
     dept: 'Maternal & Antenatal Care',
-    deptIcon: HeartPulse,
     bg: '#fff1f2',
     color: '#e11d48',
     border: '#fecdd3',
-    avatarBg: '#ffe4e6',
-    avatarColor: '#be185d',
   },
   doctor_immunization: {
     label: 'Doctor – Immunization',
     dept: 'Pediatric Immunization',
-    deptIcon: Baby,
     bg: '#eff6ff',
     color: '#1d4ed8',
     border: '#bfdbfe',
-    avatarBg: '#dbeafe',
-    avatarColor: '#1d4ed8',
   },
   staff: {
     label: 'Clinical Staff',
     dept: 'Outreach & Care Coordination',
-    deptIcon: Activity,
     bg: '#e8f7f2',
     color: '#00857c',
     border: '#c4e9de',
-    avatarBg: '#e6f7f5',
-    avatarColor: '#00857c',
   },
   admin: {
     label: 'Hospital Admin',
     dept: 'Staff & Hospital Administration',
-    deptIcon: ShieldCheck,
     bg: '#f3e8ff',
     color: '#7e22ce',
     border: '#e9d5ff',
-    avatarBg: '#f5eeff',
-    avatarColor: '#7e22ce',
   },
 };
 
@@ -68,14 +53,46 @@ function formatDate(isoStr) {
   if (!isoStr) return '—';
   try {
     const d = new Date(isoStr);
-    return d.toLocaleDateString('en-IN', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    });
+    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
   } catch {
     return '—';
   }
+}
+
+function avatarClass(roleKey) {
+  if (roleKey === 'admin') return 'role-admin';
+  if (roleKey === 'doctor_pregnancy' || roleKey === 'doctor_immunization') return 'role-doctor';
+  return '';
+}
+
+function PasswordField({ id, value, onChange, show, onToggle, placeholder, disabled, autoComplete = 'new-password' }) {
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        id={id}
+        type={show ? 'text' : 'password'}
+        placeholder={placeholder}
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        autoComplete={autoComplete}
+        style={{ paddingRight: 38 }}
+      />
+      <button
+        type="button"
+        onClick={onToggle}
+        tabIndex={-1}
+        aria-label={show ? 'Hide password' : 'Show password'}
+        style={{
+          position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+          border: 0, background: 'none', color: 'var(--s-ink-3)', cursor: 'pointer', padding: 4,
+          display: 'grid', placeItems: 'center',
+        }}
+      >
+        {show ? <EyeOff size={15} /> : <Eye size={15} />}
+      </button>
+    </div>
+  );
 }
 
 /* ── Add Staff Member Modal ── */
@@ -85,7 +102,7 @@ function AddStaffModal({ onClose, onSuccess, availableRoles = [] }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
+  function set(k, v) { setForm((f) => ({ ...f, [k]: v })); }
 
   async function submit(e) {
     e.preventDefault();
@@ -97,7 +114,7 @@ function AddStaffModal({ onClose, onSuccess, availableRoles = [] }) {
     }
     const pwdEval = evaluatePassword(form.password);
     if (!pwdEval.isValid) {
-      const missingDetails = pwdEval.missing.map(m => m.shortLabel).join(', ');
+      const missingDetails = pwdEval.missing.map((m) => m.shortLabel).join(', ');
       setError(`Password is not strong enough. Missing: ${missingDetails}`);
       return;
     }
@@ -114,188 +131,135 @@ function AddStaffModal({ onClose, onSuccess, availableRoles = [] }) {
   }
 
   const roleOptions = [
-    { value: 'staff',               label: 'Clinical Staff',          sub: 'Access maternal & child records and manage reminders' },
-    { value: 'doctor_pregnancy',    label: 'Doctor – Pregnancy',      sub: 'Dedicated antenatal & maternal pregnancy tracking' },
-    { value: 'doctor_immunization', label: 'Doctor – Immunization',   sub: 'Childhood vaccination & immunization schedule tracking' },
-    { value: 'admin',               label: 'Hospital Admin',          sub: 'Full administrative access over hospital staff & settings' },
-    ...availableRoles.filter(r => !['admin', 'staff', 'doctor_pregnancy', 'doctor_immunization'].includes(r.key)).map(r => ({
+    { value: 'staff', label: 'Clinical Staff', sub: 'Access maternal & child records and manage reminders' },
+    { value: 'doctor_pregnancy', label: 'Doctor – Pregnancy', sub: 'Dedicated antenatal & maternal pregnancy tracking' },
+    { value: 'doctor_immunization', label: 'Doctor – Immunization', sub: 'Childhood vaccination & immunization schedule tracking' },
+    { value: 'admin', label: 'Hospital Admin', sub: 'Full administrative access over hospital staff & settings' },
+    ...availableRoles.filter((r) => !['admin', 'staff', 'doctor_pregnancy', 'doctor_immunization'].includes(r.key)).map((r) => ({
       value: r.key,
       label: r.name,
-      sub: `${r.dept || 'Custom Role'} — ${r.description || 'Configured via Role Matrix'}`
-    }))
+      sub: `${r.dept || 'Custom Role'} — ${r.description || 'Configured via Role Matrix'}`,
+    })),
   ];
 
+  const selectedRole = roleOptions.find((o) => o.value === form.role);
+
   return (
-    <div className="staff-modal-overlay" onClick={e => e.target === e.currentTarget && !loading && onClose()}>
-      <div className="staff-modal-card" role="dialog" aria-modal="true">
-        {/* Header */}
-        <div className="staff-modal-header">
-          <div className="staff-modal-header-icon-wrap">
-            <UserPlus size={20} />
-          </div>
-          <div className="staff-modal-header-text">
-            <h2 className="staff-modal-title">Register Staff Member</h2>
-            <p className="staff-modal-subtitle">Add a new medical, clinical, or administrative staff account.</p>
-          </div>
-          <button
-            type="button"
-            className="staff-modal-close"
-            onClick={onClose}
-            disabled={loading}
-            aria-label="Close"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Form Body */}
-        <form onSubmit={submit} className="staff-modal-form">
-          {error && (
-            <div className="staff-modal-alert error">
-              <AlertCircle size={16} />
-              <span>{error}</span>
+    <div className="sv-modal-overlay" onClick={(e) => e.target === e.currentTarget && !loading && onClose()}>
+      <div className="dlg dlg-wide" role="dialog" aria-modal="true" aria-labelledby="dlg-staff-title">
+        <div className="dlg-form">
+          <div className="dlg-head">
+            <div>
+              <h2 className="dlg-title" id="dlg-staff-title">Add staff member</h2>
+              <p className="dlg-sub">Create a staff account with a temporary password — they will change it on first login.</p>
             </div>
-          )}
-
-          {/* Full Name */}
-          <div className="staff-form-group">
-            <label className="staff-form-label" htmlFor="staff-name">
-              Full Name <span className="req">*</span>
-            </label>
-            <input
-              id="staff-name"
-              type="text"
-              className="staff-form-input"
-              placeholder="e.g. Dr. Priya Sharma"
-              value={form.name}
-              onChange={e => set('name', e.target.value)}
-              required
-              disabled={loading}
-              autoFocus
-            />
+            <button type="button" className="close-x" onClick={onClose} disabled={loading} aria-label="Close">
+              <X size={16} />
+            </button>
           </div>
 
-          {/* Email */}
-          <div className="staff-form-group">
-            <label className="staff-form-label" htmlFor="staff-email">
-              Email Address / Login ID <span className="req">*</span>
-            </label>
-            <input
-              id="staff-email"
-              type="email"
-              className="staff-form-input"
-              placeholder="e.g. priya.sharma@hospital.in"
-              value={form.email}
-              onChange={e => set('email', e.target.value)}
-              required
-              disabled={loading}
-            />
-          </div>
+          <form onSubmit={submit} className="dlg-form" style={{ maxHeight: 'none' }}>
+            <div className="dlg-body">
+              {error && (
+                <div className="form-summary" style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                  <AlertCircle size={16} style={{ flex: 'none', marginTop: 1 }} />
+                  <span>{error}</span>
+                </div>
+              )}
 
-          {/* Password */}
-          <div className="staff-form-group">
-            <label className="staff-form-label" htmlFor="staff-password">
-              Temporary Password <span className="req">*</span>
-            </label>
-            <div className="staff-password-wrap">
-              <input
-                id="staff-password"
-                type={showPassword ? 'text' : 'password'}
-                className="staff-form-input has-toggle"
-                placeholder="Minimum 8 characters"
-                value={form.password}
-                onChange={e => set('password', e.target.value)}
-                required
-                minLength={8}
-                disabled={loading}
-              />
-              <button
-                type="button"
-                className="staff-password-toggle"
-                onClick={() => setShowPassword(s => !s)}
-                tabIndex={-1}
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
-              >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-            <span className="staff-form-hint">Staff will be asked to change this password on first login.</span>
-            {/* Live Password Strength Meter & Criteria Checklist (only shown when password is entered) */}
-            {form.password && form.password.length > 0 ? (
-              <PasswordStrengthMeter password={form.password} />
-            ) : null}
-          </div>
+              <div className="grid-2">
+                <div className="field">
+                  <label htmlFor="staff-name">Full name <span className="req">*</span></label>
+                  <input
+                    id="staff-name"
+                    type="text"
+                    placeholder="e.g. Dr. Priya Sharma"
+                    value={form.name}
+                    onChange={(e) => set('name', e.target.value)}
+                    required
+                    disabled={loading}
+                    autoFocus
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="staff-email">Email address / login ID <span className="req">*</span></label>
+                  <input
+                    id="staff-email"
+                    type="email"
+                    placeholder="e.g. priya.sharma@hospital.in"
+                    value={form.email}
+                    onChange={(e) => set('email', e.target.value)}
+                    required
+                    disabled={loading}
+                  />
+                </div>
+              </div>
 
-          {/* User Type / Role Dropdown */}
-          <div className="staff-form-group">
-            <label className="staff-form-label" htmlFor="staff-role">
-              User Type / Role <span className="req">*</span>
-            </label>
-            <div className="staff-select-wrap">
-              <select
-                id="staff-role"
-                className="staff-form-select"
-                value={form.role}
-                onChange={e => set('role', e.target.value)}
-                disabled={loading}
-                required
-              >
-                {roleOptions.map(opt => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              <div className="staff-select-arrow" aria-hidden="true">
-                <ChevronDown size={16} />
+              <div className="grid-2">
+                <div className="field">
+                  <label htmlFor="staff-password">Temporary password <span className="req">*</span></label>
+                  <PasswordField
+                    id="staff-password"
+                    value={form.password}
+                    onChange={(e) => set('password', e.target.value)}
+                    show={showPassword}
+                    onToggle={() => setShowPassword((s) => !s)}
+                    placeholder="Minimum 8 characters"
+                    disabled={loading}
+                  />
+                  <span className="hint">Staff will be asked to change this password on first login.</span>
+                  {form.password ? <PasswordStrengthMeter password={form.password} /> : null}
+                </div>
+
+                <div className="field">
+                  <label htmlFor="staff-role">User type / role <span className="req">*</span></label>
+                  <div className="select-wrap" style={{ display: 'block' }}>
+                    <select
+                      id="staff-role"
+                      value={form.role}
+                      onChange={(e) => set('role', e.target.value)}
+                      disabled={loading}
+                      required
+                      style={{ width: '100%', borderRadius: 8, borderColor: 'var(--s-line-strong)', background: 'var(--s-surface)', color: 'var(--s-ink)', padding: '8px 30px 8px 10px' }}
+                    >
+                      {roleOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                    <ChevronDown size={15} className="chev" />
+                  </div>
+                  {selectedRole && <span className="hint">{selectedRole.sub}</span>}
+                </div>
               </div>
             </div>
-            {(() => {
-              const selectedRole = roleOptions.find(o => o.value === form.role);
-              const cfg = ROLE_CONFIG[form.role] || { color: '#00857c' };
-              return selectedRole ? (
-                <div className="staff-role-desc-preview">
-                  <span className="staff-role-desc-dot" style={{ backgroundColor: cfg.color }} />
-                  <span>{selectedRole.sub}</span>
-                </div>
-              ) : null;
-            })()}
-          </div>
 
-          {/* Footer Actions */}
-          <div className="staff-modal-footer">
-            <button
-              type="button"
-              className="staff-btn-cancel"
-              onClick={onClose}
-              disabled={loading}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="staff-btn-submit"
-              disabled={loading}
-              id="btn-confirm-add-staff"
-            >
-              {loading ? (
-                <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2, borderColor: '#fff', borderTopColor: 'transparent' }} />
-              ) : (
-                <>
-                  <Plus size={15} />
-                  <span>Register Staff</span>
-                </>
-              )}
-            </button>
-          </div>
-        </form>
+            <div className="dlg-foot">
+              <button type="button" className="btn btn-outline" onClick={onClose} disabled={loading}>
+                Cancel
+              </button>
+              <button type="submit" className="btn btn-primary" disabled={loading}>
+                {loading ? (
+                  <>
+                    <RefreshCw size={15} style={{ animation: 'spin 1s linear infinite' }} />
+                    Registering...
+                  </>
+                ) : (
+                  <>
+                    <Plus size={15} />
+                    Register staff
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );
 }
 
 /* ── Edit Staff Member Modal ── */
-function EditStaffModal({ staffMember, onClose, onSuccess, currentRole, availableRoles = [] }) {
+function EditStaffModal({ staffMember, onClose, onSuccess, availableRoles = [] }) {
   const [form, setForm] = useState({
     name: staffMember?.name || '',
     email: staffMember?.email || '',
@@ -306,7 +270,7 @@ function EditStaffModal({ staffMember, onClose, onSuccess, currentRole, availabl
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
+  function set(k, v) { setForm((f) => ({ ...f, [k]: v })); }
 
   async function submit(e) {
     e.preventDefault();
@@ -315,7 +279,7 @@ function EditStaffModal({ staffMember, onClose, onSuccess, currentRole, availabl
     if (form.password) {
       const pwdEval = evaluatePassword(form.password);
       if (!pwdEval.isValid) {
-        const missingDetails = pwdEval.missing.map(m => m.shortLabel).join(', ');
+        const missingDetails = pwdEval.missing.map((m) => m.shortLabel).join(', ');
         setError(`New password is not strong enough. Missing: ${missingDetails}`);
         return;
       }
@@ -328,9 +292,7 @@ function EditStaffModal({ staffMember, onClose, onSuccess, currentRole, availabl
         email: form.email.trim(),
         role: form.role,
       };
-      if (form.password) {
-        payload.password = form.password;
-      }
+      if (form.password) payload.password = form.password;
       const res = await api.put(`/auth/staff/${staffMember.id}`, payload);
       onSuccess(res.data);
     } catch (err) {
@@ -341,174 +303,124 @@ function EditStaffModal({ staffMember, onClose, onSuccess, currentRole, availabl
   }
 
   const roleOptions = [
-    { value: 'staff',               label: 'Clinical Staff',          sub: 'Access maternal & child records and manage reminders' },
-    { value: 'doctor_pregnancy',    label: 'Doctor – Pregnancy',      sub: 'Dedicated antenatal & maternal pregnancy tracking' },
-    { value: 'doctor_immunization', label: 'Doctor – Immunization',   sub: 'Childhood vaccination & immunization schedule tracking' },
-    { value: 'admin',               label: 'Hospital Admin',          sub: 'Full administrative access over hospital staff & settings' },
-    ...availableRoles.filter(r => !['admin', 'staff', 'doctor_pregnancy', 'doctor_immunization'].includes(r.key)).map(r => ({
+    { value: 'staff', label: 'Clinical Staff', sub: 'Access maternal & child records and manage reminders' },
+    { value: 'doctor_pregnancy', label: 'Doctor – Pregnancy', sub: 'Dedicated antenatal & maternal pregnancy tracking' },
+    { value: 'doctor_immunization', label: 'Doctor – Immunization', sub: 'Childhood vaccination & immunization schedule tracking' },
+    { value: 'admin', label: 'Hospital Admin', sub: 'Full administrative access over hospital staff & settings' },
+    ...availableRoles.filter((r) => !['admin', 'staff', 'doctor_pregnancy', 'doctor_immunization'].includes(r.key)).map((r) => ({
       value: r.key,
       label: r.name,
-      sub: `${r.dept || 'Custom Role'} — ${r.description || 'Configured via Role Matrix'}`
-    }))
+      sub: `${r.dept || 'Custom Role'} — ${r.description || 'Configured via Role Matrix'}`,
+    })),
   ];
 
+  const selectedRole = roleOptions.find((o) => o.value === form.role);
+
   return (
-    <div className="staff-modal-overlay" onClick={e => e.target === e.currentTarget && !loading && onClose()}>
-      <div className="staff-modal-card" role="dialog" aria-modal="true">
-        {/* Header */}
-        <div className="staff-modal-header">
-          <div className="staff-modal-header-icon-wrap" style={{ background: '#f0fdf9', color: '#00857c' }}>
-            <Pencil size={18} />
-          </div>
-          <div className="staff-modal-header-text">
-            <h2 className="staff-modal-title">Edit Staff Member</h2>
-            <p className="staff-modal-subtitle">Update credentials, profile information, or assigned hospital role.</p>
-          </div>
-          <button
-            type="button"
-            className="staff-modal-close"
-            onClick={onClose}
-            disabled={loading}
-            aria-label="Close"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Form Body */}
-        <form onSubmit={submit} className="staff-modal-form">
-          {error && (
-            <div className="staff-modal-alert error">
-              <AlertCircle size={16} />
-              <span>{error}</span>
+    <div className="sv-modal-overlay" onClick={(e) => e.target === e.currentTarget && !loading && onClose()}>
+      <div className="dlg dlg-wide" role="dialog" aria-modal="true" aria-labelledby="dlg-edit-staff-title">
+        <div className="dlg-form">
+          <div className="dlg-head">
+            <div>
+              <h2 className="dlg-title" id="dlg-edit-staff-title">Edit staff member</h2>
+              <p className="dlg-sub">Update their profile, assigned role or account password.</p>
             </div>
-          )}
-
-          {/* Full Name */}
-          <div className="staff-form-group">
-            <label className="staff-form-label" htmlFor="edit-staff-name">
-              Full Name <span className="req">*</span>
-            </label>
-            <input
-              id="edit-staff-name"
-              type="text"
-              className="staff-form-input"
-              value={form.name}
-              onChange={e => set('name', e.target.value)}
-              required
-              disabled={loading}
-            />
+            <button type="button" className="close-x" onClick={onClose} disabled={loading} aria-label="Close">
+              <X size={16} />
+            </button>
           </div>
 
-          {/* Email */}
-          <div className="staff-form-group">
-            <label className="staff-form-label" htmlFor="edit-staff-email">
-              Email Address / Login ID <span className="req">*</span>
-            </label>
-            <input
-              id="edit-staff-email"
-              type="email"
-              className="staff-form-input"
-              value={form.email}
-              onChange={e => set('email', e.target.value)}
-              required
-              disabled={loading}
-            />
-          </div>
+          <form onSubmit={submit} className="dlg-form" style={{ maxHeight: 'none' }}>
+            <div className="dlg-body">
+              {error && (
+                <div className="form-summary" style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                  <AlertCircle size={16} style={{ flex: 'none', marginTop: 1 }} />
+                  <span>{error}</span>
+                </div>
+              )}
 
-          {/* New Password (Optional) */}
-          <div className="staff-form-group">
-            <label className="staff-form-label" htmlFor="edit-staff-password">
-              Reset Password <span style={{ fontWeight: 400, color: '#57747a', fontSize: '0.8rem' }}>(leave blank to keep current)</span>
-            </label>
-            <div className="staff-password-wrap">
-              <input
-                id="edit-staff-password"
-                type={showPassword ? 'text' : 'password'}
-                className="staff-form-input has-toggle"
-                placeholder="Enter new password (min. 8 chars)"
-                value={form.password}
-                onChange={e => set('password', e.target.value)}
-                minLength={8}
-                disabled={loading}
-              />
-              <button
-                type="button"
-                className="staff-password-toggle"
-                onClick={() => setShowPassword(s => !s)}
-                tabIndex={-1}
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
-              >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-            {/* Live Password Strength Meter & Criteria Checklist for Reset Password */}
-            {form.password ? <PasswordStrengthMeter password={form.password} /> : null}
-          </div>
+              <div className="grid-2">
+                <div className="field">
+                  <label htmlFor="edit-staff-name">Full name <span className="req">*</span></label>
+                  <input
+                    id="edit-staff-name"
+                    type="text"
+                    value={form.name}
+                    onChange={(e) => set('name', e.target.value)}
+                    required
+                    disabled={loading}
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="edit-staff-email">Email address / login ID <span className="req">*</span></label>
+                  <input
+                    id="edit-staff-email"
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => set('email', e.target.value)}
+                    required
+                    disabled={loading}
+                  />
+                </div>
+              </div>
 
-          {/* User Type / Role Dropdown */}
-          <div className="staff-form-group">
-            <label className="staff-form-label" htmlFor="edit-staff-role">
-              User Type / Role <span className="req">*</span>
-            </label>
-            <div className="staff-select-wrap">
-              <select
-                id="edit-staff-role"
-                className="staff-form-select"
-                value={form.role}
-                onChange={e => set('role', e.target.value)}
-                disabled={loading}
-                required
-              >
-                {roleOptions.map(opt => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              <div className="staff-select-arrow" aria-hidden="true">
-                <ChevronDown size={16} />
+              <div className="grid-2">
+                <div className="field">
+                  <label htmlFor="edit-staff-password">Reset password <span className="hint">(optional)</span></label>
+                  <PasswordField
+                    id="edit-staff-password"
+                    value={form.password}
+                    onChange={(e) => set('password', e.target.value)}
+                    show={showPassword}
+                    onToggle={() => setShowPassword((s) => !s)}
+                    placeholder="Leave blank to keep current"
+                    disabled={loading}
+                  />
+                  {form.password ? <PasswordStrengthMeter password={form.password} /> : null}
+                </div>
+
+                <div className="field">
+                  <label htmlFor="edit-staff-role">User type / role <span className="req">*</span></label>
+                  <div className="select-wrap" style={{ display: 'block' }}>
+                    <select
+                      id="edit-staff-role"
+                      value={form.role}
+                      onChange={(e) => set('role', e.target.value)}
+                      disabled={loading}
+                      required
+                      style={{ width: '100%', borderRadius: 8, borderColor: 'var(--s-line-strong)', background: 'var(--s-surface)', color: 'var(--s-ink)', padding: '8px 30px 8px 10px' }}
+                    >
+                      {roleOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                    <ChevronDown size={15} className="chev" />
+                  </div>
+                  {selectedRole && <span className="hint">{selectedRole.sub}</span>}
+                </div>
               </div>
             </div>
-            {(() => {
-              const selectedRole = roleOptions.find(o => o.value === form.role);
-              const cfg = ROLE_CONFIG[form.role] || { color: '#00857c' };
-              return selectedRole ? (
-                <div className="staff-role-desc-preview">
-                  <span className="staff-role-desc-dot" style={{ backgroundColor: cfg.color }} />
-                  <span>{selectedRole.sub}</span>
-                </div>
-              ) : null;
-            })()}
-          </div>
 
-          {/* Footer Actions */}
-          <div className="staff-modal-footer">
-            <button
-              type="button"
-              className="staff-btn-cancel"
-              onClick={onClose}
-              disabled={loading}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="staff-btn-submit"
-              disabled={loading}
-              id="btn-confirm-edit-staff"
-            >
-              {loading ? (
-                <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2, borderColor: '#fff', borderTopColor: 'transparent' }} />
-              ) : (
-                <>
-                  <Check size={15} />
-                  <span>Save Changes</span>
-                </>
-              )}
-            </button>
-          </div>
-        </form>
+            <div className="dlg-foot">
+              <button type="button" className="btn btn-outline" onClick={onClose} disabled={loading}>
+                Cancel
+              </button>
+              <button type="submit" className="btn btn-primary" disabled={loading}>
+                {loading ? (
+                  <>
+                    <RefreshCw size={15} style={{ animation: 'spin 1s linear infinite' }} />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Check size={15} />
+                    Save changes
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );
@@ -517,6 +429,8 @@ function EditStaffModal({ staffMember, onClose, onSuccess, currentRole, availabl
 /* ── Main Staff Component ── */
 export default function StaffSettingsTab() {
   const { user } = useAuthStore();
+  const canCreateStaff = hasUserPermission(user, 'staff.create');
+  const canEditStaff = hasUserPermission(user, 'staff.edit');
   const [staff, setStaff] = useState([]);
   const [total, setTotal] = useState(0);
   const [pages, setPages] = useState(1);
@@ -531,31 +445,33 @@ export default function StaffSettingsTab() {
   const [availableRoles, setAvailableRoles] = useState([]);
 
   useEffect(() => {
-    api.get('/settings/roles').then(res => {
+    api.get('/settings/roles').then((res) => {
       setAvailableRoles(res.data || []);
     }).catch(() => {});
   }, []);
 
+  useEffect(() => {
+    if (!toast) return undefined;
+    const timer = setTimeout(() => setToast(null), 5000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
   const dynamicRoleMap = useMemo(() => {
     const map = { ...ROLE_CONFIG };
-    availableRoles.forEach(r => {
+    availableRoles.forEach((r) => {
       if (!map[r.key]) {
         map[r.key] = {
           label: r.name,
           dept: r.dept || 'Clinical Care',
-          deptIcon: ShieldCheck,
           bg: r.bg || '#e8f7f2',
           color: r.color || '#00857c',
           border: r.border || '#c4e9de',
-          avatarBg: '#e6f7f5',
-          avatarColor: r.color || '#00857c',
         };
       }
     });
     return map;
   }, [availableRoles]);
 
-  /* Live Hospital Summary Counters */
   const [summaryStats, setSummaryStats] = useState({
     total: 0,
     doctors: 0,
@@ -568,9 +484,9 @@ export default function StaffSettingsTab() {
       const res = await api.get('/auth/staff?limit=1000');
       const all = res.data?.staff || res.data || [];
       const totalCount = res.data?.total || all.length;
-      const doctorsCount = all.filter(s => s.role?.startsWith('doctor_')).length;
-      const staffCount = all.filter(s => s.role === 'staff').length;
-      const adminsCount = all.filter(s => s.role === 'admin').length;
+      const doctorsCount = all.filter((s) => s.role?.startsWith('doctor_')).length;
+      const staffCount = all.filter((s) => s.role === 'staff').length;
+      const adminsCount = all.filter((s) => s.role === 'admin').length;
       setSummaryStats({
         total: totalCount,
         doctors: doctorsCount,
@@ -578,7 +494,7 @@ export default function StaffSettingsTab() {
         admins: adminsCount,
       });
     } catch {
-      // ignore
+      /* ignore */
     }
   }, []);
 
@@ -609,11 +525,13 @@ export default function StaffSettingsTab() {
   }, [page, search, roleFilter]);
 
   useEffect(() => {
-    fetchSummary();
+    const timer = setTimeout(fetchSummary, 0);
+    return () => clearTimeout(timer);
   }, [fetchSummary]);
 
   useEffect(() => {
-    load();
+    const timer = setTimeout(load, 0);
+    return () => clearTimeout(timer);
   }, [load]);
 
   function handleSearch(e) {
@@ -621,359 +539,255 @@ export default function StaffSettingsTab() {
     setPage(1);
   }
 
-  function handleTabChange(roleKey) {
-    setRoleFilter(roleKey);
+  function handleRoleChange(value) {
+    setRoleFilter(value);
     setPage(1);
   }
 
   function handleStaffCreated(name) {
     setShowModal(false);
-    setToast({
-      show: true,
-      title: 'Registration Successful',
-      message: `Staff member "${name}" registered successfully.`,
-      type: 'success',
-    });
-    setTimeout(() => setToast(null), 5000);
+    setToast({ type: 'success', message: `Staff member "${name}" registered successfully.` });
     fetchSummary();
     load();
   }
 
   function handleStaffUpdated(updated) {
     setEditingStaff(null);
-    setToast({
-      show: true,
-      title: 'Profile Updated',
-      message: `Staff member "${updated.name}" details updated successfully.`,
-      type: 'success',
-    });
-    setTimeout(() => setToast(null), 5000);
+    setToast({ type: 'success', message: `Staff member "${updated.name}" details updated successfully.` });
     fetchSummary();
     load();
   }
 
-  const roleFilterTabs = [
-    { key: '',                    label: 'All Staff',      count: summaryStats.total },
-    { key: 'doctor',              label: 'Doctors',        count: summaryStats.doctors },
-    { key: 'staff',               label: 'Clinical Staff', count: summaryStats.staff },
-    { key: 'admin',               label: 'Admins',         count: summaryStats.admins },
-    ...availableRoles.filter(r => !['admin', 'staff', 'doctor_pregnancy', 'doctor_immunization'].includes(r.key)).map(r => ({
+  const roleFilterTabs = useMemo(() => ([
+    { key: '', label: 'All Staff', count: summaryStats.total },
+    { key: 'doctor', label: 'Doctors', count: summaryStats.doctors },
+    { key: 'staff', label: 'Clinical Staff', count: summaryStats.staff },
+    { key: 'admin', label: 'Admins', count: summaryStats.admins },
+    ...availableRoles.filter((r) => !['admin', 'staff', 'doctor_pregnancy', 'doctor_immunization'].includes(r.key)).map((r) => ({
       key: r.key,
       label: r.name,
-      count: r.user_count || 0
-    }))
-  ];
+      count: r.user_count || 0,
+    })),
+  ]), [availableRoles, summaryStats]);
 
   return (
-    <div className="staff-page-container">
-      {/* Toast Notification */}
+    <>
       {toast && (
-        <div className={`staff-floating-toast ${toast.type}`}>
-          <div className="toast-icon-wrap">
-            <CheckCircle2 size={18} />
+        <div className="toasts" role="status" aria-live="polite">
+          <div className="toast">
+            <div>
+              <span className="toast-k">Saved</span>
+              <span>{toast.message}</span>
+            </div>
           </div>
-          <div className="toast-body">
-            <div className="toast-title">{toast.title}</div>
-            <div className="toast-message">{toast.message}</div>
-          </div>
-          <button
-            type="button"
-            className="toast-close-btn"
-            onClick={() => setToast(null)}
-            title="Dismiss"
-          >
-            <X size={15} />
-          </button>
         </div>
       )}
 
-      {/* ── Page Header ── */}
-      <div className="staff-header-row">
-        <div>
-          <h2 className="staff-page-title" style={{ fontSize: '1.4rem' }}>Staff Directory & Access</h2>
-          
-        </div>
-
-        <div className="staff-header-actions">
-          <button
-            type="button"
-            className="staff-btn-refresh"
-            onClick={() => { fetchSummary(); load(true); }}
-            title="Refresh Directory"
-            disabled={loading || refreshing}
-          >
-            <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
-          </button>
-
-          <button
-            type="button"
-            className="staff-btn-add"
-            onClick={() => setShowModal(true)}
-            id="btn-add-staff"
-          >
-            <Plus size={16} />
-            <span>Add Staff Member</span>
-          </button>
-        </div>
-      </div>
-
-      {/* ── 4 Stat Overview Cards ── */}
-      <div className="staff-stats-grid">
-        {/* Card 1: Total Staff */}
-        <div className="staff-stat-card">
-          <div className="staff-stat-icon-box teal">
-            <Users size={22} />
+      <section className="setting-panel" aria-labelledby="staff-title">
+        <div className="panel-head">
+          <div>
+            <h2 className="setting-title" id="staff-title">Staff management</h2>
+            
           </div>
-          <div className="staff-stat-info">
-            <span className="staff-stat-label">Total Members</span>
-            <span className="staff-stat-value">{summaryStats.total}</span>
-            <span className="staff-stat-sub">Active hospital accounts</span>
-          </div>
-        </div>
-
-        {/* Card 2: Doctors */}
-        <div className="staff-stat-card">
-          <div className="staff-stat-icon-box rose">
-            <HeartPulse size={22} />
-          </div>
-          <div className="staff-stat-info">
-            <span className="staff-stat-label">Doctors</span>
-            <span className="staff-stat-value">{summaryStats.doctors}</span>
-            <span className="staff-stat-sub">Maternal &amp; Pediatric</span>
-          </div>
-        </div>
-
-        {/* Card 3: Clinical Staff */}
-        <div className="staff-stat-card">
-          <div className="staff-stat-icon-box blue">
-            <Activity size={22} />
-          </div>
-          <div className="staff-stat-info">
-            <span className="staff-stat-label">Clinical Staff</span>
-            <span className="staff-stat-value">{summaryStats.staff}</span>
-            <span className="staff-stat-sub">Care Coordinators</span>
-          </div>
-        </div>
-
-        {/* Card 4: Admins */}
-        <div className="staff-stat-card">
-          <div className="staff-stat-icon-box purple">
-            <ShieldCheck size={22} />
-          </div>
-          <div className="staff-stat-info">
-            <span className="staff-stat-label">Administrators</span>
-            <span className="staff-stat-value">{summaryStats.admins}</span>
-            <span className="staff-stat-sub">Hospital Admin Access</span>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Filter / Control Bar ── */}
-      <div className="staff-controls-row">
-        {/* Role Filter Tabs */}
-        <div className="staff-tabs">
-          {roleFilterTabs.map(tab => {
-            const isActive = roleFilter === tab.key;
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                className={`staff-tab${isActive ? ' active' : ''}`}
-                onClick={() => handleTabChange(tab.key)}
-              >
-                <span>{tab.label}</span>
-                <span className="staff-tab-badge">{tab.count}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Search Input */}
-        <div className="staff-search-box">
-          <Search size={16} className="staff-search-icon" />
-          <input
-            type="text"
-            className="staff-search-input"
-            placeholder="Search staff by name or email…"
-            value={search}
-            onChange={handleSearch}
-          />
-          {search && (
+          <div className="panel-actions">
             <button
               type="button"
-              className="staff-search-clear"
-              onClick={() => { setSearch(''); setPage(1); }}
+              className="btn btn-outline btn-sm"
+              onClick={() => { fetchSummary(); load(true); }}
+              title="Refresh directory"
+              disabled={loading || refreshing}
             >
-              <X size={14} />
+              <RefreshCw size={15} style={refreshing ? { animation: 'spin 1s linear infinite' } : undefined} />
+            </button>
+            {canCreateStaff && (
+              <button type="button" className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>
+                <UserPlus size={16} />
+                Add staff
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="staff-strip">
+          <div className="metric">
+            <span className="metric-value">{summaryStats.total}</span>
+            <span className="metric-label">Total members</span>
+          </div>
+          <div className="metric">
+            <span className="metric-value">{summaryStats.doctors}</span>
+            <span className="metric-label">Doctors</span>
+          </div>
+          <div className="metric">
+            <span className="metric-value">{summaryStats.staff}</span>
+            <span className="metric-label">Clinical staff</span>
+          </div>
+          <div className="metric">
+            <span className="metric-value">{summaryStats.admins}</span>
+            <span className="metric-label">Administrators</span>
+          </div>
+        </div>
+
+        <div className="toolbar">
+          <div className="tool-search">
+            <Search size={14} />
+            <input
+              type="search"
+              placeholder="Search staff"
+              value={search}
+              onChange={handleSearch}
+              autoComplete="off"
+              aria-label="Search staff by name or email"
+            />
+          </div>
+
+          <div className="select-wrap">
+            <select value={roleFilter} onChange={(e) => handleRoleChange(e.target.value)} aria-label="Filter by role">
+              {roleFilterTabs.map((tab) => (
+                <option key={tab.key} value={tab.key}>
+                  {tab.label} ({tab.count})
+                </option>
+              ))}
+            </select>
+            <ChevronDown size={14} className="chev" />
+          </div>
+
+          <span className="result-count">
+            Showing <b>{staff.length}</b> of {total} staff
+          </span>
+
+          {(search || roleFilter) && (
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setSearch(''); setRoleFilter(''); setPage(1); }}>
+              Clear
             </button>
           )}
         </div>
-      </div>
 
-      {/* ── Staff Table Card ── */}
-      <div className="staff-table-card">
-        {loading && !refreshing ? (
-          <div className="staff-empty-state">
-            <div className="spinner" style={{ width: 32, height: 32, borderWidth: 3 }} />
-            <p className="staff-empty-title">Loading staff directory…</p>
-          </div>
-        ) : staff.length === 0 ? (
-          <div className="staff-empty-state">
-            <div className="staff-empty-icon">
-              <Users size={28} />
+        <div className="table-wrap">
+          {loading && !refreshing ? (
+            <div className="loading-block">
+              <RefreshCw size={26} style={{ animation: 'spin 1s linear infinite' }} />
+              <p>Loading staff directory...</p>
             </div>
-            <p className="staff-empty-title">No staff members found</p>
-            <p className="staff-empty-subtitle">
-              {search || roleFilter
-                ? 'Try adjusting your search query or role filter.'
-                : 'Click "Add Staff Member" above to create your hospital\'s first staff account.'}
-            </p>
-          </div>
-        ) : (
-          <div className="staff-table-wrap">
+          ) : staff.length === 0 ? (
+            <div className="empty">
+              <Users size={28} />
+              <strong>No staff members found</strong>
+              <span>{search || roleFilter ? 'Try adjusting your search or role filter.' : 'Add your hospital\'s first staff account to get started.'}</span>
+              <button type="button" className="btn btn-outline btn-sm" onClick={() => { setSearch(''); setRoleFilter(''); }}>
+                Clear filters
+              </button>
+            </div>
+          ) : (
             <table className="staff-table">
               <thead>
                 <tr>
-                  <th>Staff Member</th>
-                  <th>Role &amp; Department</th>
-                  <th>Joined Date</th>
-                  <th style={{ textAlign: 'center', width: '90px' }}>Action</th>
+                  <th scope="col">Staff</th>
+                  <th scope="col">Role</th>
+                  <th scope="col">Joined</th>
+                  {canEditStaff && <th scope="col" style={{ textAlign: 'right' }}>Actions</th>}
                 </tr>
               </thead>
               <tbody>
-                {staff.map(member => {
+                {staff.map((member) => {
                   const cfg = dynamicRoleMap[member.role] || {
                     label: member.role || 'Staff',
                     dept: 'Hospital Staff',
-                    deptIcon: Activity,
                     bg: '#f1f5f9',
                     color: '#475569',
                     border: '#cbd5e1',
-                    avatarBg: '#e2e8f0',
-                    avatarColor: '#475569',
                   };
-                  const DeptIcon = cfg.deptIcon || Activity;
                   const isCurrentUser = user?.id === member.id;
 
                   return (
                     <tr key={member.id}>
-                      {/* User info & avatar */}
-                      <td>
-                        <div className="staff-member-cell">
-                          <div
-                            className="staff-avatar-circle"
-                            style={{
-                              backgroundColor: cfg.avatarBg,
-                              color: cfg.avatarColor,
-                              border: `1px solid ${cfg.border || '#cbd5e1'}`,
-                            }}
-                          >
+                      <td className="c-staff">
+                        <div className="p-cell">
+                          <span className={`avatar-sm ${avatarClass(member.role)}`} aria-hidden="true">
                             {getInitials(member.name)}
-                          </div>
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                              <span className="staff-name-text">{member.name}</span>
-                              {isCurrentUser && (
-                                <span className="staff-you-badge">You</span>
-                              )}
-                            </div>
-                            <div className="staff-email-text">{member.email}</div>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Role & Dept Tag */}
-                      <td>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', alignItems: 'flex-start' }}>
-                          <span
-                            className="staff-role-badge"
-                            style={{
-                              backgroundColor: cfg.bg,
-                              color: cfg.color,
-                              borderColor: cfg.border,
-                            }}
-                          >
-                            <span className="dot" />
-                            <span>{cfg.label}</span>
                           </span>
-                          <div className="staff-dept-text">
-                            <DeptIcon size={12} color={cfg.color} style={{ flexShrink: 0 }} />
-                            <span>{cfg.dept}</span>
+                          <div style={{ minWidth: 0 }}>
+                            <div className="p-name">
+                              {member.name}
+                              {isCurrentUser && <span className="chip" style={{ marginLeft: 7, padding: '3px 6px', fontSize: 9.5 }}>You</span>}
+                            </div>
+                            <div className="p-sub">{member.email}</div>
                           </div>
                         </div>
                       </td>
-
-                      {/* Added Date */}
-                      <td>
-                        <div className="staff-date-text">
-                          <Calendar size={13} color="#94a3b8" style={{ flexShrink: 0 }} />
-                          <span>{formatDate(member.createdAt)}</span>
+                      <td className="c-role">
+                        <span
+                          className="role-chip"
+                          style={{ backgroundColor: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}
+                        >
+                          {cfg.label}
+                        </span>
+                        <div className="role-chip-dept">{cfg.dept}</div>
+                      </td>
+                      <td className="c-date">
+                        <div className="staff-date">
+                          <Calendar size={13} style={{ marginRight: 5, verticalAlign: '-2px', color: 'var(--s-ink-3)' }} />
+                          {formatDate(member.createdAt)}
                         </div>
                       </td>
-
-                      {/* Actions */}
-                      <td style={{ textAlign: 'center' }}>
-                        <button
-                          type="button"
-                          className="staff-action-btn-edit"
-                          onClick={() => setEditingStaff(member)}
-                          title={`Edit ${member.name}`}
-                          id={`btn-edit-staff-${member.id}`}
-                        >
-                          <Pencil size={13} />
-                          <span>Edit</span>
-                        </button>
-                      </td>
+                      {canEditStaff && (
+                        <td className="c-act" style={{ textAlign: 'right' }}>
+                          <button
+                            type="button"
+                            className="linkbtn"
+                            onClick={() => setEditingStaff(member)}
+                            title={`Edit ${member.name}`}
+                          >
+                            <Pencil size={13} style={{ marginRight: 4, verticalAlign: '-2px' }} />
+                            Edit
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
               </tbody>
             </table>
-          </div>
-        )}
+          )}
+        </div>
 
-        {/* Pagination Bar */}
-        {pages > 1 && (
-          <div className="staff-pagination-bar">
-            <div className="staff-pagination-summary">
-              Showing page <strong>{page}</strong> of <strong>{pages}</strong> ({total} total staff)
-            </div>
-            <div className="staff-pagination-controls" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+        <div className="staff-foot">
+          <span>{total} staff account{total === 1 ? '' : 's'}</span>
+          {pages > 1 && (
+            <div className="pagination">
               <button
                 type="button"
-                className="staff-page-btn"
-                onClick={() => setPage(p => Math.max(1, p - 1))}
+                className="page-btn"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1}
+                aria-label="Previous page"
               >
-                <ChevronLeft size={14} />
+                <ChevronLeft size={13} />
               </button>
-
-              {Array.from({ length: pages }, (_, i) => i + 1).map(p => (
+              {Array.from({ length: pages }, (_, i) => i + 1).map((p) => (
                 <button
                   key={p}
                   type="button"
-                  className={`staff-page-btn${p === page ? ' active' : ''}`}
+                  className={`page-btn${p === page ? ' active' : ''}`}
                   onClick={() => setPage(p)}
                 >
                   {p}
                 </button>
               ))}
-
               <button
                 type="button"
-                className="staff-page-btn"
-                onClick={() => setPage(p => Math.min(pages, p + 1))}
+                className="page-btn"
+                onClick={() => setPage((p) => Math.min(pages, p + 1))}
                 disabled={page >= pages}
+                aria-label="Next page"
               >
-                <ChevronRight size={14} />
+                <ChevronRight size={13} />
               </button>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      </section>
 
-      {/* ── Add Staff Modal ── */}
-      {showModal && (
+      {showModal && canCreateStaff && (
         <AddStaffModal
           onClose={() => setShowModal(false)}
           onSuccess={handleStaffCreated}
@@ -981,8 +795,7 @@ export default function StaffSettingsTab() {
         />
       )}
 
-      {/* ── Edit Staff Modal ── */}
-      {editingStaff && (
+      {editingStaff && canEditStaff && (
         <EditStaffModal
           staffMember={editingStaff}
           onClose={() => setEditingStaff(null)}
@@ -990,6 +803,6 @@ export default function StaffSettingsTab() {
           availableRoles={availableRoles}
         />
       )}
-    </div>
+    </>
   );
 }

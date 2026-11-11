@@ -46,7 +46,7 @@ const PROTECTED_PAGE_PREFIXES = [
 ];
 
 /** Pages restricted to role=admin or role=superadmin */
-const ADMIN_ONLY_PAGE_PREFIXES = ['/hospitals', '/staff', '/settings', '/activity'];
+const ADMIN_ONLY_PAGE_PREFIXES = [];
 
 /** Provider portal protected pages */
 const PROVIDER_PAGE_PREFIXES = ['/provider/dashboard'];
@@ -58,8 +58,11 @@ const PUBLIC_API_PREFIXES = [
   '/api/auth/send-otp',
   '/api/auth/verify-otp',
   '/api/auth/forgot-password',
+  '/api/auth/logout',
   '/api/provider/auth/login',
+  '/api/provider/auth/logout',
   '/api/health',
+  '/api/platform/status',
   '/api/setup',
 ];
 
@@ -138,6 +141,11 @@ async function verifyAppToken(request) {
     const secret = process.env.JWT_SECRET;
     if (!secret) return null;
     const { payload } = await jwtVerify(token, getEncodedSecret(secret));
+    // Provider tokens share the signing secret but must never be accepted by
+    // app-user routes/pages. Legacy app tokens without a `type` claim are
+    // tolerated until they expire; every other non-user type is rejected.
+    if (payload.type === 'provider') return null;
+    if (payload.type !== undefined && payload.type !== 'user') return null;
     return payload;
   } catch {
     return null;
@@ -390,8 +398,8 @@ export async function proxy(request) {
       return res;
     }
 
-    // B5. Admin-only page guard (/hospitals, /staff, /settings, /activity)
-    if (startsWith(pathname, ADMIN_ONLY_PAGE_PREFIXES)) {
+    // B5. Admin-only page guard (if any explicit routes configured)
+    if (ADMIN_ONLY_PAGE_PREFIXES.length > 0 && startsWith(pathname, ADMIN_ONLY_PAGE_PREFIXES)) {
       const role = appPayload.role;
       const isAdmin = role === 'admin' || role === 'superadmin';
       if (!isAdmin) {

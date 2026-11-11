@@ -3,9 +3,20 @@ import { Op } from 'sequelize';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { User, Hospital, Subscription } from '@/lib/db/models/index';
+import { toPublicHospital } from '@/lib/utils/hospital';
+import { getPlatformSettings } from '@/lib/services/platformSettings.service';
+import { getUserPermissions } from '@/lib/utils/rbac';
 
 export async function POST(request) {
   try {
+    const platformSettings = await getPlatformSettings();
+    if (platformSettings.maintenance_mode) {
+      return NextResponse.json({
+        error:   'maintenance_mode',
+        message: platformSettings.maintenance_notice || 'The platform is undergoing maintenance. Please try again shortly.',
+      }, { status: 503 });
+    }
+
     const { email, password } = await request.json();
     if (!email || !password)
       return NextResponse.json({ error: 'Email/Username and password required' }, { status: 400 });
@@ -61,10 +72,12 @@ export async function POST(request) {
     // ─────────────────────────────────────────────────────────────────────────
 
     const token = jwt.sign(
-      { id: user.id, role: user.role, hospital_id: user.hospital_id },
+      { id: user.id, type: 'user', role: user.role, hospital_id: user.hospital_id },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN }
     );
+
+    const permissions = await getUserPermissions(user);
 
     const res = NextResponse.json({
       token,
@@ -78,8 +91,9 @@ export async function POST(request) {
         hospital_name:         user.Hospital?.name,
         hospital_address:      user.Hospital?.address,
         hospital_phone:        user.Hospital?.phone,
-        Hospital:              user.Hospital,
+        Hospital:              toPublicHospital(user.Hospital),
         force_password_change: user.force_password_change ?? false,
+        permissions,
       }
     });
 
@@ -88,7 +102,7 @@ export async function POST(request) {
       maxAge: 30 * 24 * 60 * 60,
       sameSite: 'lax',
       secure: process.env.NODE_ENV === 'production',
-      httpOnly: false,
+      httpOnly: true,
     });
 
     return res;

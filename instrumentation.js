@@ -3,10 +3,16 @@
  *
  * This file is called ONCE when the Next.js server starts.
  * We use it to:
- *  1. Connect to MySQL and sync tables
- *  2. Seed stage templates
- *  3. Seed default provider admin (first run only — idempotent)
- *  4. Register cron jobs (daily at 08:00 AM)
+ *  1. Validate required environment variables
+ *  2. Connect to MySQL and sync tables (Sequelize force: false — no DDL changes)
+ *  3. Seed stage templates (idempotent upsert)
+ *  4. Seed default provider admin (first run only — idempotent)
+ *  5. Seed roles & permissions for all hospitals (idempotent)
+ *  6. Register cron jobs (daily at 08:00 AM)
+ *
+ * Schema migrations (ALTER TABLE, UPDATE data) are intentionally NOT run here.
+ * They live in scripts/migrate-schema.mjs and must be executed manually:
+ *   node scripts/migrate-schema.mjs
  *
  * Docs: https://nextjs.org/docs/app/building-your-application/optimizing/instrumentation
  */
@@ -14,6 +20,18 @@
 export async function register() {
   // Only run on the Node.js server runtime, not in the Edge runtime
   if (process.env.NEXT_RUNTIME === 'nodejs') {
+    // ── Fail-fast configuration validation ────────────────────────────────
+    // The same JWT_SECRET signs both provider tokens (type: 'provider') and
+    // app-user tokens (type: 'user'). A weak/missing secret compromises both.
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret || jwtSecret.length < 32) {
+      console.error(
+        '❌ FATAL: JWT_SECRET is missing or shorter than 32 characters. ' +
+        'Generate one with: node -e "console.log(require(\'crypto\').randomBytes(64).toString(\'hex\'))"'
+      );
+      throw new Error('JWT_SECRET must be set and at least 32 characters long.');
+    }
+
     const { sequelize }             = await import('./lib/db/models/index.js');
     const { seed }                  = await import('./lib/seeders/stageTemplates.seed.js');
     const { seedProviderAdmin }     = await import('./lib/seeders/providerAdmin.seed.js');
@@ -24,32 +42,9 @@ export async function register() {
       await sequelize.authenticate();
       console.log('✅ MySQL connected');
 
+      // Sync models with the existing DB (no DDL — schema changes go in migrate-schema.mjs)
       await sequelize.sync({ force: false });
       console.log('✅ Database tables synced');
-
-      // Ensure users.role column allows custom roles (VARCHAR(64))
-      await sequelize.query(
-        "ALTER TABLE users MODIFY COLUMN role VARCHAR(64) NOT NULL DEFAULT 'staff';"
-      ).catch(err => console.log('ℹ️ Role VARCHAR sync:', err.message));
-
-      // Ensure patient_type includes 'both' for post-delivery cross-dept patients
-      await sequelize.query(
-        "ALTER TABLE patients MODIFY COLUMN patient_type ENUM('pregnant','immunization','both') NOT NULL;"
-      ).catch(err => console.log('ℹ️ patient_type ENUM sync:', err.message));
-
-      // Ensure skip_reason is TEXT to allow custom medical reasons
-      await sequelize.query(
-        "ALTER TABLE patient_stages MODIFY COLUMN skip_reason TEXT;"
-      ).catch(err => console.log('ℹ️ skip_reason TEXT check:', err.message));
-
-      // Ensure force_password_change column exists on users table
-      const [userCols] = await sequelize.query("SHOW COLUMNS FROM users LIKE 'force_password_change';").catch(() => [[]]);
-      if (!userCols || userCols.length === 0) {
-        await sequelize.query(
-          "ALTER TABLE users ADD COLUMN force_password_change TINYINT(1) NOT NULL DEFAULT 0;"
-        ).catch(err => console.log('ℹ️ force_password_change column check:', err.message));
-      }
-
 
       // Auto-seed stage templates on every startup (safe — uses upsert)
       await seed();

@@ -4,16 +4,16 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   Home, Users, Bell, LogOut, Settings,
 } from 'lucide-react';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore, hasUserPermission } from '@/store/authStore';
 
 const navItems = [
-  { to: '/dashboard',     icon: Home,          label: 'Dashboard' },
-  { to: '/patients',      icon: Users,         label: 'Patients'  },
-  { to: '/notifications', icon: Bell,          label: 'Notifications' },
+  { to: '/dashboard',     icon: Home,     label: 'Dashboard' },
+  { to: '/patients',      icon: Users,    label: 'Patients',  permission: 'patients.view' },
+  { to: '/notifications', icon: Bell,     label: 'Schedules', permission: 'notifications.view' },
 ];
 
 const adminItems = [
-  { to: '/settings',  icon: Settings,      label: 'Settings'      },
+  { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
 export default function Sidebar({ isOpen, onClose }) {
@@ -21,8 +21,8 @@ export default function Sidebar({ isOpen, onClose }) {
   const router           = useRouter();
   const pathname         = usePathname();
 
-  function handleLogout() {
-    logout();
+  async function handleLogout() {
+    await logout();
     router.push('/login');
   }
 
@@ -31,6 +31,7 @@ export default function Sidebar({ isOpen, onClose }) {
     : 'MT';
 
   const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
+  const canViewSettings = hasUserPermission(user, 'settings.view');
 
   function displayRole(role) {
     if (role === 'superadmin') return 'Admin';
@@ -72,7 +73,9 @@ export default function Sidebar({ isOpen, onClose }) {
 
       {/* Nav */}
       <nav className="sidebar-nav">
-        {navItems.map(({ to, icon: Icon, label }) => (
+        {navItems
+          .filter((item) => !item.permission || hasUserPermission(user, item.permission))
+          .map(({ to, icon: Icon, label }) => (
           <Link
             key={to}
             href={to}
@@ -87,7 +90,7 @@ export default function Sidebar({ isOpen, onClose }) {
           </Link>
         ))}
 
-        {isAdmin && (
+        {canViewSettings && (
           <>
             <div className="sidebar-section-divider">
               <span className="sidebar-section-line" />
@@ -120,7 +123,7 @@ export default function Sidebar({ isOpen, onClose }) {
         />
       </div>
 
-      {/* User footer / Profile pic */}
+      {/* User footer */}
       <div className="sidebar-footer">
         <div className="sidebar-user" title={user?.name ? `${user.name} (${displayRole(user?.role)})` : 'User profile'}>
           <div className="sidebar-avatar-wrapper">
@@ -140,10 +143,7 @@ export default function Sidebar({ isOpen, onClose }) {
             <div className="sidebar-user-role">{displayRole(user?.role)}</div>
           </div>
           <button
-            onClick={(e) => {
-              e.currentTarget.blur();
-              handleLogout();
-            }}
+            onClick={(e) => { e.currentTarget.blur(); handleLogout(); }}
             className="sidebar-logout-btn"
             title="Logout"
             aria-label="Logout"

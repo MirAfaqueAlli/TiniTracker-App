@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { Op } from 'sequelize';
 import { withProviderAuth } from '@/lib/middleware/withProviderAuth';
 import { Subscription, Hospital, ProviderAdmin } from '@/lib/db/models/index';
+import { parsePagination } from '@/lib/utils/validation';
 
 // GET /api/provider/subscriptions — list all subscriptions across all hospitals
 export async function GET(request) {
@@ -13,6 +14,7 @@ export async function GET(request) {
     const plan = searchParams.get('plan');
     const status = searchParams.get('status');
     const hospitalId = searchParams.get('hospital_id');
+    const { limit, offset } = parsePagination(searchParams, 100, 500);
 
     const where = {};
     if (plan && plan !== 'ALL') {
@@ -51,6 +53,8 @@ export async function GET(request) {
         }
       ],
       order: [['ends_at', 'ASC'], ['createdAt', 'DESC']],
+      limit,
+      offset,
     });
 
     const rows = subscriptions.map((s) => {
@@ -66,6 +70,7 @@ export async function GET(request) {
         hospital_id: s.hospital_id,
         hospital:    s.Hospital,
         plan:        s.plan,
+        billing_cycle: s.billing_cycle,
         starts_at:   s.starts_at,
         ends_at:     s.ends_at,
         is_active:   s.is_active,

@@ -13,8 +13,12 @@ import {
   Role,
   RolePermission,
   AppNotification,
+  SubscriptionRequest,
+  ProviderNotification,
+  Announcement,
   sequelize,
 } from '@/lib/db/models/index';
+import { handleApiError } from '@/lib/utils/validation';
 
 // GET /api/provider/hospitals/[id] — get full detail of a hospital
 export async function GET(request, { params }) {
@@ -195,10 +199,22 @@ export async function DELETE(request, { params }) {
       await AppNotification.destroy({ where: { hospital_id: id }, transaction: t });
     }
 
-    // 5. Delete Users
+    // 5. Delete SubscriptionRequests, ProviderNotifications, and Announcements
+    //    for this hospital — these are not patient-scoped so must be listed explicitly.
+    if (SubscriptionRequest) {
+      await SubscriptionRequest.destroy({ where: { hospital_id: id }, transaction: t });
+    }
+    if (ProviderNotification) {
+      await ProviderNotification.destroy({ where: { hospital_id: id }, transaction: t });
+    }
+    if (Announcement) {
+      await Announcement.destroy({ where: { target_hospital_id: id }, transaction: t });
+    }
+
+    // 6. Delete Users
     await User.destroy({ where: { hospital_id: id }, transaction: t });
 
-    // 6. Delete Hospital itself
+    // 7. Delete Hospital itself
     await hospital.destroy({ transaction: t });
 
     await t.commit();
