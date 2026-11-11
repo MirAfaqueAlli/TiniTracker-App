@@ -5,7 +5,8 @@
  * ═══════════════════════════════════════════════════════════════════════════
  *
  *  USAGE:
- *    node scripts/migrate-wellnest-hospital.mjs --file=./wellnest_fresh.sql
+ *    node scripts/migrate-wellnest-hospital.mjs --file=scripts/data/wellnest.sql
+ *    node scripts/migrate-wellnest-hospital.mjs --file=scripts/data/wellnest.sql --dry-run
  *    node scripts/migrate-wellnest-hospital.mjs --demo
  *    node scripts/migrate-wellnest-hospital.mjs --demo --dry-run
  *
@@ -71,16 +72,54 @@ function sanitizeNotifType(t) {
 
 // ─── SQL PARSER ──────────────────────────────────────────────────────────────
 
+/**
+ * Extract INSERT statement blocks for a given table using a string-aware
+ * tokenizer that correctly ignores semicolons inside quoted strings or
+ * backslash-escaped sequences (e.g. the \'  in ANC_34W description).
+ */
+function extractInsertBlocks(sqlText, tableName) {
+  const prefix = 'INSERT INTO `' + tableName + '`';
+  const blocks = [];
+  let pos = 0;
+  while (pos < sqlText.length) {
+    const idx = sqlText.indexOf(prefix, pos);
+    if (idx === -1) break;
+    // Walk forward character-by-character to find the real statement end
+    let i = idx + prefix.length;
+    let inStr = false;
+    let strChar = '';
+    let found = false;
+    while (i < sqlText.length) {
+      const ch = sqlText[i];
+      if (inStr) {
+        if (ch.charCodeAt(0) === 92) { i += 2; continue; } // backslash escape — skip next char
+        if (ch === strChar) inStr = false;
+      } else {
+        if (ch === "'" || ch === '"') { inStr = true; strChar = ch; }
+        else if (ch === ';') {
+          blocks.push(sqlText.slice(idx, i + 1));
+          pos = i + 1;
+          found = true;
+          break;
+        }
+      }
+      i++;
+    }
+    if (!found) { pos = idx + prefix.length; }
+  }
+  return blocks;
+}
+
 function parseSqlInserts(sqlText, tableName) {
   const results = [];
-  const blockRegex = new RegExp(
-    'INSERT INTO `' + tableName + '`\\s*\\(([^)]+)\\)\\s*VALUES\\s*([\\s\\S]+?);',
-    'gi'
-  );
-  let blockMatch;
-  while ((blockMatch = blockRegex.exec(sqlText)) !== null) {
-    const columns  = blockMatch[1].split(',').map(c => c.trim().replace(/`/g, ''));
-    const tuples   = splitValueTuples(blockMatch[2]);
+  const headerRe = /INSERT INTO `[^`]+`\s*\(([^)]+)\)\s*VALUES\s*/i;
+  const blocks = extractInsertBlocks(sqlText, tableName);
+  for (const block of blocks) {
+    const hm = headerRe.exec(block);
+    if (!hm) continue;
+    const columns  = hm[1].split(',').map(c => c.trim().replace(/`/g, ''));
+    const valuesPart = block.slice(hm.index + hm[0].length, block.lastIndexOf(';'));
+    const tuples   = splitValueTuples(valuesPart);
     for (const tuple of tuples) {
       const values = parseValueTuple(tuple);
       if (values.length !== columns.length) continue;
@@ -307,8 +346,8 @@ async function migrate() {
         console.log('Real SQL file also loaded for demo patient import: ' + resolved + ' (' + (realSqlText.length / 1024).toFixed(1) + ' KB)\n');
       }
     } else {
-      // Auto-detect wellnest.sql in the project root
-      const autoPath = path.resolve(__dirname, '../wellnest.sql');
+      // Auto-detect wellnest.sql in scripts/data/ (moved from project root for security)
+      const autoPath = path.resolve(__dirname, 'data/wellnest.sql');
       if (fs.existsSync(autoPath)) {
         realSqlText = fs.readFileSync(autoPath, 'utf8');
         console.log('Auto-loaded wellnest.sql for demo patient import (' + (realSqlText.length / 1024).toFixed(1) + ' KB)\n');
@@ -328,11 +367,13 @@ async function migrate() {
   const oldPatients      = parseSqlInserts(sqlText, 'patients');
   const oldStages        = parseSqlInserts(sqlText, 'patient_stages');
   const oldNotifications = parseSqlInserts(sqlText, 'notifications');
-  console.log('  Hospitals    : ' + oldHospitals.length);
-  console.log('  Users        : ' + oldUsers.length);
-  console.log('  Patients     : ' + oldPatients.length);
-  console.log('  PatientStages: ' + oldStages.length);
-  console.log('  Notifications: ' + oldNotifications.length);
+  const oldStageTemplatesRaw = parseSqlInserts(sqlText, 'stage_templates');
+  console.log('  Hospitals      : ' + oldHospitals.length);
+  console.log('  Users          : ' + oldUsers.length);
+  console.log('  Patients       : ' + oldPatients.length);
+  console.log('  PatientStages  : ' + oldStages.length);
+  console.log('  StageTemplates : ' + oldStageTemplatesRaw.length);
+  console.log('  Notifications  : ' + oldNotifications.length);
 
   // Also parse real patients from wellnest.sql if in demo mode
   let realPatients = [], realStages = [], realNotifications = [];
@@ -353,7 +394,72 @@ async function migrate() {
     process.exit(1);
   }
 
-  if (isDryRun) { console.log('\nDry run complete - no data written.'); process.exit(0); }
+  if (isDryRun) {
+    // In dry-run mode: connect to DB, build mapping table, run pre-flight collision checks, then exit
+    console.log('\nDry run mode: connecting to DB for pre-flight checks (no writes)...');
+    let dryConn;
+    try {
+      dryConn = await getConnection();
+      await dryConn.execute('SELECT 1');
+      console.log('  Connected to ' + process.env.DB_NAME + '@' + process.env.DB_HOST + '\n');
+    } catch (err) {
+      console.error('ERROR: DB connection failed: ' + err.message);
+      process.exit(1);
+    }
+
+    // Load new DB stage templates
+    const [stRows] = await dryConn.execute('SELECT id, stage_code FROM stage_templates ORDER BY id');
+    const stageCodeToNewId = {};
+    stRows.forEach(r => { stageCodeToNewId[r.stage_code] = r.id; });
+
+    // Build old → new code mapping
+    const oldStTemplIdToCode = {};
+    oldStageTemplatesRaw.forEach(t => { oldStTemplIdToCode[t.id] = t.stage_code; });
+
+    console.log('Stage template mapping (old ID → code → new ID):');
+    console.log('  ' + '-'.repeat(60));
+    console.log('  Old ID | Old Code      | New ID | Status');
+    console.log('  ' + '-'.repeat(60));
+    for (const t of oldStageTemplatesRaw) {
+      const code  = t.stage_code;
+      const newId = stageCodeToNewId[code];
+      let status;
+      if (code === 'IMM_2Y')       status = 'SKIPPED (no new equivalent)';
+      else if (!newId)             status = 'ABORT: code not in new DB';
+      else if (newId !== t.id)     status = 'REMAPPED (ID changed: ' + t.id + ' → ' + newId + ')';
+      else                         status = 'exact match';
+      console.log('  ' + String(t.id).padStart(6) + ' | ' + String(code).padEnd(13) + ' | ' + String(newId || '—').padStart(6) + ' | ' + status);
+    }
+    console.log('  ' + '-'.repeat(60));
+
+    // Pre-flight: collision checks
+    console.log('\nPre-flight collision checks:');
+    let collisions = 0;
+    for (const h of oldHospitals) {
+      const hospUsers = oldUsers.filter(u => u.hospital_id === h.id);
+      for (const u of hospUsers) {
+        const [ex] = await dryConn.execute('SELECT id FROM users WHERE email = ? LIMIT 1', [u.email]);
+        if (ex.length > 0) {
+          console.log('  COLLISION (email): ' + u.email + ' → existing user ID ' + ex[0].id);
+          collisions++;
+        }
+      }
+      const hospPatients = oldPatients.filter(p => p.hospital_id === h.id);
+      for (const p of hospPatients) {
+        const [ex] = await dryConn.execute('SELECT id FROM patients WHERE whatsapp_number = ? LIMIT 1', [p.whatsapp_number]);
+        if (ex.length > 0) {
+          const maskedPhone = p.whatsapp_number ? p.whatsapp_number.slice(0,5) + '****' + p.whatsapp_number.slice(-3) : 'N/A';
+          console.log('  COLLISION (phone): ' + maskedPhone + ' → existing patient ID ' + ex[0].id);
+          collisions++;
+        }
+      }
+    }
+    if (collisions === 0) console.log('  No collisions found — safe to import.');
+
+    await dryConn.end();
+    console.log('\nDry run complete - no data written.');
+    process.exit(0);
+  }
 
   // Connect
   console.log('\nConnecting to TiniTracker Next DB...');
@@ -378,7 +484,7 @@ async function migrate() {
     const stageCodeToNewId = {};
     stRows.forEach(r => { stageCodeToNewId[r.stage_code] = r.id; });
 
-    const oldStageTemplates     = parseSqlInserts(sqlText, 'stage_templates');
+    const oldStageTemplates     = oldStageTemplatesRaw; // already parsed above
     const oldStTemplIdToCode    = {};
     oldStageTemplates.forEach(t => { oldStTemplIdToCode[t.id] = t.stage_code; });
 
@@ -386,7 +492,21 @@ async function migrate() {
     const stageTemplateIdMap = {};
     for (const oldId of allOldTemplIds) {
       const code = oldStTemplIdToCode[oldId];
-      stageTemplateIdMap[oldId] = code && stageCodeToNewId[code] ? stageCodeToNewId[code] : oldId;
+      if (!code) {
+        console.error('ABORT: Old stage_template ID ' + oldId + ' has no stage_code in the SQL dump. Cannot map safely.');
+        process.exit(1);
+      }
+      if (code === 'IMM_2Y') {
+        console.warn('  WARNING: IMM_2Y (old ID ' + oldId + ') has no equivalent in new TiniTracker schema. These patient stages will be SKIPPED.');
+        stageTemplateIdMap[oldId] = null; // null = skip during import
+        continue;
+      }
+      const newId = stageCodeToNewId[code];
+      if (!newId) {
+        console.error('ABORT: Stage code ' + code + ' (old ID ' + oldId + ') not found in target DB. Run the seeder first.');
+        process.exit(1);
+      }
+      stageTemplateIdMap[oldId] = newId;
     }
     console.log('  ' + stRows.length + ' templates found in new DB\n');
 
@@ -412,34 +532,44 @@ async function migrate() {
       } else {
         const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
-        // Insert Hospital
-        const [hRes] = await conn.execute(
-          'INSERT INTO hospitals (name, address, phone, whatsapp_sender_id, whatsapp_api_url, whatsapp_api_key, whatsapp_api_provider, is_blocked, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)',
-          [oldHosp.name, oldHosp.address||null, oldHosp.phone||null, oldHosp.whatsapp_sender_id||null, oldHosp.whatsapp_api_url||null, oldHosp.whatsapp_api_key||null, oldHosp.whatsapp_api_provider||null, now, now]
-        );
-        newHospitalId = hRes.insertId;
-        console.log('  Hospital inserted -> new ID: ' + newHospitalId);
-
-        // Insert Users
-        const userIdMap = {};
-        for (const u of hospUsers) {
-          const role = u.role === 'superadmin' ? 'admin' : (u.role || 'staff');
-          const [uRes] = await conn.execute(
-            'INSERT INTO users (hospital_id, name, email, password_hash, role, force_password_change, is_blocked, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?)',
-            [newHospitalId, u.name, u.email, u.password_hash, role, now, now]
+        // Wrap hospital + users + subscription in a transaction for atomicity
+        await conn.beginTransaction();
+        try {
+          // Insert Hospital
+          const [hRes] = await conn.execute(
+            'INSERT INTO hospitals (name, address, phone, whatsapp_sender_id, whatsapp_api_url, whatsapp_api_key, whatsapp_api_provider, is_blocked, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)',
+            [oldHosp.name, oldHosp.address||null, oldHosp.phone||null, oldHosp.whatsapp_sender_id||null, oldHosp.whatsapp_api_url||null, oldHosp.whatsapp_api_key||null, oldHosp.whatsapp_api_provider||null, now, now]
           );
-          userIdMap[u.id] = uRes.insertId;
-          console.log('  User: ' + u.email + ' -> new ID: ' + uRes.insertId + ' (role: ' + role + ', password preserved)');
-        }
-        newPrimaryUserId = userIdMap[primaryUser.id];
+          newHospitalId = hRes.insertId;
+          console.log('  Hospital inserted -> new ID: ' + newHospitalId);
 
-        // Create Subscription
-        const endsAt = new Date(Date.now() + 365*24*60*60*1000).toISOString().slice(0,10);
-        await conn.execute(
-          "INSERT INTO subscriptions (hospital_id, plan, starts_at, ends_at, is_active, notes, createdAt, updatedAt) VALUES (?, 'migrated', ?, ?, 1, 'Migrated from WellNest legacy system', ?, ?)",
-          [newHospitalId, now.slice(0,10), endsAt, now, now]
-        );
-        console.log('  Subscription: created (active until ' + endsAt + ')');
+          // Insert Users
+          const userIdMap = {};
+          for (const u of hospUsers) {
+            const role = u.role === 'superadmin' ? 'admin' : (u.role || 'staff');
+            const [uRes] = await conn.execute(
+              'INSERT INTO users (hospital_id, name, email, password_hash, role, force_password_change, is_blocked, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?)',
+              [newHospitalId, u.name, u.email, u.password_hash, role, now, now]
+            );
+            userIdMap[u.id] = uRes.insertId;
+            console.log('  User: ' + u.email + ' -> new ID: ' + uRes.insertId + ' (role: ' + role + ', password preserved)');
+          }
+          newPrimaryUserId = userIdMap[primaryUser.id];
+
+          // Create Subscription (plan mapped to canonical 'enterprise' with yearly billing cycle)
+          const endsAt = new Date(Date.now() + 365*24*60*60*1000).toISOString().slice(0,10);
+          await conn.execute(
+            "INSERT INTO subscriptions (hospital_id, plan, billing_cycle, starts_at, ends_at, is_active, notes, createdAt, updatedAt) VALUES (?, 'enterprise', 'yearly', ?, ?, 1, 'Migrated from WellNest legacy system', ?, ?)",
+            [newHospitalId, now.slice(0,10), endsAt, now, now]
+          );
+          console.log('  Subscription: created (active until ' + endsAt + ')');
+
+          await conn.commit();
+        } catch (txErr) {
+          await conn.rollback();
+          console.error('  ERROR: Transaction failed for hospital "' + oldHosp.name + '": ' + txErr.message + '. Rolled back.');
+          continue;
+        }
       }
 
       // RBAC
@@ -457,7 +587,9 @@ async function migrate() {
         if (exPat.length > 0) {
           patientIdMap[p.id] = exPat[0].id;
           pSkip++;
-          console.log('  SKIP "' + p.name + '" (' + p.whatsapp_number + ') - already exists, new ID: ' + exPat[0].id);
+          const maskedName  = p.name ? p.name.slice(0,3) + '***' : 'Unknown';
+          const maskedPhone = p.whatsapp_number ? p.whatsapp_number.slice(0,5) + '****' + p.whatsapp_number.slice(-3) : 'N/A';
+          console.log('  SKIP "' + maskedName + '" (' + maskedPhone + ') - already exists, new ID: ' + exPat[0].id);
           continue;
         }
         const now = new Date().toISOString().slice(0,19).replace('T',' ');
@@ -467,7 +599,9 @@ async function migrate() {
         );
         patientIdMap[p.id] = pRes.insertId;
         pIns++;
-        console.log('  OK "' + p.name + '" -> new ID: ' + pRes.insertId);
+        const maskedName  = p.name ? p.name.slice(0,3) + '***' : 'Unknown';
+        const maskedPhone = p.whatsapp_number ? p.whatsapp_number.slice(0,5) + '****' + p.whatsapp_number.slice(-3) : 'N/A';
+        console.log('  OK "' + maskedName + '" (' + maskedPhone + ') -> new ID: ' + pRes.insertId);
       }
       console.log('\n  Patients: ' + pIns + ' inserted, ' + pSkip + ' already existed\n');
 
@@ -481,7 +615,8 @@ async function migrate() {
       for (const s of hospStages) {
         const newPId = patientIdMap[s.patient_id];
         if (!newPId) { sMiss++; continue; }
-        const newTId = stageTemplateIdMap[s.stage_template_id] || s.stage_template_id;
+        const newTId = stageTemplateIdMap[s.stage_template_id];
+        if (newTId === null || newTId === undefined) { sMiss++; continue; } // IMM_2Y or unmapped
         const [exSt] = await conn.execute('SELECT id FROM patient_stages WHERE patient_id = ? AND stage_template_id = ? LIMIT 1', [newPId, newTId]);
         if (exSt.length > 0) { stageIdMap[s.id] = exSt[0].id; sSkip++; continue; }
         const now = new Date().toISOString().slice(0,19).replace('T',' ');
@@ -529,7 +664,9 @@ async function migrate() {
         const allRealOldTemplIds = [...new Set(realStages.map(s => s.stage_template_id))];
         for (const oldId of allRealOldTemplIds) {
           const code = realOldStTemplIdToCode[oldId];
-          realStageTemplateIdMap[oldId] = code && stageCodeToNewId[code] ? stageCodeToNewId[code] : oldId;
+          if (!code) { realStageTemplateIdMap[oldId] = null; continue; }
+          if (code === 'IMM_2Y') { realStageTemplateIdMap[oldId] = null; continue; } // no new equivalent
+          realStageTemplateIdMap[oldId] = stageCodeToNewId[code] || null;
         }
 
         const realPatientIdMap = {};

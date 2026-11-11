@@ -13,7 +13,14 @@ import {
 
 function escapeCsvValue(val) {
   if (val === null || val === undefined) return '""';
-  const str = String(val);
+  let str = String(val);
+
+  // CSV formula-injection protection: prefix spreadsheet formulas with an
+  // apostrophe so exported values are always treated as text.
+  if (/^[=+\-@]/.test(str)) {
+    str = `'${str}`;
+  }
+
   return `"${str.replace(/"/g, '""')}"`;
 }
 
@@ -70,7 +77,6 @@ export async function GET(request) {
         { label: 'Hospital Name', getValue: r => r.name },
         { label: 'Address / Location', getValue: r => r.address || 'N/A' },
         { label: 'Primary Contact Phone', getValue: r => r.phone || 'N/A' },
-        { label: 'Email', getValue: r => r.email || 'N/A' },
         { label: 'Operational Status', getValue: r => r.is_blocked ? 'SUSPENDED' : 'ACTIVE' },
         {
           label: 'Subscription Plan',
@@ -214,10 +220,11 @@ export async function GET(request) {
         { label: 'Hospital ID', getValue: r => r.hospital_id },
         { label: 'Hospital Name', getValue: r => r.Hospital?.name || 'Unknown' },
         { label: 'Patient Name', getValue: r => r.name },
-        { label: 'UHID / Reg No', getValue: r => r.uhid || 'N/A' },
-        { label: 'Phone', getValue: r => r.phone || 'N/A' },
-        { label: 'Expected Due Date (EDD)', getValue: r => r.edd ? new Date(r.edd).toLocaleDateString('en-IN') : 'N/A' },
-        { label: 'High Risk Flag', getValue: r => r.is_high_risk ? 'YES - HIGH RISK' : 'NO' },
+        { label: 'Patient Type', getValue: r => r.patient_type || 'N/A' },
+        { label: 'WhatsApp Number', getValue: r => r.whatsapp_number || 'N/A' },
+        { label: 'Expected Due Date (EDD)', getValue: r => r.edd ? new Date(r.edd).toLocaleDateString('en-IN') : '' },
+        { label: 'Child Date of Birth', getValue: r => r.child_dob ? new Date(r.child_dob).toLocaleDateString('en-IN') : '' },
+        { label: 'Status', getValue: r => r.status || 'active' },
         { label: 'Registration Date', getValue: r => new Date(r.createdAt).toLocaleDateString('en-IN') },
       ];
 

@@ -6,6 +6,8 @@ import { Patient, PatientStage, StageTemplate } from '@/lib/db/models/index';
 import { generateStages } from '@/lib/services/stage.service';
 import { doctorTypeFilter, doctorStageType, isAdmin, isStaff, hasPermission } from '@/lib/utils/rbac';
 import { createAppNotif } from '@/lib/services/appNotif.service';
+import { normalizeWhatsappNumber } from '@/lib/utils/phone';
+import { parsePagination } from '@/lib/utils/validation';
 
 // GET /api/patients
 export async function GET(request) {
@@ -22,18 +24,18 @@ export async function GET(request) {
     const status = searchParams.get('status');
     const type   = searchParams.get('type');
     const sort   = searchParams.get('sort') || 'next_stage';
-    const page   = parseInt(searchParams.get('page')  || '1');
-    const limit  = parseInt(searchParams.get('limit') || '10');
+    const { page, limit, offset } = parsePagination(searchParams, 10, 100);
 
     const hospitalId = user.hospital_id;
-    const offset     = (page - 1) * limit;
 
     const where = { hospital_id: hospitalId };
     if (status) where.status = status;
 
-    // Role-based type filtering: doctors only see their patient type
-    const doctorTypes = doctorTypeFilter(user);
-    const stageType   = doctorStageType(user);
+    // Role-based type filtering. patients.view_all_types lifts the doctor
+    // department restriction entirely.
+    const seeAllTypes = await hasPermission(user, 'patients.view_all_types');
+    const doctorTypes = seeAllTypes ? null : doctorTypeFilter(user);
+    const stageType   = seeAllTypes ? null : doctorStageType(user);
 
     if (doctorTypes) {
       const allowedByRole = doctorTypes;
@@ -180,6 +182,11 @@ export async function POST(request) {
     if (!whatsapp_number || !name || !patient_type)
       return NextResponse.json({ error: 'whatsapp_number, name and patient_type are required' }, { status: 400 });
 
+    const normalizedWhatsapp = normalizeWhatsappNumber(whatsapp_number);
+    if (!normalizedWhatsapp) {
+      return NextResponse.json({ error: 'A valid 10-digit WhatsApp number is required' }, { status: 400 });
+    }
+
     // Role-based check
     if (user.role === 'doctor_pregnancy' && patient_type !== 'pregnant')
       return NextResponse.json({ error: 'Pregnancy doctors can only register pregnant patients' }, { status: 403 });
@@ -188,7 +195,7 @@ export async function POST(request) {
 
     // ── WhatsApp collision check BEFORE insert ────────────────────────────────
     const existing = await Patient.findOne({
-      where: { whatsapp_number },
+      where: { whatsapp_number: normalizedWhatsapp },
       include: [{
         model: PatientStage,
         as: 'stages',
@@ -255,21 +262,21 @@ export async function POST(request) {
     let finalEdd       = edd    || null;
     let finalEddSource = edd_source || 'direct_entry';
 
-    if (patient_type === 'pregnant') {
+    if (patient_type === 'pregnant' || patient_type === 'both') {
       if (!finalEdd && lmp_date) {
         finalEdd       = addDays(new Date(lmp_date), 280);
         finalEddSource = 'lmp_calculated';
       }
       if (!finalEdd)
-        return NextResponse.json({ error: 'EDD or LMP date required for pregnant patients' }, { status: 400 });
+        return NextResponse.json({ error: 'EDD or LMP date required for pregnant/both patients' }, { status: 400 });
     }
 
-    if (patient_type === 'immunization' && !child_dob)
-      return NextResponse.json({ error: 'child_dob required for immunization patients' }, { status: 400 });
+    if ((patient_type === 'immunization' || patient_type === 'both') && !child_dob)
+      return NextResponse.json({ error: 'child_dob required for immunization/both patients' }, { status: 400 });
 
     const patient = await Patient.create({
       hospital_id:          user.hospital_id,
-      whatsapp_number,
+      whatsapp_number:      normalizedWhatsapp,
       name,
       age:                  age || null,
       address:              address || null,
@@ -286,9 +293,10 @@ export async function POST(request) {
       registered_by:        user.id,
     });
 
-    if (patient_type === 'pregnant') {
+    if (patient_type === 'pregnant' || patient_type === 'both') {
       await generateStages(patient, 'pregnancy');
-    } else {
+    }
+    if (patient_type === 'immunization' || patient_type === 'both') {
       await generateStages(patient, 'immunization');
     }
 

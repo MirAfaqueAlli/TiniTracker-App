@@ -1,16 +1,17 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useAuthStore } from '@/store/authStore';
+import { useRouter, usePathname } from 'next/navigation';
+import { useAuthStore, hasUserPermission } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
 import { useNotifStore } from '@/store/notifStore';
+import { useUiStore } from '@/store/uiStore';
 import {
-  Bell, Menu, MapPin, Sun, Moon, Search, X, Baby,
+  Bell, Menu, Sun, Moon, Search, X, Baby,
   Calendar, AlertTriangle, CheckCircle, Users, Send,
   ClipboardList, UserPlus, Home, Building2,
   Users2, ArrowRight, Syringe, HeartPulse, Zap,
-  Settings, ShieldCheck, UserCheck
+  Settings, ShieldCheck, MapPin
 } from 'lucide-react';
 import api from '@/lib/api';
 
@@ -53,7 +54,7 @@ const QUICK_LINKS_BASE = [
   { label: 'Dashboard',        path: '/dashboard',     icon: Home,          hint: 'Overview & key stats' },
   { label: 'Patients',         path: '/patients',      icon: Users,         hint: 'Full patients list' },
   { label: 'Register Patient', path: '/register',      icon: UserPlus,      hint: 'New patient intake form' },
-  { label: 'Notifications',    path: '/notifications', icon: Bell,          hint: 'WhatsApp delivery log' },
+  { label: 'Schedules & Reminders', path: '/notifications', icon: Bell,     hint: 'WhatsApp reminder register' },
   { label: 'Activity Logs',    path: '/activity',      icon: ClipboardList, hint: 'Complete audit trail' },
 ];
 
@@ -62,13 +63,13 @@ const ADMIN_LINKS = [
   { label: 'Staff Management', path: '/settings?tab=staff', icon: Users2, hint: 'Manage clinical staff & doctors' },
   { label: 'Subscription & Plans', path: '/settings?tab=subscription', icon: Zap, hint: 'Plan status, upgrades & requests' },
   { label: 'Hospital Profile & WhatsApp', path: '/settings?tab=hospital', icon: Building2, hint: 'Hospital info & messaging config' },
-  { label: 'Batch & Automations', path: '/settings?tab=batch', icon: Calendar, hint: 'Daily WhatsApp reminder schedule' },
-  { label: 'Audit & Activity Logs', path: '/settings?tab=logs', icon: ClipboardList, hint: 'Complete hospital change logs' },
+  { label: 'Batch & Automations', path: '/settings?tab=system', icon: Calendar, hint: 'Daily WhatsApp reminder schedule' },
+  { label: 'Audit & Activity Logs', path: '/settings?tab=activity', icon: ClipboardList, hint: 'Complete hospital change logs' },
   { label: 'Hospital Settings', path: '/settings', icon: Settings, hint: 'All system settings' },
 ];
 
 /* ── Spotlight Command Palette ───────────────────────────────── */
-function SpotlightModal({ onClose, isAdmin }) {
+function SpotlightModal({ onClose, isAdmin, user }) {
   const [query, setQuery]               = useState('');
   const [results, setResults]           = useState([]);
   const [staffResults, setStaffResults] = useState([]);
@@ -79,7 +80,35 @@ function SpotlightModal({ onClose, isAdmin }) {
   const router      = useRouter();
   const debounceRef = useRef(null);
 
-  const quickLinks = isAdmin ? [...QUICK_LINKS_BASE, ...ADMIN_LINKS] : QUICK_LINKS_BASE;
+  const canViewPatients = hasUserPermission(user, 'patients.view');
+  const canCreatePatient = hasUserPermission(user, 'patients.create');
+  const canViewNotifs = hasUserPermission(user, 'notifications.view');
+  const canViewSettings = hasUserPermission(user, 'settings.view');
+  const canManageRoles  = hasUserPermission(user, 'settings.manage_roles');
+  const canViewStaff    = hasUserPermission(user, 'staff.view');
+  const canViewLogs     = hasUserPermission(user, 'activity.view');
+  const canEditSystem   = hasUserPermission(user, 'settings.edit_system');
+  const canEditHospital = hasUserPermission(user, 'settings.edit_hospital');
+
+  const baseLinks = QUICK_LINKS_BASE.filter(l => {
+    if (l.path === '/patients' && !canViewPatients) return false;
+    if (l.path === '/register' && !canCreatePatient) return false;
+    if (l.path === '/notifications' && !canViewNotifs) return false;
+    if (l.path === '/activity' && (!canViewSettings || !canViewLogs)) return false;
+    return true;
+  });
+
+  const adminLinks = !canViewSettings ? [] : ADMIN_LINKS.filter(l => {
+    if (l.path.includes('tab=roles') && !canManageRoles) return false;
+    if (l.path.includes('tab=staff') && !canViewStaff) return false;
+    if ((l.path.includes('tab=logs') || l.path.includes('tab=activity')) && !canViewLogs) return false;
+    if ((l.path.includes('tab=batch') || l.path.includes('tab=system')) && !canEditSystem) return false;
+    if (l.path.includes('tab=hospital') && !canEditHospital) return false;
+    if (l.path.includes('tab=subscription') && !isAdmin) return false;
+    return true;
+  });
+
+  const quickLinks = [...baseLinks, ...adminLinks];
 
   // Auto-focus on mount
   useEffect(() => { inputRef.current?.focus(); }, []);
@@ -103,10 +132,13 @@ function SpotlightModal({ onClose, isAdmin }) {
     }
     setLoading(true);
     try {
-      const promises = [
-        api.get(`/patients?search=${encodeURIComponent(q)}&limit=7`).catch(() => ({ data: [] })),
-      ];
-      if (isAdmin) {
+      const promises = [];
+      if (canViewPatients) {
+        promises.push(api.get(`/patients?search=${encodeURIComponent(q)}&limit=7`).catch(() => ({ data: [] })));
+      } else {
+        promises.push(Promise.resolve({ data: [] }));
+      }
+      if (canViewStaff) {
         promises.push(
           api.get(`/auth/staff?search=${encodeURIComponent(q)}&limit=5`).catch(() => ({ data: [] }))
         );
@@ -114,7 +146,7 @@ function SpotlightModal({ onClose, isAdmin }) {
       const [patientRes, staffRes] = await Promise.all(promises);
       const patients = patientRes.data?.patients || patientRes.data || [];
       setResults(Array.isArray(patients) ? patients : []);
-      if (isAdmin && staffRes) {
+      if (canViewStaff && staffRes) {
         const staffList = staffRes.data?.staff || staffRes.data || [];
         setStaffResults(Array.isArray(staffList) ? staffList : []);
       }
@@ -124,7 +156,7 @@ function SpotlightModal({ onClose, isAdmin }) {
     } finally {
       setLoading(false);
     }
-  }, [isAdmin]);
+  }, [canViewPatients, canViewStaff]);
 
   function handleChange(e) {
     const val = e.target.value;
@@ -417,10 +449,12 @@ function BellDropdown({ onClose }) {
 
   useEffect(() => { fetchNotifications(); }, [fetchNotifications]);
 
+  const recent = notifications.slice(0, 3);
+
   return (
     <div className="bell-dropdown">
       <div className="bell-dropdown-header">
-        <span className="bell-dropdown-title">Activity</span>
+        <span className="bell-dropdown-title">Recent activity</span>
         {notifications.some(n => !n.is_read) && (
           <button className="bell-dropdown-clear" onClick={markAllRead}>Mark all read</button>
         )}
@@ -431,13 +465,13 @@ function BellDropdown({ onClose }) {
           <div className="bell-dropdown-loading">
             <span className="spinner" style={{ width: 20, height: 20, borderWidth: 2 }} />
           </div>
-        ) : notifications.length === 0 ? (
+        ) : recent.length === 0 ? (
           <div className="bell-dropdown-empty">
             <Bell size={28} strokeWidth={1.5} />
             <span>No activity yet</span>
           </div>
         ) : (
-          notifications.map(n => (
+          recent.map(n => (
             <div
               key={n.id}
               className={`bell-dropdown-item${n.is_read ? '' : ' unread'}`}
@@ -458,8 +492,8 @@ function BellDropdown({ onClose }) {
       </div>
 
       <div className="bell-dropdown-footer">
-        <button className="bell-dropdown-view-all" onClick={() => { router.push('/notifications'); onClose(); }}>
-          View all WhatsApp delivery logs →
+        <button className="bell-dropdown-view-all" onClick={() => { router.push('/activity'); onClose(); }}>
+          View all activity logs →
         </button>
       </div>
     </div>
@@ -471,10 +505,14 @@ export default function Topbar({ onMenuClick }) {
   const { user } = useAuthStore();
   const { theme, toggleTheme } = useThemeStore();
   const { unreadCount, fetchUnreadCount } = useNotifStore();
+  const openRegisterPatient = useUiStore((s) => s.openRegisterPatient);
+  const pathname = usePathname();
   const [mounted, setMounted]             = useState(false);
   const [bellOpen, setBellOpen]           = useState(false);
+  const [hospitalOpen, setHospitalOpen]   = useState(false);
   const [spotlightOpen, setSpotlightOpen] = useState(false);
   const bellRef = useRef(null);
+  const hospitalRef = useRef(null);
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -497,16 +535,20 @@ export default function Topbar({ onMenuClick }) {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Close bell on outside click
+  // Close bell / hospital menu on outside click
   useEffect(() => {
     function handleClickOutside(e) {
       if (bellRef.current && !bellRef.current.contains(e.target)) setBellOpen(false);
+      if (hospitalRef.current && !hospitalRef.current.contains(e.target)) setHospitalOpen(false);
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const isAdmin        = user?.role === 'admin' || user?.role === 'superadmin';
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
+  const hospitalName = user?.hospital_name || user?.hospital || user?.Hospital?.name || 'Hospital';
+  const hospitalMeta = (user?.hospital_address || user?.Hospital?.address || '').trim();
+  const hospitalInitials = hospitalName.trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
   const [subStatus, setSubStatus] = useState(user?.subscription || null);
 
   useEffect(() => {
@@ -523,42 +565,48 @@ export default function Topbar({ onMenuClick }) {
 
   const isTrial = subStatus ? subStatus.is_trial : (user?.subscription?.is_trial ?? true);
   const trialDaysLeft = subStatus ? subStatus.days_remaining : (user?.subscription?.days_remaining ?? null);
-  const hospitalName   = user?.hospital_name || user?.hospital || user?.Hospital?.name || 'City Care Hospital';
-  const hospitalAddress = (user?.hospital_address || user?.Hospital?.address || '').trim();
-  const firstName      = user?.name?.split(' ')[0] || 'there';
-  const ProfileWrapper = isAdmin ? Link : 'div';
-  const profileProps   = isAdmin ? { href: '/settings?tab=hospital', title: 'Hospital Settings' } : { title: hospitalName };
-  const isDark         = mounted && theme === 'dark';
+  const isDark = mounted && theme === 'dark';
+
+  // Page title & subtitle from pathname
+  const PAGE_META = {
+    '/dashboard':     { title: 'Overview',       sub: 'All care categories' },
+    '/patients':      { title: 'Patients',        sub: 'All registered patients' },
+    '/notifications': { title: 'Schedules & reminders', sub: 'WhatsApp reminder register' },
+    '/activity':      { title: 'Activity log',    sub: 'Audit stream' },
+    '/settings':      { title: 'Settings',        sub: 'Admin & system settings' },
+  };
+  const meta = PAGE_META[pathname] ||
+    Object.entries(PAGE_META).find(([k]) => pathname.startsWith(k))?.[1] ||
+    { title: 'TiniTraker', sub: '' };
+
+  const dateStr = mounted
+    ? new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+    : '';
 
   return (
     <>
-      <header className="topbar">
+      <header className="topbar new-topbar">
         {/* Hamburger — mobile only */}
         <button className="hamburger-btn" onClick={onMenuClick} title="Menu" aria-label="Open menu">
           <Menu size={18} />
         </button>
 
-        {/* Greeting — left */}
-        <div className="topbar-greeting">
-          <span className="topbar-greeting-text">
-            {mounted ? getGreeting() : 'Welcome'}, <strong>{firstName}</strong>
-          </span>
-        </div>
-
-        {/* Spotlight trigger pill — true center */}
-        <div className="topbar-center-search">
-          <SearchTrigger onClick={() => setSpotlightOpen(true)} />
+        {/* Page Title — left */}
+        <div className="new-topbar-title">
+          <h1 className="new-topbar-heading">{meta.title}</h1>
+          {mounted && (
+            <p className="new-topbar-sub">{dateStr} · {meta.sub}</p>
+          )}
         </div>
 
         {/* Right cluster */}
-        <div className="topbar-right-cluster">
-          {/* Upgrade Plan CTA — strictly for Hospital Admin on Free Trial */}
+        <div className="new-topbar-actions">
+          {/* Upgrade Plan CTA */}
           {isAdmin && isTrial && (
             <Link
               href="/settings?tab=subscription"
               className="topbar-upgrade-btn"
               title="You are currently on Free Trial. Click to explore plans and upgrade."
-              id="topbar-upgrade-plan-btn"
             >
               <Zap size={14} className="upgrade-btn-bolt" />
               <span className="upgrade-btn-text">Upgrade Plan</span>
@@ -568,10 +616,20 @@ export default function Topbar({ onMenuClick }) {
             </Link>
           )}
 
+          {/* Search pill */}
+          <button
+            className="new-topbar-search"
+            onClick={() => setSpotlightOpen(true)}
+            aria-label="Search patients or MRN"
+          >
+            <Search size={15} className="new-topbar-search-icon" />
+            <span className="new-topbar-search-text">Search patients or MRN</span>
+          </button>
+
           {/* Theme Toggle */}
           <button
             type="button"
-            className="btn-ghost topbar-theme-btn"
+            className="new-topbar-icon-btn"
             onClick={toggleTheme}
             title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
           >
@@ -579,9 +637,9 @@ export default function Topbar({ onMenuClick }) {
           </button>
 
           {/* Bell */}
-          <div className="topbar-bell-wrapper" ref={bellRef}>
+          <div className="new-topbar-bell-wrapper" ref={bellRef}>
             <button
-              className="btn-ghost topbar-bell-btn"
+              className="new-topbar-icon-btn"
               title="Activity notifications"
               onClick={() => { setBellOpen(o => !o); if (!bellOpen) fetchUnreadCount(); }}
             >
@@ -593,45 +651,63 @@ export default function Topbar({ onMenuClick }) {
             {bellOpen && <BellDropdown onClose={() => setBellOpen(false)} />}
           </div>
 
-          <div className="topbar-divider" />
+          {/* Register Patient CTA */}
+          {hasUserPermission(user, 'patients.create') && (
+            <button
+              type="button"
+              className="new-topbar-register-btn"
+              onClick={() => openRegisterPatient()}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+                <path d="M12 5v14M5 12h14"/>
+              </svg>
+              <span>Register patient</span>
+            </button>
+          )}
 
-          {/* Hospital profile */}
-          <ProfileWrapper {...profileProps} className="topbar-hospital-profile">
-            <div className="topbar-hospital-info">
-              <span className="topbar-hospital-name">{hospitalName}</span>
-              {hospitalAddress && (
-                <span className="topbar-hospital-meta">
-                  <MapPin size={11} strokeWidth={2.2} className="topbar-hospital-icon" />
-                  <span>{hospitalAddress}</span>
-                </span>
+          {/* Hospital profile — view/edit facility */}
+          {isAdmin && (
+            <div className="new-topbar-hospital-wrapper" ref={hospitalRef}>
+              <button
+                type="button"
+                className={`new-topbar-hospital-avatar${hospitalOpen ? ' is-open' : ''}`}
+                onClick={() => setHospitalOpen((o) => !o)}
+                aria-haspopup="menu"
+                aria-expanded={hospitalOpen}
+                title={`${hospitalName} — hospital profile`}
+              >
+                {hospitalInitials}
+              </button>
+              {hospitalOpen && (
+                <div className="hospital-menu" role="menu">
+                  <div className="hospital-menu-head">
+                    <span className="hospital-menu-avatar">{hospitalInitials}</span>
+                    <div className="hospital-menu-id">
+                      <strong>{hospitalName}</strong>
+                      <span>{hospitalMeta || 'Hospital profile'}</span>
+                    </div>
+                  </div>
+                  <div className="hospital-menu-divider" />
+                  <Link
+                    href="/settings?tab=hospital"
+                    className="hospital-menu-link"
+                    onClick={() => setHospitalOpen(false)}
+                    role="menuitem"
+                  >
+                    <Building2 size={15} />
+                    <span>Hospital &amp; WhatsApp settings</span>
+                    <ArrowRight size={14} className="hospital-menu-arrow" />
+                  </Link>
+                </div>
               )}
             </div>
-            <div className="topbar-hospital-avatar">
-              <img
-                src="/hospital-avatar.png"
-                alt="Hospital"
-                className="topbar-hospital-avatar-img"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                  if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'block';
-                }}
-              />
-              <svg className="topbar-hospital-avatar-fallback" style={{ display: 'none' }}
-                width="24" height="24" viewBox="0 0 24 24" fill="none">
-                <path d="M3 21h18" stroke="#00857c" strokeWidth="2" strokeLinecap="round" />
-                <path d="M5 21V7l8-4v18" stroke="#023846" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="#e6f7f5" />
-                <path d="M13 9l6 3v9" stroke="#00857c" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="#fef3c7" />
-                <rect x="8.5" y="10" width="3" height="7" rx="0.5" fill="#dc2626" />
-                <rect x="6.5" y="12" width="7" height="3" rx="0.5" fill="#dc2626" />
-              </svg>
-            </div>
-          </ProfileWrapper>
+          )}
         </div>
       </header>
 
       {/* Spotlight portal */}
       {spotlightOpen && (
-        <SpotlightModal onClose={() => setSpotlightOpen(false)} isAdmin={isAdmin} />
+        <SpotlightModal onClose={() => setSpotlightOpen(false)} isAdmin={isAdmin} user={user} />
       )}
     </>
   );

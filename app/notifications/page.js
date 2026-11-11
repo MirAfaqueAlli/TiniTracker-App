@@ -1,34 +1,65 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   Send,
-  Wifi,
   RefreshCw,
   Search,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Eye,
-  Calendar,
-  Baby,
   AlertTriangle,
   Clock,
-  CheckCircle,
-  XCircle,
+  CheckCheck,
+  Eye,
   X,
-  TrendingUp,
+  ClipboardList,
+  Download,
+  Copy,
+  ExternalLink,
   RotateCw,
-  BookCheck,
-  Hourglass,
 } from 'lucide-react';
 import api from '@/lib/api';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore, hasUserPermission } from '@/store/authStore';
 
-const LIMIT = 10;
+const LIMIT = 25;
+const EXPORT_LIMIT = 1000;
 
-function WhatsAppIcon({ size = 16 }) {
+const TYPE_META = {
+  reminder_7d: '7-day reminder',
+  reminder_1d: '1-day reminder',
+  reminder_today: 'Same-day reminder',
+  missed: 'Missed-visit follow-up',
+  manual: 'Manual reminder',
+  stage_complete: 'Stage complete',
+  edd_updated: 'EDD updated',
+  delivery_recorded: 'Delivery recorded',
+  stage_skipped: 'Stage skipped',
+  stage_rescheduled: 'Stage rescheduled',
+};
+
+const TYPE_OPTIONS = Object.entries(TYPE_META).map(([value, label]) => ({ value, label }));
+
+const STATUS_META = {
+  pending: { label: 'Queued', cls: 'is-queued' },
+  sent: { label: 'Sent', cls: 'is-sent' },
+  delivered: { label: 'Delivered', cls: 'is-delivered' },
+  failed: { label: 'Failed', cls: 'is-failed' },
+  read: { label: 'Read', cls: 'is-read' },
+};
+
+const STATUS_FILTERS = [
+  { value: 'all', label: 'All' },
+  { value: 'delivered', label: 'Delivered' },
+  { value: 'sent', label: 'Sent' },
+  { value: 'failed', label: 'Failed' },
+  { value: 'pending', label: 'Queued' },
+];
+
+function WhatsAppIcon({ size = 15 }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }} aria-hidden="true">
       <path
         fill="#25D366"
         d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"
@@ -37,250 +68,320 @@ function WhatsAppIcon({ size = 16 }) {
   );
 }
 
-const AVATAR_PALETTE = [
-  { bg: '#e6f7f5', color: '#00857c' },
-  { bg: '#e0f2fe', color: '#0284c7' },
-  { bg: '#f3e8ff', color: '#7e22ce' },
-  { bg: '#ffe4e6', color: '#be185d' },
-  { bg: '#fef3c7', color: '#b45309' },
-  { bg: '#dcfce7', color: '#15803d' },
-];
-
-function getAvatarStyle(name) {
-  if (!name) return AVATAR_PALETTE[0];
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h += name.charCodeAt(i);
-  return AVATAR_PALETTE[h % AVATAR_PALETTE.length];
+function initials(name) {
+  return String(name || '?')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0))
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
 }
 
-function getInitials(name) {
-  if (!name) return 'PT';
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+function parseDateOnly(value) {
+  if (!value) return null;
+  const [y, m, d] = String(value).slice(0, 10).split('-').map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
 }
 
-function formatPhoneDisplay(num) {
-  if (!num) return '—';
-  const cleaned = num.replace(/\D/g, '');
-  if (cleaned.length === 12 && cleaned.startsWith('91')) {
-    return `+91 ${cleaned.slice(2, 7)} ${cleaned.slice(7)}`;
+function formatWhen(value) {
+  if (!value) return { main: '—', time: '' };
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return { main: '—', time: '' };
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const day = new Date(date);
+  day.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((today.getTime() - day.getTime()) / 86400000);
+
+  let main;
+  if (diffDays === 0) main = 'Today';
+  else if (diffDays === 1) main = 'Yesterday';
+  else {
+    main = date.toLocaleDateString('en-IN', {
+      weekday: 'short',
+      day: '2-digit',
+      month: 'short',
+    });
   }
-  if (cleaned.length === 10) {
-    return `+91 ${cleaned.slice(0, 5)} ${cleaned.slice(5)}`;
-  }
-  return num;
-}
 
-function formatDateTime(dStr) {
-  if (!dStr) return { date: '—', time: '—' };
-  const d = new Date(dStr);
-  if (isNaN(d.getTime())) return { date: '—', time: '—' };
-  const date = d.toLocaleDateString('en-IN', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
-  const time = d.toLocaleTimeString('en-IN', {
+  const time = date.toLocaleTimeString('en-IN', {
     hour: '2-digit',
     minute: '2-digit',
     hour12: true,
   });
-  return { date, time };
+
+  return { main, time };
 }
 
-function getAlertInfo(notif) {
-  // If actual stage template name is linked from server
-  const stageName = notif.PatientStage?.template?.stage_name;
-  if (stageName) {
-    const isChild =
-      notif.Patient?.patient_type === 'immunization' ||
-      /polio|vaccin|dose|immuni|hepatitis|bcg|measles/i.test(stageName);
-    const isMissed = notif.type === 'missed';
-    return {
-      label: stageName,
-      className: isMissed ? 'missed' : isChild ? 'polio' : 'antenatal',
-      icon: isMissed ? AlertTriangle : isChild ? Baby : Calendar,
-    };
-  }
-
-  // Fallback to notification type mapping
-  switch (notif.type) {
-    case 'reminder_today':
-      return { label: 'Today Reminder', className: 'antenatal', icon: Calendar };
-    case 'reminder_1d':
-      return { label: '1-Day Reminder', className: 'antenatal', icon: Clock };
-    case 'reminder_7d':
-      return { label: '7-Day Reminder', className: 'antenatal', icon: Clock };
-    case 'missed':
-      return { label: 'Missed Visit Alert', className: 'missed', icon: AlertTriangle };
-    case 'stage_complete':
-      return { label: 'Stage Complete', className: 'immunization', icon: Calendar };
-    case 'delivery_recorded':
-      return { label: 'Delivery Recorded', className: 'polio', icon: Baby };
-    case 'edd_updated':
-      return { label: 'EDD Updated', className: 'antenatal', icon: Calendar };
-    case 'manual':
-      return { label: 'Manual Alert', className: 'general', icon: Send };
-    default:
-      return { label: notif.type || 'Notification', className: 'general', icon: Calendar };
-  }
+function patientKind(patient) {
+  if (patient?.patient_type === 'pregnant') return { label: 'Mother', cls: '' };
+  if (patient?.patient_type === 'immunization') return { label: 'Child', cls: 'is-imm' };
+  if (patient?.patient_type === 'both') return { label: 'Mother & Child', cls: 'is-both' };
+  return { label: 'Patient', cls: '' };
 }
 
+function patientSubline(notif) {
+  const patient = notif.Patient || {};
+  const bits = [patientKind(patient).label];
+  if (patient.child_name) bits.push(patient.child_name);
+  else if (patient.age) bits.push(`${patient.age} yrs`);
+  else if (notif.patient_id) bits.push(`#${notif.patient_id}`);
+  return bits.join(' · ');
+}
 
+function getTypeInfo(notif) {
+  return {
+    label: TYPE_META[notif.type] || (notif.type ? String(notif.type).replace(/_/g, ' ') : 'Notification'),
+    stageName: notif.PatientStage?.template?.stage_name || '',
+  };
+}
 
-/* ─── Notification Details Modal ────────────────────────────────── */
-function DetailsModal({ notif, onClose, onResend, onMarkRead }) {
-  if (!notif) return null;
-  const alert = getAlertInfo(notif);
-  const { date, time } = formatDateTime(notif.sent_at || notif.createdAt);
-  const isFailed = notif.status === 'failed';
-  const isPending = notif.status === 'pending';
-  const sentAt = notif.sent_at || notif.createdAt;
-  const ageMs = sentAt ? (Date.now() - new Date(sentAt).getTime()) : 0;
-  const isStale = isPending && ageMs > 10 * 60 * 1000;
+function linkedStage(notif) {
+  const stage = notif.PatientStage;
+  if (!stage) return '—';
+  const name = stage.template?.stage_name || 'Linked stage';
+  const date = parseDateOnly(stage.scheduled_date);
+  if (!date) return name;
+  return `${name} · ${date.toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })}`;
+}
+
+function SentCell({ notif }) {
+  if (notif.status === 'pending') {
+    const queued = formatWhen(notif.createdAt);
+    return (
+      <>
+        <div className="sched-when">Not sent yet</div>
+        <div className="sched-when-sub">Queued {queued.main}, {queued.time}</div>
+      </>
+    );
+  }
+
+  const when = formatWhen(notif.sent_at || notif.createdAt);
+  let note = '';
+  if (notif.status === 'failed') note = ' · not delivered';
+  else if (notif.status === 'sent') note = ' · awaiting receipt';
+  else if (notif.status === 'delivered') note = ' · received';
+  else if (notif.status === 'read') note = ' · read';
 
   return (
-    <div className="notif-modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="notif-modal-card" style={{ maxWidth: 540 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: '50%',
-                background: '#e6f7f5',
-                color: '#00857c',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Eye size={18} />
+    <>
+      <div className="sched-when">{when.main}</div>
+      <div className="sched-when-sub">{when.time}{note}</div>
+    </>
+  );
+}
+
+function StatusBadge({ status }) {
+  const meta = STATUS_META[status] || { label: status || '—', cls: 'is-queued' };
+  return (
+    <span className={`sched-status ${meta.cls}`}>
+      <i aria-hidden="true" />
+      {meta.label}
+    </span>
+  );
+}
+
+function StatCard({ label, value, unit, sub, icon: Icon, warn = false }) {
+  return (
+    <div className="sched-stat">
+      <div className="sched-stat-top">
+        <span className="sched-stat-label">{label}</span>
+        <Icon size={16} className="sched-stat-icon" aria-hidden="true" />
+      </div>
+      <div className={`sched-stat-value${warn ? ' warn' : ''}`}>
+        <span>{value}</span>
+        {unit ? <small>{unit}</small> : null}
+      </div>
+      <div className="sched-stat-sub">{sub}</div>
+    </div>
+  );
+}
+
+function DetailsDialog({ notif, onClose, onResend, onCopyMessage, resending, canSendManual }) {
+  const router = useRouter();
+
+  useEffect(() => {
+    function onKeyDown(event) {
+      if (event.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
+  if (!notif) return null;
+
+  const patient = notif.Patient || {};
+  const patientName = patient.name || `Patient #${notif.patient_id}`;
+  const phone = notif.whatsapp_number || patient.whatsapp_number || '—';
+  const kind = patientKind(patient);
+  const info = getTypeInfo(notif);
+  const statusMeta = STATUS_META[notif.status] || { label: notif.status || '—' };
+  const queued = formatWhen(notif.createdAt);
+  const sent = notif.sent_at ? formatWhen(notif.sent_at) : null;
+  const delivered = notif.delivered_at ? formatWhen(notif.delivered_at) : null;
+  const message = notif.message_body || 'No message content was logged for this reminder.';
+
+  const subtitle = notif.status === 'pending'
+    ? `Queued ${queued.main}, ${queued.time}`
+    : `${statusMeta.label} · ${(delivered || sent || queued).main}, ${(delivered || sent || queued).time}`;
+
+  const statusDetail = notif.status === 'pending'
+    ? `Queued ${queued.main}, ${queued.time}`
+    : `${statusMeta.label} ${(delivered || sent || queued).main}, ${(delivered || sent || queued).time}`;
+
+  const deliveredText = delivered
+    ? `${delivered.main}, ${delivered.time}`
+    : notif.status === 'failed'
+      ? 'Not delivered'
+      : 'Awaiting receipt';
+
+  const timeline = [];
+  timeline.push({ kind: 'done', label: 'Queued', note: `${queued.main}, ${queued.time}` });
+
+  if (notif.status === 'pending') {
+    timeline.push({
+      kind: 'pending',
+      label: 'Awaiting send',
+      note: 'The WhatsApp gateway has not processed this reminder yet.',
+    });
+  } else {
+    timeline.push({
+      kind: 'done',
+      label: 'Sent',
+      note: `${sent ? `${sent.main}, ${sent.time}` : `${queued.main}, ${queued.time}`} · WhatsApp`,
+    });
+
+    if (notif.status === 'delivered' || notif.status === 'read') {
+      timeline.push({
+        kind: 'done',
+        label: 'Delivered',
+        note: delivered
+          ? `${delivered.main}, ${delivered.time} · receipt confirmed`
+          : 'Delivery receipt confirmed by the WhatsApp gateway.',
+      });
+    } else if (notif.status === 'failed') {
+      timeline.push({
+        kind: 'fail',
+        label: 'Delivery failed',
+        note: notif.provider_message_id
+          ? `Provider reference: ${notif.provider_message_id}`
+          : 'The WhatsApp gateway could not deliver this reminder.',
+      });
+    }
+  }
+
+  return (
+    <div
+      className="sched-modal-overlay"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div className="sched-modal" role="dialog" aria-modal="true" aria-labelledby="sched-detail-title">
+        <div className="sched-modal-head">
+          <div>
+            <h2 className="sched-modal-title" id="sched-detail-title">Reminder detail</h2>
+            <p className="sched-modal-sub">{subtitle}</p>
+          </div>
+          <button type="button" className="sched-close" onClick={onClose} aria-label="Close reminder detail">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="sched-patient-card">
+          <span className={`sched-avatar ${kind.cls}`} aria-hidden="true">{initials(patientName)}</span>
+          <div className="sched-patient-main">
+            <div className="sched-patient-name">
+              {patientName}
+              <StatusBadge status={notif.status} />
             </div>
-            <div>
-              <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>
-                Notification Log Details
-              </div>
-              <div style={{ fontSize: '0.765rem', color: '#64748b' }}>
-                Delivery dispatch log ID #{notif.id}
-              </div>
+            <div className="sched-patient-meta">
+              {kind.label} · {info.label}{info.stageName ? ` · ${info.stageName}` : ''}
+            </div>
+            <div className="sched-patient-contact">
+              <WhatsAppIcon size={13} />
+              {phone}
             </div>
           </div>
+        </div>
+
+        <div className="sched-meta-grid">
+          <div className="sched-kv">
+            <span className="k">Channel</span>
+            <span className="v">WhatsApp</span>
+          </div>
+          <div className="sched-kv">
+            <span className="k">Status detail</span>
+            <span className="v num">{statusDetail}</span>
+          </div>
+          <div className="sched-kv">
+            <span className="k">Linked stage</span>
+            <span className="v sub">{linkedStage(notif)}</span>
+          </div>
+          <div className="sched-kv">
+            <span className="k">Delivered</span>
+            <span className="v num">{deliveredText}</span>
+          </div>
+        </div>
+
+        <div className="sched-detail-block">
+          <div className="sched-detail-head">
+            <span>Delivery timeline</span>
+            <span className="meta">WhatsApp gateway</span>
+          </div>
+          <ol className="sched-timeline">
+            {timeline.map((step, index) => (
+              <li key={`${step.label}-${index}`} className={`sched-step is-${step.kind}`}>
+                <span className="sched-step-dot" aria-hidden="true" />
+                <div>
+                  <div className="sched-step-label">{step.label}</div>
+                  <div className="sched-step-note">{step.note}</div>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+
+        <div className="sched-message">
+          <div className="sched-message-head">
+            <span className="who">Message sent to {patientName}</span>
+            <span className="sched-chan">WhatsApp</span>
+          </div>
+          <div className="sched-message-body">{message}</div>
+          <div className="sched-message-foot">WhatsApp · {message.length} characters</div>
+        </div>
+
+        <div className="sched-modal-foot">
+          <button type="button" className="ttd-btn ttd-btn-ghost" onClick={() => onCopyMessage(message)}>
+            <Copy size={15} />
+            Copy text
+          </button>
+          <span className="sched-foot-spacer" />
           <button
-            className="rpm-close-btn"
-            onClick={onClose}
-            title="Close"
-            style={{ width: 30, height: 30 }}
+            type="button"
+            className="ttd-btn ttd-btn-ghost"
+            onClick={() => router.push(`/patients/${notif.patient_id}`)}
           >
-            <X size={15} />
+            <ExternalLink size={15} />
+            Open patient record
           </button>
-        </div>
-
-        {/* Stale Pending Warning */}
-        {isStale && (
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: '0.5rem',
-            padding: '0.6rem 0.85rem', background: '#fef9c3',
-            border: '1px solid #fde68a', borderRadius: '10px',
-            fontSize: '0.78rem', color: '#92400e', fontWeight: 600,
-          }}>
-            <AlertTriangle size={14} style={{ flexShrink: 0 }} />
-            This notification has been pending for over 10 minutes — it may not have been delivered.
-          </div>
-        )}
-
-        {/* Patient & Alert Info */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '0.75rem',
-            background: '#f8fafc',
-            padding: '0.85rem 1rem',
-            borderRadius: '12px',
-            border: '1px solid #e2e8f0',
-          }}
-        >
-          <div>
-            <div style={{ fontSize: '0.725rem', color: '#64748b', fontWeight: 600 }}>Recipient</div>
-            <div style={{ fontSize: '0.84rem', fontWeight: 700, color: '#0f172a' }}>
-              {notif.Patient?.name || `Patient #${notif.patient_id}`}
-            </div>
-            <div style={{ fontSize: '0.75rem', color: '#475569', marginTop: 2 }}>
-              {formatPhoneDisplay(notif.whatsapp_number)}
-            </div>
-          </div>
-          <div>
-            <div style={{ fontSize: '0.725rem', color: '#64748b', fontWeight: 600 }}>Alert Type</div>
-            <div style={{ marginTop: 3 }}>
-              <span className={`notif-type-badge ${alert.className}`}>
-                <alert.icon size={12} />
-                <span>{alert.label}</span>
-              </span>
-            </div>
-            <div style={{ fontSize: '0.725rem', color: '#64748b', marginTop: 4 }}>
-              Status:{' '}
-              <span className={`notif-status-badge ${notif.status || 'sent'}`} style={{ padding: '0.15rem 0.5rem', fontSize: '0.675rem' }}>
-                {isStale ? 'Stale Pending' : notif.status}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Message body in WhatsApp chat bubble */}
-        <div>
-          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', marginBottom: '0.35rem' }}>
-            Delivered WhatsApp Message:
-          </div>
-          <div className="notif-chat-bubble">
-            {notif.message_body || 'No message content logged.'}
-            <div
-              style={{
-                textAlign: 'right',
-                fontSize: '0.675rem',
-                color: '#64748b',
-                marginTop: '0.5rem',
-              }}
-            >
-              {date} · {time}
-            </div>
-          </div>
-        </div>
-
-        {notif.provider_message_id && (
-          <div style={{ fontSize: '0.725rem', color: '#94a3b8' }}>
-            Provider Ref: {notif.provider_message_id}
-          </div>
-        )}
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', marginTop: '0.25rem' }}>
-          <button type="button" className="rpm-btn-cancel" onClick={onClose}>
-            Close
-          </button>
-          {(isPending || isFailed) && (
+          {canSendManual && (
             <button
               type="button"
-              className="rpm-btn-cancel"
-              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#16a34a', border: '1px solid #bbf7d0', background: '#f0fdf4' }}
-              onClick={() => { onClose(); onMarkRead(notif.id); }}
+              className="ttd-btn ttd-btn-primary"
+              onClick={() => onResend(notif.id)}
+              disabled={resending}
             >
-              <BookCheck size={14} /> Mark as Read
-            </button>
-          )}
-          {(isFailed || isStale) && (
-            <button
-              type="button"
-              className="notif-btn-batch"
-              style={{ height: 38, padding: '0 1.15rem' }}
-              onClick={() => {
-                onClose();
-                onResend(notif.id);
-              }}
-            >
-              <RotateCw size={14} />
-              <span>{isFailed ? 'Retry Sending' : 'Resend'}</span>
+              {resending ? <span className="sched-mini-spinner is-light" /> : <RotateCw size={15} />}
+              Resend
             </button>
           )}
         </div>
@@ -289,434 +390,455 @@ function DetailsModal({ notif, onClose, onResend, onMarkRead }) {
   );
 }
 
-/* ─── Main Notification Component ───────────────────────────────── */
-export default function Notifications() {
-  const { user } = useAuthStore();
-  const isDoctor = user?.role === 'doctor_pregnancy' || user?.role === 'doctor_immunization';
+export default function NotificationsPage() {
+  const { user, sessionChecked } = useAuthStore();
+  const canView = hasUserPermission(user, 'notifications.view');
+  const canSendManual = hasUserPermission(user, 'notifications.send_manual');
+  const canRunBatch = hasUserPermission(user, 'notifications.trigger_batch');
 
   const [notifs, setNotifs] = useState([]);
   const [total, setTotal] = useState(0);
   const [pages, setPages] = useState(1);
   const [page, setPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState('');
-  const [typeFilter, setTypeFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
   const [search, setSearch] = useState('');
-  const [stats, setStats] = useState({ totalSent: 0, scheduledToday: 0, failedCount: 0 });
+  const [statusCounts, setStatusCounts] = useState({
+    all: 0, pending: 0, sent: 0, delivered: 0, failed: 0, read: 0,
+  });
+  const [stats, setStats] = useState({
+    sent7d: 0,
+    delivered7d: 0,
+    failed7d: 0,
+    awaiting: 0,
+    sentOpen: 0,
+    queuedOpen: 0,
+    patientCount7d: 0,
+  });
   const [loading, setLoading] = useState(true);
-  const [cronLoading, setCronLoading] = useState(false);
+  const [batchLoading, setBatchLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [selectedNotif, setSelectedNotif] = useState(null);
-  const [cronResult, setCronResult] = useState(null); // { type: 'success'|'error', result: {}, errMsg: '' }
   const [resendingId, setResendingId] = useState(null);
-  const [markingId,   setMarkingId]   = useState(null);
+  const [error, setError] = useState('');
+  const [toast, setToast] = useState(null);
+  const toastTimer = useRef(null);
 
-  // Determine if a notification is "stale pending" (pending but sent > 10 minutes ago)
-  function isStalePending(notif) {
-    if (notif.status !== 'pending') return false;
-    const sentAt = notif.sent_at || notif.createdAt;
-    if (!sentAt) return false;
-    const ageMs = Date.now() - new Date(sentAt).getTime();
-    return ageMs > 10 * 60 * 1000; // older than 10 minutes
-  }
+  const showToast = useCallback((type, title, message) => {
+    setToast({ type, title, message });
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 5000);
+  }, []);
 
-
+  useEffect(() => () => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+  }, []);
 
   const load = useCallback(async () => {
+    if (!canView) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
+    setError('');
     try {
-      const params = new URLSearchParams({ page, limit: LIMIT });
-      if (statusFilter) params.set('status', statusFilter);
-      if (typeFilter) params.set('type', typeFilter);
+      const params = new URLSearchParams({ page: String(page), limit: String(LIMIT) });
+      if (statusFilter !== 'all') params.set('status', statusFilter);
+      if (typeFilter !== 'all') params.set('type', typeFilter);
       if (search.trim()) params.set('search', search.trim());
 
-      const res = await api.get(`/notifications?${params}`);
+      const res = await api.get(`/notifications?${params.toString()}`);
       setNotifs(res.data.notifications || []);
       setTotal(res.data.total || 0);
       setPages(res.data.pages || 1);
-      if (res.data.stats) {
-        setStats(res.data.stats);
-      }
+      setStats(res.data.stats || {});
+      setStatusCounts(res.data.statusCounts || {
+        all: 0, pending: 0, sent: 0, delivered: 0, failed: 0, read: 0,
+      });
     } catch (err) {
-      console.error('Fetch notifications error:', err);
+      setNotifs([]);
+      setError(err.response?.data?.error || 'Failed to load the reminder register.');
     } finally {
       setLoading(false);
     }
   }, [page, statusFilter, typeFilter, search]);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      load();
-    }, 200);
+    const timer = setTimeout(load, 220);
     return () => clearTimeout(timer);
   }, [load]);
 
-  async function triggerCron() {
-    setCronLoading(true);
-    setCronResult(null);
+  const refresh = useCallback(() => {
+    if (page !== 1) setPage(1);
+    else load();
+  }, [page, load]);
+
+  async function runBatch() {
+    setBatchLoading(true);
     try {
       const res = await api.post('/notifications/cron');
-      const r = res.data.result || {};
-      setCronResult({ type: 'success', result: r });
-      setPage(1);
-      load();
+      const result = res.data.result || {};
+      const sent = (result.reminder_7d || 0) + (result.reminder_1d || 0) + (result.reminder_today || 0);
+      const missed = result.missed || 0;
+      showToast(
+        'success',
+        'Batch complete',
+        `${sent} reminder${sent === 1 ? '' : 's'} sent · ${missed} missed visit${missed === 1 ? '' : 's'} flagged.`
+      );
+      refresh();
     } catch (err) {
-      setCronResult({ type: 'error', errMsg: err.response?.data?.error || err.message });
+      showToast('error', 'Batch failed', err.response?.data?.error || err.message);
     } finally {
-      setCronLoading(false);
-      setTimeout(() => setCronResult(null), 8000);
+      setBatchLoading(false);
     }
   }
 
   async function handleResend(id) {
     setResendingId(id);
     try {
-      await api.post(`/notifications/${id}/resend`);
-      load();
+      const res = await api.post(`/notifications/${id}/resend`);
+      const ok = res.data.status === 'sent';
+      showToast(ok ? 'success' : 'error', ok ? 'Reminder resent' : 'Delivery failed', res.data.message || '');
+      setSelectedNotif(null);
+      refresh();
     } catch (err) {
-      alert('Failed to resend notification: ' + (err.response?.data?.error || err.message));
+      showToast('error', 'Resend failed', err.response?.data?.error || err.message);
     } finally {
       setResendingId(null);
     }
   }
 
-  async function handleMarkRead(id) {
-    setMarkingId(id);
+  async function copyMessage(text) {
     try {
-      await api.patch(`/notifications/${id}`, { status: 'read' });
-      load();
-    } catch (err) {
-      alert('Failed to update status: ' + (err.response?.data?.error || err.message));
-    } finally {
-      setMarkingId(null);
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        showToast('success', 'Copied', 'Message text copied to the clipboard.');
+        return;
+      }
+      throw new Error('Clipboard unavailable');
+    } catch {
+      const area = document.createElement('textarea');
+      area.value = text;
+      area.setAttribute('readonly', '');
+      area.style.position = 'fixed';
+      area.style.top = '-1000px';
+      document.body.appendChild(area);
+      area.select();
+      let copied = false;
+      try {
+        copied = document.execCommand('copy');
+      } catch {
+        copied = false;
+      }
+      document.body.removeChild(area);
+      if (copied) showToast('success', 'Copied', 'Message text copied to the clipboard.');
+      else showToast('error', 'Copy blocked', 'Select the message text and copy it manually.');
     }
   }
 
+  async function exportCsv() {
+    setExporting(true);
+    try {
+      const params = new URLSearchParams({ page: '1', limit: String(EXPORT_LIMIT) });
+      if (statusFilter !== 'all') params.set('status', statusFilter);
+      if (typeFilter !== 'all') params.set('type', typeFilter);
+      if (search.trim()) params.set('search', search.trim());
+
+      const res = await api.get(`/notifications?${params.toString()}`);
+      const rows = res.data.notifications || [];
+      if (!rows.length) {
+        showToast('error', 'Nothing to export', 'No reminders match the current filters.');
+        return;
+      }
+
+      const head = ['Patient', 'Kind', 'WhatsApp number', 'Reminder', 'Linked stage', 'Status', 'Sent at', 'Delivered at', 'Message'];
+      const cell = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+      const lines = [head.map(cell).join(',')];
+
+      rows.forEach((row) => {
+        lines.push([
+          row.Patient?.name || `Patient #${row.patient_id}`,
+          patientKind(row.Patient).label,
+          row.whatsapp_number || row.Patient?.whatsapp_number || '',
+          getTypeInfo(row).label,
+          linkedStage(row),
+          STATUS_META[row.status]?.label || row.status || '',
+          row.sent_at || '',
+          row.delivered_at || '',
+          row.message_body || '',
+        ].map(cell).join(','));
+      });
+
+      const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `tinittracker-reminders-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      showToast('success', 'Export ready', `${rows.length} reminder${rows.length === 1 ? '' : 's'} exported as CSV.`);
+    } catch (err) {
+      showToast('error', 'Export failed', err.response?.data?.error || err.message);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  function clearFilters() {
+    setStatusFilter('all');
+    setTypeFilter('all');
+    setSearch('');
+    setPage(1);
+  }
+
+  const hasFilters = statusFilter !== 'all' || typeFilter !== 'all' || Boolean(search.trim());
+  const selectedResending = selectedNotif ? resendingId === selectedNotif.id : false;
+  const countFor = (value) => (value === 'all' ? statusCounts.all : statusCounts[value]) || 0;
   const startRow = total === 0 ? 0 : (page - 1) * LIMIT + 1;
   const endRow = Math.min(page * LIMIT, total);
 
-  return (
-    <div className="notif-container">
-      {/* ── Page Header ── */}
-      <div className="notif-header">
-        <div>
-          <div className="notif-title">Notifications</div>
+  if (sessionChecked && !canView) {
+    return (
+      <div className="sched-page" style={{ padding: '3rem 1.5rem', textAlign: 'center' }}>
+        <div style={{ maxWidth: 520, margin: '0 auto', background: 'var(--ttd-card-bg, #1a1e29)', border: '1px solid var(--ttd-border, #2d3748)', borderRadius: 12, padding: '2.5rem' }}>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--ttd-ink, #fff)', marginBottom: '0.75rem' }}>Access Restricted</h2>
+          <p style={{ color: 'var(--ttd-muted, #94a3b8)', fontSize: '0.9rem', lineHeight: 1.5 }}>
+            You do not have permission to view notification schedules and message history. If you believe this is in error, please contact your hospital administrator.
+          </p>
+          <div style={{ marginTop: '1.25rem' }}>
+            <Link href="/dashboard" className="ttd-btn ttd-btn-secondary" style={{ display: 'inline-flex' }}>
+              Return to Dashboard
+            </Link>
+          </div>
         </div>
+      </div>
+    );
+  }
 
-        <div className="notif-header-actions">
-          {!isDoctor && (
-            <button
-              type="button"
-              className="notif-btn-batch"
-              onClick={triggerCron}
-              disabled={cronLoading}
-            >
-              {cronLoading ? (
-                <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
-              ) : (
-                <>
-                  <Send size={14} />
-                  <span>Run Batch Alerts</span>
-                </>
-              )}
+  return (
+    <div className="sched-page">
+      <header className="sched-head" aria-label="Schedules and reminders">
+        <div className="sched-head-copy">
+
+        </div>
+        <div className="sched-actions">
+          {canRunBatch ? (
+            <button type="button" className="ttd-btn ttd-btn-primary sched-run-btn" onClick={runBatch} disabled={batchLoading}>
+              {batchLoading ? <RefreshCw size={15} className="sched-spin" /> : <Send size={15} />}
+              <span>{batchLoading ? 'Running batch…' : 'Run batch'}</span>
             </button>
-          )}
+          ) : null}
           <button
             type="button"
-            className="notif-action-btn"
-            onClick={load}
-            title="Refresh logs"
-            style={{ width: 40, height: 40, borderRadius: '50%' }}
+            className="ttd-btn ttd-btn-ghost sched-icon-btn"
+            onClick={refresh}
+            disabled={loading}
+            title="Refresh reminders"
+            aria-label="Refresh reminders"
           >
-            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+            <RefreshCw size={16} className={loading ? 'sched-spin' : ''} />
+          </button>
+          <button type="button" className="ttd-btn ttd-btn-ghost" onClick={exportCsv} disabled={exporting}>
+            <Download size={15} />
+            <span>{exporting ? 'Exporting…' : 'Export CSV'}</span>
           </button>
         </div>
-      </div>
+      </header>
 
+      {error ? (
+        <div className="ttd-alert" role="alert">
+          <AlertTriangle size={15} />
+          <span>{error}</span>
+        </div>
+      ) : null}
 
+      <section className="sched-stats" aria-label="WhatsApp reminder summary">
+        <StatCard
+          label="Sent · last 7 days"
+          value={Number(stats.sent7d || 0).toLocaleString()}
+          unit="reminders"
 
-      {/* ── Stat Summary Cards (3 cards, Delivery Rate excluded as requested) ── */}
-      <div className="notif-stats-grid">
-        {/* Card 1: Total Reminders Sent */}
-        <div className="notif-stat-card">
-          <div className="notif-stat-icon-box sent">
-            <Send size={18} />
-          </div>
-          <div className="notif-stat-info">
-            <span className="notif-stat-label">Total Reminders Sent</span>
-            <div className="notif-stat-value-row">
-              <span className="notif-stat-value">
-                {stats.totalSent > 0 ? stats.totalSent.toLocaleString() : total.toLocaleString()}
-              </span>
-            </div>
-            <div className="notif-stat-trend">
-              <TrendingUp size={11} />
-              <span>Real-time delivery log</span>
-            </div>
-          </div>
+          icon={Send}
+        />
+        <StatCard
+          label="Delivered · last 7 days"
+          value={Number(stats.delivered7d || 0).toLocaleString()}
+          unit="received"
+
+          icon={CheckCheck}
+        />
+        <StatCard
+          label="Awaiting delivery"
+          value={Number(stats.awaiting || 0).toLocaleString()}
+          unit="open"
+
+          icon={Clock}
+        />
+        <StatCard
+          label="Failed · last 7 days"
+          value={Number(stats.failed7d || 0).toLocaleString()}
+          unit="failed"
+          warn={Number(stats.failed7d || 0) > 0}
+
+          icon={AlertTriangle}
+        />
+      </section>
+
+      <section className="sched-panel" aria-labelledby="sched-log-title">
+        <div className="sched-panel-head">
+          <h2 className="sched-panel-title" id="sched-log-title">
+            <ClipboardList size={16} />
+            Reminder log
+          </h2>
+          <span className="sched-panel-note">WhatsApp only</span>
         </div>
 
-        {/* Card 2: Scheduled For Today */}
-        <div className="notif-stat-card">
-          <div className="notif-stat-icon-box scheduled">
-            <Clock size={18} />
+        <div className="sched-filters" aria-label="Filter reminders">
+          <div className="sched-search-wrap">
+            <Search size={15} className="sched-search-icon" />
+            <input
+              type="search"
+              className="sched-search-input"
+              placeholder="Search patient name or phone number"
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
+              aria-label="Search reminders by patient name or phone number"
+            />
           </div>
-          <div className="notif-stat-info">
-            <span className="notif-stat-label">Scheduled For Today</span>
-            <div className="notif-stat-value-row">
-              <span className="notif-stat-value">
-                {stats.scheduledToday !== undefined ? stats.scheduledToday.toLocaleString() : '0'}
-              </span>
-              <span className="notif-stat-unit">Messages</span>
-            </div>
-            <div className="notif-stat-sub">
-              Pending queue today
-            </div>
+
+          <span className="sched-filter-label">Status</span>
+          <div className="sched-chip-group" role="group" aria-label="Filter by delivery status">
+            {STATUS_FILTERS.map((filter) => (
+              <button
+                key={filter.value}
+                type="button"
+                className="sched-chip"
+                aria-pressed={statusFilter === filter.value}
+                onClick={() => {
+                  setStatusFilter(filter.value);
+                  setPage(1);
+                }}
+              >
+                {filter.label} <span className="n">{countFor(filter.value)}</span>
+              </button>
+            ))}
           </div>
-        </div>
 
-        {/* Card 3: Failed / Undelivered */}
-        <div className="notif-stat-card">
-          <div className="notif-stat-icon-box failed">
-            <AlertTriangle size={18} />
-          </div>
-          <div className="notif-stat-info">
-            <span className="notif-stat-label">Failed / Undelivered</span>
-            <div className="notif-stat-value-row">
-              <span className={`notif-stat-value ${stats.failedCount > 0 ? 'failed' : ''}`}>
-                {stats.failedCount > 0 ? stats.failedCount.toLocaleString() : '0'}
-              </span>
-              <span className={`notif-stat-unit ${stats.failedCount > 0 ? 'failed' : ''}`}>
-                Failed
-              </span>
-            </div>
-            <div className={`notif-stat-sub ${stats.failedCount > 0 ? 'failed' : 'success'}`}>
-              {stats.failedCount > 0 ? 'Retry action available' : 'All delivered successfully'}
-            </div>
-          </div>
-        </div>
-      </div>
+          <span className="sched-f-divider" aria-hidden="true" />
 
-      {/* ── Search & Filter Controls Bar ── */}
-      <div className="notif-filter-bar">
-        {/* Search */}
-        <div className="notif-search-wrapper">
-          <Search size={16} className="notif-search-icon" />
-          <input
-            className="notif-search-input"
-            placeholder="Search by patient name or phone..."
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-          />
-        </div>
-
-        {/* Status Filter */}
-        <div className="notif-select-wrapper">
-          <select
-            className="notif-select"
-            value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
-              setPage(1);
-            }}
-          >
-            <option value="">All Statuses</option>
-            <option value="delivered">Delivered</option>
-            <option value="sent">Sent</option>
-            <option value="failed">Failed</option>
-            <option value="pending">Pending</option>
-            <option value="read">Read</option>
-          </select>
-          <ChevronDown size={14} className="notif-select-chevron" />
-        </div>
-
-        {/* Alert Types Filter */}
-        <div className="notif-select-wrapper">
-          <select
-            className="notif-select"
-            value={typeFilter}
-            onChange={(e) => {
-              setTypeFilter(e.target.value);
-              setPage(1);
-            }}
-          >
-            <option value="">All Alert Types</option>
-            <option value="reminder_today">Today Reminder</option>
-            <option value="reminder_1d">1-Day Reminder</option>
-            <option value="reminder_7d">7-Day Reminder</option>
-            <option value="missed">Missed Visit Alert</option>
-            <option value="stage_complete">Stage Complete</option>
-            <option value="delivery_recorded">Delivery Recorded</option>
-            <option value="edd_updated">EDD Updated</option>
-            <option value="manual">Manual Alert</option>
-          </select>
-          <ChevronDown size={14} className="notif-select-chevron" />
-        </div>
-      </div>
-
-      {/* ── Main Table Card ── */}
-      <div className="notif-table-card">
-        {loading ? (
-          <div style={{ padding: '3.5rem', display: 'flex', justifyContent: 'center' }}>
-            <div className="spinner" />
-          </div>
-        ) : notifs.length === 0 ? (
-          <div style={{ padding: '3.5rem 1rem', textAlign: 'center' }}>
-            <div
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: '50%',
-                background: '#f1f5f9',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#64748b',
-                marginBottom: '0.75rem',
+          <label className="sched-filter-label" htmlFor="sched-type-filter">Type</label>
+          <div className="sched-select-wrap">
+            <select
+              id="sched-type-filter"
+              className="sched-select"
+              value={typeFilter}
+              onChange={(event) => {
+                setTypeFilter(event.target.value);
+                setPage(1);
               }}
             >
-              <Search size={22} />
-            </div>
-            <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#0f172a' }}>
-              No notifications found
-            </div>
-            <p style={{ fontSize: '0.785rem', color: '#64748b', marginTop: '0.25rem' }}>
-              {search || statusFilter || typeFilter
-                ? 'Try clearing your filters or search query.'
-                : 'Automated WhatsApp logs appear here once patients are registered and cron runs.'}
-            </p>
+              <option value="all">All types</option>
+              {TYPE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+            <ChevronDown size={13} />
+          </div>
+
+          <span className="sched-filter-meta">
+            <span className="sched-result-count">
+              Showing <b>{notifs.length}</b> of {total} reminder{total === 1 ? '' : 's'}
+            </span>
+            <button type="button" className="ttd-btn ttd-btn-ghost ttd-btn-small" onClick={clearFilters}>
+              Clear
+            </button>
+          </span>
+        </div>
+
+        {loading ? (
+          <div className="sched-loading">
+            <span className="ttd-spinner" />
+          </div>
+        ) : notifs.length === 0 ? (
+          <div className="sched-empty">
+            <Search size={22} />
+            <strong>No reminders match these filters</strong>
+            <span>
+              {hasFilters
+                ? 'Try a different status or reminder type — or clear the search.'
+                : 'WhatsApp reminders appear here once the batch job runs for your patients.'}
+            </span>
+            {hasFilters ? (
+              <button type="button" className="ttd-btn ttd-btn-ghost ttd-btn-small" onClick={clearFilters}>
+                Reset filters
+              </button>
+            ) : null}
           </div>
         ) : (
-          <div className="notif-table-responsive">
-            <table className="notif-table">
+          <div className="sched-table-wrap">
+            <table className="sched-table">
               <thead>
                 <tr>
-                  <th>Patient</th>
-                  <th>Alert Type</th>
-                  <th>WhatsApp Number</th>
-                  <th>Status</th>
-                  <th>Sent At</th>
-                  <th>Action</th>
+                  <th scope="col" className="sched-c-patient">Patient</th>
+                  <th scope="col" className="sched-c-contact">Contact</th>
+                  <th scope="col" className="sched-c-rem">Reminder</th>
+                  <th scope="col" className="sched-c-when">Sent</th>
+                  <th scope="col" className="sched-c-status">Status</th>
+                  <th scope="col" className="sched-c-act"><span>Action</span></th>
                 </tr>
               </thead>
               <tbody>
-                {notifs.map((n) => {
-                  const pName = n.Patient?.name || `Patient #${n.patient_id}`;
-                  const pPhone = n.whatsapp_number || n.Patient?.whatsapp_number || '—';
-                  const initials = getInitials(pName);
-                  const avatarTheme = getAvatarStyle(pName);
-                  const alert = getAlertInfo(n);
-                  const { date, time } = formatDateTime(n.sent_at || n.createdAt);
-                  const isFailed = n.status === 'failed';
-                  const isResending = resendingId === n.id;
+                {notifs.map((notif) => {
+                  const patient = notif.Patient || {};
+                  const kind = patientKind(patient);
+                  const info = getTypeInfo(notif);
+                  const phone = notif.whatsapp_number || patient.whatsapp_number || '—';
 
                   return (
-                    <tr key={n.id}>
-                      {/* Patient Cell */}
-                      <td>
-                        <div className="notif-patient-cell">
-                          <div
-                            className="notif-avatar"
-                            style={{ background: avatarTheme.bg, color: avatarTheme.color }}
-                          >
-                            {initials}
-                          </div>
-                          <div className="notif-patient-meta">
-                            <span className="notif-patient-name">{pName}</span>
-                            <span className="notif-patient-phone">{formatPhoneDisplay(pPhone)}</span>
+                    <tr key={notif.id}>
+                      <td className="sched-c-patient">
+                        <div className="sched-patient">
+                          <span className={`sched-avatar ${kind.cls}`} aria-hidden="true">
+                            {initials(patient.name || `Patient ${notif.patient_id}`)}
+                          </span>
+                          <div className="sched-patient-main">
+                            <div className="sched-p-name">{patient.name || `Patient #${notif.patient_id}`}</div>
+                            <div className="sched-p-sub">{patientSubline(notif)}</div>
+                            <div className="sched-phone-inline">{phone}</div>
                           </div>
                         </div>
                       </td>
-
-                      {/* Alert Type Cell */}
-                      <td>
-                        <span className={`notif-type-badge ${alert.className}`}>
-                          <alert.icon size={13} />
-                          <span>{alert.label}</span>
-                        </span>
-                      </td>
-
-                      {/* WhatsApp Number Cell */}
-                      <td>
-                        <div className="notif-whatsapp-cell">
-                          <WhatsAppIcon size={16} />
-                          <span>{formatPhoneDisplay(n.whatsapp_number)}</span>
+                      <td className="sched-c-contact">
+                        <div className="sched-phone">
+                          <WhatsAppIcon size={14} />
+                          <span>{phone}</span>
                         </div>
                       </td>
-
-                      {/* Status Cell */}
-                      <td>
-                        {(() => {
-                          const stale = isStalePending(n);
-                          const statusLabel = n.status || 'sent';
-                          let icon = null;
-                          let extraStyle = {};
-                          if (statusLabel === 'sent')    icon = <CheckCircle size={11} />;
-                          if (statusLabel === 'read')    icon = <BookCheck size={11} />;
-                          if (statusLabel === 'failed')  icon = <XCircle size={11} />;
-                          if (statusLabel === 'pending') icon = stale ? <AlertTriangle size={11} /> : <Hourglass size={11} />;
-                          if (stale) extraStyle = { background: '#fef9c3', color: '#92400e', border: '1px solid #fde68a' };
-                          return (
-                            <span className={`notif-status-badge ${statusLabel}`} style={extraStyle}>
-                              {icon} {stale ? 'Stale Pending' : statusLabel}
-                            </span>
-                          );
-                        })()}
+                      <td className="sched-c-rem">
+                        <div className="sched-rem-type">{info.label}</div>
+                        <div className="sched-rem-stage">{linkedStage(notif)}</div>
                       </td>
-
-                      {/* Sent At Cell */}
-                      <td>
-                        <div className="notif-time-cell">
-                          <span className="notif-time-date">{date}</span>
-                          <span className="notif-time-hour">{time}</span>
-                        </div>
+                      <td className="sched-c-when">
+                        <SentCell notif={notif} />
                       </td>
-
-                      {/* Action Cell */}
-                      <td>
-                        <div className="notif-action-group">
-                          {/* Show Resend for failed OR stale-pending */}
-                          {(n.status === 'failed' || isStalePending(n)) && (
-                            <button
-                              type="button"
-                              className="notif-action-btn retry"
-                              onClick={() => handleResend(n.id)}
-                              title={n.status === 'failed' ? 'Retry sending' : 'Resend (stuck pending)'}
-                              disabled={resendingId === n.id || markingId === n.id}
-                            >
-                              <RotateCw
-                                size={14}
-                                className={resendingId === n.id ? 'animate-spin' : ''}
-                              />
-                            </button>
-                          )}
-
-                          {/* Show Mark as Read for pending or failed (manual dismiss) */}
-                          {(n.status === 'pending' || n.status === 'failed') && (
-                            <button
-                              type="button"
-                              className="notif-action-btn"
-                              onClick={() => handleMarkRead(n.id)}
-                              title="Mark as read (dismiss)"
-                              disabled={markingId === n.id || resendingId === n.id}
-                              style={{ color: '#16a34a' }}
-                            >
-                              {markingId === n.id
-                                ? <span className="spinner" style={{ width: 11, height: 11, borderWidth: 2 }} />
-                                : <BookCheck size={14} />}
-                            </button>
-                          )}
-
-                          <button
-                            type="button"
-                            className="notif-action-btn"
-                            onClick={() => setSelectedNotif(n)}
-                            title="View message log"
-                          >
-                            <Eye size={14} />
-                          </button>
-                        </div>
+                      <td className="sched-c-status">
+                        <StatusBadge status={notif.status} />
+                      </td>
+                      <td className="sched-c-act">
+                        <button
+                          type="button"
+                          className="sched-linkbtn sched-view-btn"
+                          onClick={() => setSelectedNotif(notif)}
+                          title="View reminder"
+                          aria-label={`View reminder for ${patient.name || `patient ${notif.patient_id}`}`}
+                        >
+                          <Eye size={15} />
+                        </button>
                       </td>
                     </tr>
                   );
@@ -726,95 +848,62 @@ export default function Notifications() {
           </div>
         )}
 
-        {/* ── Pagination ── */}
-        {total > 0 && (
-          <div className="notif-pagination-bar">
+        {!loading && total > 0 ? (
+          <div className="sched-table-foot">
             <span>
-              Showing {startRow}–{endRow} of {total.toLocaleString()} notifications
+              Newest activity first · <b>{countFor('all').toLocaleString()}</b> reminder
+              {countFor('all') === 1 ? '' : 's'} in the register
             </span>
-
-            <div className="notif-pagination-controls">
+            <div className="sched-pager">
+              <span className="sched-page-status">Showing {startRow}–{endRow} of {total.toLocaleString()}</span>
               <button
                 type="button"
-                className="notif-page-btn"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="ttd-pager-btn"
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
                 disabled={page === 1}
-                title="Previous Page"
+                title="Previous page"
+                aria-label="Previous page"
               >
                 <ChevronLeft size={14} />
               </button>
-
-              {Array.from({ length: pages }, (_, i) => i + 1)
-                .filter((n) => n === 1 || n === pages || Math.abs(n - page) <= 1)
-                .reduce((acc, n, idx, arr) => {
-                  if (idx > 0 && n - arr[idx - 1] > 1) acc.push('…');
-                  acc.push(n);
-                  return acc;
-                }, [])
-                .map((n, i) =>
-                  n === '…' ? (
-                    <span key={`dots-${i}`} style={{ padding: '0 0.25rem', color: '#94a3b8' }}>
-                      …
-                    </span>
-                  ) : (
-                    <button
-                      key={`page-${n}`}
-                      type="button"
-                      className={`notif-page-btn ${n === page ? 'active' : ''}`}
-                      onClick={() => setPage(n)}
-                    >
-                      {n}
-                    </button>
-                  )
-                )}
-
+              <span className="sched-page-number">Page {page} of {pages}</span>
               <button
                 type="button"
-                className="notif-page-btn"
-                onClick={() => setPage((p) => Math.min(pages, p + 1))}
+                className="ttd-pager-btn"
+                onClick={() => setPage((current) => Math.min(pages, current + 1))}
                 disabled={page === pages}
-                title="Next Page"
+                title="Next page"
+                aria-label="Next page"
               >
                 <ChevronRight size={14} />
               </button>
             </div>
           </div>
-        )}
-      </div>
+        ) : null}
+      </section>
 
-      {/* ── Modals ── */}
-      {selectedNotif && (
-        <DetailsModal
+      {selectedNotif ? (
+        <DetailsDialog
           notif={selectedNotif}
           onClose={() => setSelectedNotif(null)}
           onResend={handleResend}
-          onMarkRead={handleMarkRead}
+          onCopyMessage={copyMessage}
+          resending={selectedResending}
+          canSendManual={canSendManual}
         />
-      )}
+      ) : null}
 
-      {/* ── Batch Toast Popup ── */}
-      {cronResult && (
-        <div className={`batch-toast-popup ${cronResult.type}`}>
-          <div className="batch-toast-icon-wrap">
-            {cronResult.type === 'success' ? (
-              <CheckCircle size={20} />
-            ) : (
-              <XCircle size={20} />
-            )}
+      {toast ? (
+        <div className={`ttd-toast sched-toast${toast.type === 'error' ? ' is-error' : ''}`} role="status">
+          <div className="sched-toast-body">
+            <div className="sched-toast-title">{toast.title}</div>
+            {toast.message ? <div className="sched-toast-msg">{toast.message}</div> : null}
           </div>
-          <div className="batch-toast-body">
-            <div className="batch-toast-title">
-              {cronResult.type === 'success' ? 'Batch Complete' : 'Batch Failed'}
-            </div>
-            {cronResult.type === 'error' && cronResult.errMsg && (
-              <div className="batch-toast-sub">{cronResult.errMsg}</div>
-            )}
-          </div>
-          <button className="batch-toast-close" onClick={() => setCronResult(null)} title="Dismiss">
+          <button type="button" className="sched-toast-close" onClick={() => setToast(null)} aria-label="Dismiss notification">
             <X size={13} />
           </button>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

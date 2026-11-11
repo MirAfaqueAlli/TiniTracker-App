@@ -16,11 +16,15 @@ import {
   Baby,
 } from 'lucide-react';
 import api from '@/lib/api';
-import RegisterPatientModal from '@/components/RegisterPatientModal';
 import EditPatientDrawer from '@/components/EditPatientDrawer';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore, hasUserPermission } from '@/store/authStore';
+import { useUiStore } from '@/store/uiStore';
 
-const LIMIT = 7;
+const DEFAULT_PAGE_SIZE = 10;
+const MIN_PAGE_SIZE     = 6;
+const MAX_PAGE_SIZE     = 20;
+const ROW_HEIGHT        = 57;
+const CHROME_HEIGHT     = 370;
 
 function WhatsAppIcon({ size = 15 }) {
   return (
@@ -33,17 +37,6 @@ function WhatsAppIcon({ size = 15 }) {
   );
 }
 
-// Palette of soft background / text colour pairs — deterministic by patient id
-const AVATAR_PALETTES = [
-  { bg: '#ffe4e6', color: '#be185d' }, // rose
-  { bg: '#ccfbf1', color: '#0f766e' }, // teal
-  { bg: '#e0f2fe', color: '#0369a1' }, // sky
-  { bg: '#fef9c3', color: '#854d0e' }, // amber
-  { bg: '#f3e8ff', color: '#7e22ce' }, // purple
-  { bg: '#dcfce7', color: '#15803d' }, // green
-  { bg: '#ffedd5', color: '#9a3412' }, // orange
-];
-
 function PatientAvatar({ patient }) {
   const initials = (patient.name || 'P')
     .split(' ')
@@ -52,24 +45,15 @@ function PatientAvatar({ patient }) {
     .slice(0, 2)
     .toUpperCase();
 
-  const palette = AVATAR_PALETTES[(patient.id || 0) % AVATAR_PALETTES.length];
+  const tone = patient.patient_type === 'pregnant'
+    ? 'is-anc'
+    : patient.patient_type === 'immunization'
+      ? 'is-imm'
+      : 'is-both';
 
   return (
-    <div
-      className="patient-avatar-box"
-      style={{ background: palette.bg }}
-    >
-      <span
-        style={{
-          fontSize: '0.8125rem',
-          fontWeight: 700,
-          color: palette.color,
-          letterSpacing: '0.02em',
-          userSelect: 'none',
-        }}
-      >
-        {initials}
-      </span>
+    <div className={`patient-avatar-box ${tone}`}>
+      <span className="patient-avatar-initials">{initials}</span>
     </div>
   );
 }
@@ -234,31 +218,46 @@ const SORT_OPTIONS = [
 ];
 
 export default function Patients() {
-  const { user } = useAuthStore();
+  const { user, sessionChecked } = useAuthStore();
+  const canView = hasUserPermission(user, 'patients.view');
+  const canCreate = hasUserPermission(user, 'patients.create');
+  const canEdit = hasUserPermission(user, 'patients.edit');
+  const canViewAllTypes = hasUserPermission(user, 'patients.view_all_types');
+
   const isDrPreg = user?.role === 'doctor_pregnancy';
   const isDrImm  = user?.role === 'doctor_immunization';
   const isDoctor = isDrPreg || isDrImm;
 
-  // Doctors are locked to their patient type — no tab switching
-  const lockedType = isDrPreg ? 'pregnant' : isDrImm ? 'immunization' : '';
+  // Doctors without view_all_types permission are locked to their department type
+  const isTypeLocked = isDoctor && !canViewAllTypes;
+  const lockedType = isTypeLocked ? (isDrPreg ? 'pregnant' : 'immunization') : '';
 
   const [patients,     setPatients]     = useState([]);
   const [total,        setTotal]        = useState(0);
   const [pages,        setPages]        = useState(1);
   const [page,         setPage]         = useState(1);
+  const [pageSize,     setPageSize]     = useState(() => {
+    if (typeof window === 'undefined') return DEFAULT_PAGE_SIZE;
+    const rows = Math.ceil((window.innerHeight - CHROME_HEIGHT) / ROW_HEIGHT);
+    return Math.max(MIN_PAGE_SIZE, Math.min(MAX_PAGE_SIZE, rows));
+  });
   const [search,       setSearch]       = useState('');
   const [typeFilter,   setTypeFilter]   = useState(lockedType);
   const [statusFilter, setStatusFilter] = useState('');
   const [sort,         setSort]         = useState('registered');
   const [counts,       setCounts]       = useState({ all: 0, pregnant: 0, immunization: 0 });
   const [loading,      setLoading]      = useState(true);
-  const [showModal,    setShowModal]    = useState(false);
   const [editingPatient, setEditingPatient] = useState(null);
+  const openRegisterPatient = useUiStore((s) => s.openRegisterPatient);
 
   const fetchPatients = useCallback(async () => {
+    if (!canView) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
-      const params = new URLSearchParams({ page, limit: LIMIT, sort });
+      const params = new URLSearchParams({ page, limit: pageSize, sort });
       if (search)       params.set('search', search);
       // Always send the type filter (locked for doctors, variable for admin)
       if (typeFilter)   params.set('type',   typeFilter);
@@ -275,14 +274,44 @@ export default function Patients() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, typeFilter, statusFilter, sort]);
+  }, [page, pageSize, search, typeFilter, statusFilter, sort]);
 
   useEffect(() => {
     fetchPatients();
   }, [fetchPatients]);
 
+  // Fit the number of rows to the available screen height so the table fills the viewport
+  useEffect(() => {
+    let resizeTimer;
+
+    function handleResize() {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        const height = window.innerHeight || 900;
+        const rows = Math.ceil((height - CHROME_HEIGHT) / ROW_HEIGHT);
+        const nextSize = Math.max(MIN_PAGE_SIZE, Math.min(MAX_PAGE_SIZE, rows));
+        setPageSize(nextSize);
+        setPage(1);
+      }, 150);
+    }
+
+    window.addEventListener('resize', handleResize);
+    return () => {
+      clearTimeout(resizeTimer);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
+  useEffect(() => {
+    function handleRegistered() {
+      fetchPatients();
+    }
+    window.addEventListener('patient-registered', handleRegistered);
+    return () => window.removeEventListener('patient-registered', handleRegistered);
+  }, [fetchPatients]);
+
   function handleTabChange(newType) {
-    if (isDoctor) return; // doctors can't switch tabs
+    if (isTypeLocked) return; // locked to single department
     if (typeFilter === newType) return;
     setTypeFilter(newType);
     setPage(1);
@@ -301,37 +330,31 @@ export default function Patients() {
     setPage(1);
   }
 
-  const startRow = total === 0 ? 0 : (page - 1) * LIMIT + 1;
-  const endRow = Math.min(page * LIMIT, total);
+  const startRow = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const endRow = Math.min(page * pageSize, total);
 
   // Role-aware labels
-  const pageTitle = isDrPreg ? 'Pregnant Patients'
-    : isDrImm ? 'Immunization Patients'
-    : 'Patients';
-  const pageSubtitle = isDrPreg ? 'Manage and monitor your pregnant mothers.'
-    : isDrImm ? 'Manage and monitor your immunization cases.'
-    : 'Manage and monitor all mothers and children in one place.';
   const searchPlaceholder = isDrPreg ? 'Search pregnant mothers by name, phone or ID...'
     : isDrImm ? 'Search child or parent by name, phone or ID...'
     : 'Search by name, phone or ID...';
 
+  if (sessionChecked && !canView) {
+    return (
+      <div className="patients-page-container" style={{ padding: '3rem 1.5rem', textAlign: 'center' }}>
+        <div style={{ maxWidth: 520, margin: '0 auto', background: 'var(--ttd-card-bg, #1a1e29)', border: '1px solid var(--ttd-border, #2d3748)', borderRadius: 12, padding: '2.5rem' }}>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--ttd-ink, #fff)', marginBottom: '0.75rem' }}>Access Restricted</h2>
+          <p style={{ color: 'var(--ttd-muted, #94a3b8)', fontSize: '0.9rem', lineHeight: 1.5 }}>
+            You do not have permission to view the patients directory. If you believe this is in error, please contact your hospital administrator to request the &ldquo;View Patients&rdquo; permission.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="patients-page-container">
-      {/* Header */}
-      <div className="patients-header">
-        <div>
-          <div className="patients-title">{pageTitle}</div>
-          <div className="patients-subtitle">
-            {pageSubtitle}
-          </div>
-        </div>
-        <button className="btn-new-patient" onClick={() => setShowModal(true)}>
-          <Plus size={16} strokeWidth={2.5} /> {isDrPreg ? 'New Mother' : isDrImm ? 'New Child' : 'New Patient'}
-        </button>
-      </div>
-
-      {/* Patient Type Segmented Tabs — only visible for admin/staff */}
-      {!isDoctor && (
+      {/* Patient Type Segmented Tabs — visible unless locked to single department */}
+      {!isTypeLocked && (
         <div className="patients-type-tabs-row">
           <div className="patients-type-tabs">
             <button
@@ -438,9 +461,14 @@ export default function Patients() {
                 ? 'Try adjusting your search or filter parameters'
                 : 'Get started by registering your first patient.'}
             </div>
-            <button className="btn-new-patient" onClick={() => setShowModal(true)}>
-              <Plus size={15} strokeWidth={2.5} /> Register First Patient
-            </button>
+            {canCreate && (
+              <button
+                className="btn-new-patient"
+                onClick={() => openRegisterPatient(lockedType || (typeFilter === 'immunization' ? 'immunization' : 'pregnant'))}
+              >
+                <Plus size={15} strokeWidth={2.5} /> Register First Patient
+              </button>
+            )}
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
@@ -477,9 +505,6 @@ export default function Patients() {
                           <PatientAvatar patient={p} />
                           <div>
                             <div className="patient-name-title">{p.name}</div>
-                            <div className="patient-sub-info">
-                              {p.whatsapp_number || `ID #${p.id}`}
-                            </div>
                           </div>
                         </div>
                       </td>
@@ -607,7 +632,7 @@ export default function Patients() {
                           >
                             <Eye size={15} />
                           </Link>
-                          {!isDoctor && (
+                          {canEdit && (
                             <button
                               type="button"
                               onClick={(e) => {
@@ -616,11 +641,6 @@ export default function Patients() {
                               }}
                               className="patient-action-link"
                               title="Edit Patient"
-                              style={{
-                                border: 'none',
-                                cursor: 'pointer',
-                                background: 'transparent',
-                              }}
                             >
                               <Pencil size={14} />
                             </button>
@@ -687,17 +707,6 @@ export default function Patients() {
           </div>
         )}
       </div>
-
-      {showModal && (
-        <RegisterPatientModal
-          initialType={lockedType || (typeFilter === 'immunization' ? 'immunization' : 'pregnant')}
-          onClose={() => setShowModal(false)}
-          onSuccess={() => {
-            setShowModal(false);
-            fetchPatients();
-          }}
-        />
-      )}
 
       {editingPatient && (
         <EditPatientDrawer

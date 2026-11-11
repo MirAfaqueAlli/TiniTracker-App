@@ -15,13 +15,8 @@ export default function ProviderLoginPage() {
     setError('');
     setLoading(true);
     try {
-      const res = await axios.post('/api/provider/auth/login', { email, password });
-      // Store provider session separately from hospital user session
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('provider_token', res.data.token);
-        localStorage.setItem('provider_admin', JSON.stringify(res.data.admin));
-        document.cookie = `provider_token=${res.data.token}; path=/; max-age=604800; SameSite=Lax`;
-      }
+      // The server sets an httpOnly provider_token cookie; no token is stored in JS.
+      await axios.post('/api/provider/auth/login', { email, password }, { withCredentials: true });
       router.push('/provider/dashboard');
     } catch (err) {
       setError(err.response?.data?.error || 'Login failed');

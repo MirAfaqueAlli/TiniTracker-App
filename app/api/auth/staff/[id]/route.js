@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import { Op } from 'sequelize';
 import { withAuth } from '@/lib/middleware/withAuth';
 import { User } from '@/lib/db/models/index';
-import { hasPermission } from '@/lib/utils/rbac';
+import { hasPermission, isValidHospitalRole } from '@/lib/utils/rbac';
 
 // GET /api/auth/staff/[id]
 export async function GET(request, { params }) {
@@ -90,18 +90,7 @@ export async function PUT(request, { params }) {
 
     // Update role
     if (role !== undefined) {
-      const ALLOWED_ROLES = ['staff', 'doctor_pregnancy', 'doctor_immunization', 'admin'];
-      let isValidRole = ALLOWED_ROLES.includes(role);
-
-      if (!isValidRole) {
-        const { Role } = await import('@/lib/db/models/index');
-        const customRole = await Role.findOne({
-          where: { hospital_id: user.hospital_id, key: role }
-        });
-        if (customRole) isValidRole = true;
-      }
-
-      if (!isValidRole) {
+      if (!(await isValidHospitalRole(role, user.hospital_id))) {
         return NextResponse.json({ error: 'Invalid role specified' }, { status: 400 });
       }
 

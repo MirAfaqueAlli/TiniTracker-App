@@ -3,6 +3,7 @@ import { Op } from 'sequelize';
 import { withAuth } from '@/lib/middleware/withAuth';
 import { User } from '@/lib/db/models/index';
 import { hasPermission } from '@/lib/utils/rbac';
+import { parsePagination } from '@/lib/utils/validation';
 
 export async function GET(request) {
   const { user, errorResponse } = await withAuth(request);
@@ -14,12 +15,9 @@ export async function GET(request) {
 
   try {
     const { searchParams } = new URL(request.url);
-    const page   = parseInt(searchParams.get('page')  || '1');
-    const limit  = parseInt(searchParams.get('limit') || '10');
+    const { page, limit: lim, offset } = parsePagination(searchParams, 10, 100);
     const search = searchParams.get('search');
     const role   = searchParams.get('role');
-    const lim    = limit || 10;
-    const offset = (page - 1) * lim;
 
     const where = {};
     if (user?.hospital_id) where.hospital_id = user.hospital_id;

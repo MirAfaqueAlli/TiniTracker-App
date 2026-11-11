@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { withProviderAuth } from '@/lib/middleware/withProviderAuth';
 import { Hospital, Payment, Subscription } from '@/lib/db/models/index';
+import { isValidPaymentAmount, handleApiError } from '@/lib/utils/validation';
 
 // POST /api/provider/hospitals/[id]/payments — record a payment for a hospital
 export async function POST(request, { params }) {
@@ -14,25 +15,27 @@ export async function POST(request, { params }) {
     if (!amount || !payment_date)
       return NextResponse.json({ error: 'amount and payment_date are required' }, { status: 400 });
 
+    if (!isValidPaymentAmount(amount))
+      return NextResponse.json({ error: 'Payment amount must be a positive number' }, { status: 400 });
+
     const hospital = await Hospital.findByPk(id);
     if (!hospital) return NextResponse.json({ error: 'Hospital not found' }, { status: 404 });
 
     const payment = await Payment.create({
       hospital_id:     id,
       subscription_id: subscription_id || null,
-      amount,
+      amount:          parseFloat(amount),
       currency,
       payment_date,
-      method:      method     || null,
-      reference:   reference  || null,
-      recorded_by: admin.id,
-      notes:       notes      || null,
+      method:          method    || null,
+      reference:       reference || null,
+      recorded_by:     admin.id,
+      notes:           notes     || null,
     });
 
     return NextResponse.json({ message: 'Payment recorded', payment_id: payment.id }, { status: 201 });
   } catch (err) {
-    console.error('Record payment error:', err);
-    return NextResponse.json({ error: 'Failed to record payment' }, { status: 500 });
+    return handleApiError(err, 'Failed to record payment', '[POST /provider/hospitals/[id]/payments]');
   }
 }
 

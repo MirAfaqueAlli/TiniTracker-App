@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server';
 import { withAuth } from '@/lib/middleware/withAuth';
 import { Subscription } from '@/lib/db/models/index';
+import { toPublicHospital } from '@/lib/utils/hospital';
+import { getUserPermissions } from '@/lib/utils/rbac';
 
 export async function GET(request) {
   const { user, errorResponse } = await withAuth(request);
   if (errorResponse) return errorResponse;
+
+  const permissions = await getUserPermissions(user);
 
   let subscription = null;
   if (user.hospital_id) {
@@ -50,9 +54,10 @@ export async function GET(request) {
       hospital_name:         user.Hospital?.name,
       hospital_address:      user.Hospital?.address,
       hospital_phone:        user.Hospital?.phone,
-      Hospital:              user.Hospital,
+      Hospital:              toPublicHospital(user.Hospital),
       force_password_change: user.force_password_change ?? false,
       subscription,
+      permissions,
     }
   });
 }

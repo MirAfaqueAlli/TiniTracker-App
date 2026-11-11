@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { withProviderAuth } from '@/lib/middleware/withProviderAuth';
 import { Subscription, Hospital } from '@/lib/db/models/index';
+import { normalizePlanKey, normalizeBillingCycle, PLAN_KEYS } from '@/lib/utils/plans';
 
 // PATCH /api/provider/subscriptions/[id] — modify subscription
 export async function PATCH(request, { params }) {
@@ -15,10 +16,15 @@ export async function PATCH(request, { params }) {
     }
 
     const body = await request.json();
-    const { plan, starts_at, ends_at, is_active, notes, add_days } = body;
+    const { plan, billing_cycle, starts_at, ends_at, is_active, notes, add_days } = body;
+
+    if (plan !== undefined && !PLAN_KEYS.includes(plan)) {
+      return NextResponse.json({ error: `Invalid plan. Use: ${PLAN_KEYS.join(', ')}` }, { status: 400 });
+    }
 
     const updates = {};
-    if (plan !== undefined) updates.plan = plan;
+    if (plan !== undefined) updates.plan = normalizePlanKey(plan);
+    if (billing_cycle !== undefined) updates.billing_cycle = normalizeBillingCycle(billing_cycle);
     if (starts_at !== undefined) updates.starts_at = starts_at;
     if (is_active !== undefined) updates.is_active = Boolean(is_active);
     if (notes !== undefined) updates.notes = notes;

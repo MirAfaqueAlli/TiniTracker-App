@@ -27,8 +27,13 @@ export async function POST(request) {
       return NextResponse.json({ error: result.error }, { status: 400 });
     }
 
-    // Generate stateless cryptographic verification token valid for 2 hours
-    const jwtSecret = process.env.JWT_SECRET || 'tinitraker_jwt_secret_key_2026';
+    // Generate stateless cryptographic verification token valid for 2 hours.
+    // Fail closed if the secret is missing — never fall back to a hardcoded value.
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret || jwtSecret.length < 32) {
+      console.error('[verify-otp] JWT_SECRET is missing or shorter than 32 characters.');
+      return NextResponse.json({ error: 'Server misconfiguration.' }, { status: 500 });
+    }
     const verificationToken = jwt.sign(
       {
         email: normalizedEmail,

@@ -1,13 +1,20 @@
 import { NextResponse } from 'next/server';
 import { withAuth } from '@/lib/middleware/withAuth';
 import { Role, RolePermission, User, sequelize } from '@/lib/db/models/index';
-import { DEFAULT_ROLES, ALL_PERMISSIONS } from '@/lib/utils/rbac';
+import { DEFAULT_ROLES, ALL_PERMISSIONS, hasPermission } from '@/lib/utils/rbac';
 import { seedRolesAndPermissionsForHospital } from '@/lib/seeders/roles.seed.js';
 
 // GET /api/settings/roles — Fetch all roles (system + custom) for hospital
 export async function GET(request) {
-  const { user, errorResponse } = await withAuth(request, 'admin');
+  const { user, errorResponse } = await withAuth(request);
   if (errorResponse) return errorResponse;
+
+  const canReadRoles = (await hasPermission(user, 'settings.manage_roles')) ||
+                       (await hasPermission(user, 'staff.view')) ||
+                       (await hasPermission(user, 'settings.view'));
+  if (!canReadRoles) {
+    return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+  }
 
   try {
     // 1. Fetch all roles belonging to this hospital (auto-seed if missing)
@@ -65,8 +72,12 @@ export async function GET(request) {
 
 // POST /api/settings/roles — Create a new custom role
 export async function POST(request) {
-  const { user, errorResponse } = await withAuth(request, 'admin');
+  const { user, errorResponse } = await withAuth(request);
   if (errorResponse) return errorResponse;
+
+  if (!(await hasPermission(user, 'settings.manage_roles'))) {
+    return NextResponse.json({ error: 'Access denied: settings.manage_roles required' }, { status: 403 });
+  }
 
   try {
     const { name, dept, description, color, bg, border, copyPermissionsFrom } = await request.json();

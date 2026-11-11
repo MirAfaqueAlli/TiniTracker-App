@@ -1,12 +1,16 @@
 import { NextResponse } from 'next/server';
 import { withAuth } from '@/lib/middleware/withAuth';
 import { Notification, Patient } from '@/lib/db/models/index';
-import { isAdmin, isStaff } from '@/lib/utils/rbac';
+import { isAdmin, isStaff, hasPermission } from '@/lib/utils/rbac';
 
 // GET /api/notifications/[id]
 export async function GET(request, { params }) {
   const { user, errorResponse } = await withAuth(request);
   if (errorResponse) return errorResponse;
+
+  if (!(await hasPermission(user, 'notifications.view'))) {
+    return NextResponse.json({ error: 'Access denied: you do not have permission to view notifications' }, { status: 403 });
+  }
 
   try {
     const { id } = await params;

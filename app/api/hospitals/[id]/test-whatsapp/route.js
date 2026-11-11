@@ -1,22 +1,31 @@
 import { NextResponse } from 'next/server';
 import { withAuth } from '@/lib/middleware/withAuth';
 import { testConnection } from '@/lib/services/whatsapp.service';
+import { hasPermission } from '@/lib/utils/rbac';
 
 // POST /api/hospitals/[id]/test-whatsapp
 export async function POST(request, { params }) {
-  const { user, errorResponse } = await withAuth(request, 'admin');
+  const { user, errorResponse } = await withAuth(request);
   if (errorResponse) return errorResponse;
 
+  if (!(await hasPermission(user, 'settings.edit_hospital'))) {
+    return NextResponse.json({ error: 'Access denied: settings.edit_hospital required' }, { status: 403 });
+  }
+
   try {
-    const { test_number, whatsapp_api_url, whatsapp_api_key } = await request.json();
+    const { test_number } = await request.json();
     if (!test_number) return NextResponse.json({ error: 'test_number is required' }, { status: 400 });
 
-    const overrideCredentials = (whatsapp_api_url && whatsapp_api_key)
-      ? { apiUrl: whatsapp_api_url, apiKey: whatsapp_api_key }
-      : null;
-
     const { id } = await params;
-    const result = await testConnection(test_number, id, overrideCredentials);
+
+    // Owner check — test only your own hospital's stored configuration.
+    if (String(id) !== String(user.hospital_id)) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
+
+    // Arbitrary URL/key overrides from the request body are intentionally
+    // ignored; only the hospital's saved configuration is used.
+    const result = await testConnection(test_number, id);
     if (result.ok) {
       return NextResponse.json({ message: 'Test message sent successfully!' });
     } else {

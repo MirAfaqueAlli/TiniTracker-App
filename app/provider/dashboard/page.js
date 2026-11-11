@@ -6,10 +6,10 @@ import PasswordStrengthMeter, { evaluatePassword } from '@/components/PasswordSt
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function providerApi() {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('provider_token') : '';
+  // Authentication is carried by the httpOnly provider_token cookie.
   return axios.create({
     baseURL: '/api/provider',
-    headers: { Authorization: `Bearer ${token}` },
+    withCredentials: true,
   });
 }
 
@@ -347,33 +347,33 @@ export default function ProviderDashboard() {
   const [paymentId, setPaymentId]   = useState(null);
   const [search, setSearch]         = useState('');
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const storedAdmin = localStorage.getItem('provider_admin');
-    if (!storedAdmin || !localStorage.getItem('provider_token')) {
-      router.replace('/provider/login');
-      return;
-    }
-    setAdmin(JSON.parse(storedAdmin));
-    loadHospitals();
-  }, []);
-
   const loadHospitals = useCallback(async () => {
     setLoading(true);
     try {
       const res = await providerApi().get('/hospitals');
       setHospitals(res.data.hospitals || []);
     } catch (err) {
-      if (err.response?.status === 401) router.replace('/provider/login');
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        router.replace('/provider/login');
+      }
     } finally { setLoading(false); }
-  }, []);
+  }, [router]);
 
-  function logout() {
-    localStorage.removeItem('provider_token');
-    localStorage.removeItem('provider_admin');
-    if (typeof document !== 'undefined') {
-      document.cookie = 'provider_token=; path=/; max-age=0; SameSite=Lax';
-    }
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    // Restore the provider session from the httpOnly cookie via the server.
+    axios.get('/api/provider/auth/me', { withCredentials: true })
+      .then((res) => {
+        setAdmin(res.data.admin);
+        loadHospitals();
+      })
+      .catch(() => router.replace('/provider/login'));
+  }, [loadHospitals, router]);
+
+  async function logout() {
+    try {
+      await axios.post('/api/provider/auth/logout', {}, { withCredentials: true });
+    } catch { /* clear local UI state regardless */ }
     router.push('/provider/login');
   }
 
@@ -465,7 +465,7 @@ export default function ProviderDashboard() {
           <div style={{ textAlign: 'center', padding: '4rem', color: '#94a3b8' }}>
             <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🏥</div>
             <div style={{ fontWeight: 600 }}>{search ? 'No hospitals match your search' : 'No hospitals yet'}</div>
-            {!search && <div style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}>Click "+ New Hospital" to create the first one.</div>}
+            {!search && <div style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}>Click &quot;+ New Hospital&quot; to create the first one.</div>}
           </div>
         ) : (
           filtered.map(h => (

@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useParams } from 'next/navigation';
@@ -15,8 +15,13 @@ import {
   Eye,
   TrendingUp,
   User,
+  ChevronLeft,
   ChevronRight,
   ShieldCheck,
+  AlertTriangle,
+  Sparkles,
+  Syringe,
+  HeartPulse,
   Star,
   Clock,
   Pencil,
@@ -27,25 +32,17 @@ import {
   ArrowRightLeft,
 } from 'lucide-react';
 import api from '@/lib/api';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore, hasUserPermission } from '@/store/authStore';
 
 const STATUS_CONFIG = {
-  pending:  { label: 'Scheduled', badge: 'badge-pending',  dot: '#0284c7', bg: '#eff6ff', color: '#0284c7' },
-  notified: { label: 'Notified',  badge: 'badge-notified', dot: '#7e22ce', bg: '#f3e8ff', color: '#7e22ce' },
-  visited:  { label: 'Visited',   badge: 'badge-visited',  dot: '#10b981', bg: '#ecfdf5', color: '#059669' },
-  skipped:  { label: 'Skipped',   badge: 'badge-skipped',  dot: '#94a3b8', bg: '#f1f5f9', color: '#64748b' },
-  missed:   { label: 'Missed',    badge: 'badge-missed',   dot: '#e11d48', bg: '#fff1f2', color: '#e11d48' },
+  pending:  { label: 'Scheduled', badge: 'badge-pending' },
+  notified: { label: 'Notified',  badge: 'badge-notified' },
+  visited:  { label: 'Visited',   badge: 'badge-visited' },
+  skipped:  { label: 'Skipped',   badge: 'badge-skipped' },
+  missed:   { label: 'Missed',    badge: 'badge-missed' },
 };
 
-const AVATAR_PALETTES = [
-  { bg: '#ffe4e6', color: '#be185d' }, // rose
-  { bg: '#ccfbf1', color: '#0f766e' }, // teal
-  { bg: '#e0f2fe', color: '#0369a1' }, // sky
-  { bg: '#fef9c3', color: '#854d0e' }, // amber
-  { bg: '#f3e8ff', color: '#7e22ce' }, // purple
-  { bg: '#dcfce7', color: '#15803d' }, // green
-  { bg: '#ffedd5', color: '#9a3412' }, // orange
-];
+const HISTORY_PAGE_SIZE = 20;
 
 function WhatsAppIcon({ size = 15 }) {
   return (
@@ -58,14 +55,36 @@ function WhatsAppIcon({ size = 15 }) {
   );
 }
 
-function fmt(d) {
-  return d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+// DATEONLY values ("YYYY-MM-DD") must be parsed as local dates — `new Date('YYYY-MM-DD')`
+// is interpreted as UTC midnight and can render as the previous day in UTC-negative zones.
+function parseDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value === 'string') {
+    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (match) {
+      const [, y, m, d] = match;
+      return new Date(Number(y), Number(m) - 1, Number(d));
+    }
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-function formatRescheduledTag(reason) {
-  if (!reason) return null;
-  const match = reason.match(/^(Cascaded\s*\([^)]+\)\s*from\s*[^:]+)/i);
-  return match ? match[1].trim() : null;
+function fmt(d) {
+  const date = parseDate(d);
+  return date ? date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+}
+
+function formatSkipReason(reason) {
+  if (!reason) return 'Staff decision';
+  const labels = {
+    pre_registration: 'Scheduled before patient registration',
+    date_revised: 'Schedule revised after an EDD change',
+    delivery_completed: 'Pregnancy care completed with delivery',
+    staff_decision: 'Staff decision',
+  };
+  return labels[reason] || reason;
 }
 
 function formatPhoneDisplay(num) {
@@ -87,37 +106,9 @@ function getPatientInitials(name) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-function getGestationalOrAgeTag(patient, isDrPreg = false) {
-  if (isDrPreg && patient.patient_type === 'both') {
-    return 'Pregnancy Care Completed';
-  }
-  if (patient.patient_type === 'pregnant') {
-    let weeks = null;
-    if (patient.edd) {
-      const eddDate = new Date(patient.edd);
-      const diffDays = Math.round((eddDate.getTime() - Date.now()) / (1000 * 3600 * 24));
-      weeks = Math.max(1, Math.min(42, Math.round(40 - diffDays / 7)));
-    } else if (patient.lmp_date) {
-      const lmpDate = new Date(patient.lmp_date);
-      const diffDays = Math.round((Date.now() - lmpDate.getTime()) / (1000 * 3600 * 24));
-      weeks = Math.max(1, Math.min(42, Math.round(diffDays / 7)));
-    }
-
-    if (!weeks) return 'Pregnancy Care';
-    let trimester;
-    if (weeks >= 28)      trimester = 'Trimester 3';
-    else if (weeks >= 13) trimester = 'Trimester 2';
-    else                  trimester = 'Trimester 1';
-
-    return `${trimester} · ${weeks} Weeks Pregnant`;
-  } else {
-    return 'Child · Immunization Care';
-  }
-}
-
 function getDaysUntil(dateStr) {
-  if (!dateStr) return null;
-  const target = new Date(dateStr);
+  const target = parseDate(dateStr);
+  if (!target) return '—';
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   target.setHours(0, 0, 0, 0);
@@ -161,8 +152,8 @@ function EddModal({ patient, onClose, onSuccess }) {
               <Calendar size={18} />
             </div>
             <div>
-              <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>Update EDD</div>
-              <div style={{ fontSize: '0.765rem', color: '#64748b' }}>Revise Expected Due Date calculation</div>
+              <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--ttd-ink)' }}>Update EDD</div>
+              <div style={{ fontSize: '0.765rem', color: 'var(--ttd-muted)' }}>Revise Expected Due Date calculation</div>
             </div>
           </div>
           <button className="rpm-close-btn" onClick={onClose} title="Close" style={{ width: 30, height: 30 }}>
@@ -172,7 +163,7 @@ function EddModal({ patient, onClose, onSuccess }) {
 
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
           {error && (
-            <div style={{ padding: '0.65rem 0.85rem', background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: '10px', fontSize: '0.785rem', color: '#be123c' }}>
+            <div style={{ padding: '0.65rem 0.85rem', background: 'var(--ttd-rose-soft)', border: '1px solid var(--ttd-rose-soft)', borderRadius: '10px', fontSize: '0.785rem', color: 'var(--ttd-rose)' }}>
               {error}
             </div>
           )}
@@ -215,7 +206,7 @@ function DeliveryModal({ patient, onClose, onSuccess }) {
     apgar_5min:    '',
     child_name:    '',
     child_gender:  'female',
-    notes:         '',
+    delivery_notes: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState('');
@@ -245,8 +236,8 @@ function DeliveryModal({ patient, onClose, onSuccess }) {
               <Baby size={18} />
             </div>
             <div>
-              <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>Record Delivery</div>
-              <div style={{ fontSize: '0.765rem', color: '#64748b' }}>Transition to postpartum & child immunization timeline</div>
+              <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--ttd-ink)' }}>Record Delivery</div>
+              <div style={{ fontSize: '0.765rem', color: 'var(--ttd-muted)' }}>Transition to postpartum & child immunization timeline</div>
             </div>
           </div>
           <button className="rpm-close-btn" onClick={onClose} title="Close" style={{ width: 30, height: 30 }}>
@@ -256,7 +247,7 @@ function DeliveryModal({ patient, onClose, onSuccess }) {
 
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
           {error && (
-            <div style={{ padding: '0.65rem 0.85rem', background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: '10px', fontSize: '0.785rem', color: '#be123c' }}>
+            <div style={{ padding: '0.65rem 0.85rem', background: 'var(--ttd-rose-soft)', border: '1px solid var(--ttd-rose-soft)', borderRadius: '10px', fontSize: '0.785rem', color: 'var(--ttd-rose)' }}>
               {error}
             </div>
           )}
@@ -291,8 +282,8 @@ function DeliveryModal({ patient, onClose, onSuccess }) {
             </div>
           </div>
 
-          <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '0.75rem' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#00857c', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.65rem' }}>
+          <div style={{ borderTop: '1px solid var(--ttd-line)', paddingTop: '0.75rem' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--ttd-accent-ink)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.65rem' }}>
               Baby Details
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '0.75rem' }}>
@@ -313,7 +304,7 @@ function DeliveryModal({ patient, onClose, onSuccess }) {
 
           <div className="rpm-field">
             <label className="rpm-label">Clinical Delivery Notes</label>
-            <textarea className="rpm-input" rows={2} placeholder="Any delivery complications or observations..." value={form.notes} onChange={e => set('notes', e.target.value)} style={{ resize: 'vertical' }} />
+            <textarea className="rpm-input" rows={2} placeholder="Any delivery complications or observations..." value={form.delivery_notes} onChange={e => set('delivery_notes', e.target.value)} style={{ resize: 'vertical' }} />
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', marginTop: '0.5rem' }}>
@@ -332,17 +323,24 @@ function DeliveryModal({ patient, onClose, onSuccess }) {
 function CompleteStageModal({ stage, onClose, onSuccess }) {
   const [visitDate, setVisitDate] = useState(new Date().toISOString().split('T')[0]);
   const [nextNotes, setNextNotes] = useState('');
+  const [correctionReason, setCorrectionReason] = useState('');
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState('');
+  const isMissed = stage?.status === 'missed';
 
   async function submit(e) {
     e.preventDefault();
+    if (isMissed && !correctionReason.trim()) {
+      setError('A correction reason is required to mark a missed stage as visited.');
+      return;
+    }
     setLoading(true); setError('');
     try {
       await api.put(`/patients/${stage.patient_id}/stages/${stage.id}/visit`, {
         actual_visit_date: visitDate,
         notes: nextNotes.trim() || null,
         next_stage_notes: nextNotes.trim() || null,
+        correction_reason: correctionReason.trim() || null,
       });
       onSuccess();
     } catch (err) {
@@ -359,8 +357,8 @@ function CompleteStageModal({ stage, onClose, onSuccess }) {
               <CheckCircle size={18} />
             </div>
             <div>
-              <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>Mark Visited</div>
-              <div style={{ fontSize: '0.765rem', color: '#64748b' }}>{stage.template?.stage_name}</div>
+              <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--ttd-ink)' }}>Mark Visited</div>
+              <div style={{ fontSize: '0.765rem', color: 'var(--ttd-muted)' }}>{stage.template?.stage_name}</div>
             </div>
           </div>
           <button className="rpm-close-btn" onClick={onClose} title="Close" style={{ width: 30, height: 30 }}>
@@ -370,7 +368,7 @@ function CompleteStageModal({ stage, onClose, onSuccess }) {
 
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
           {error && (
-            <div style={{ padding: '0.65rem 0.85rem', background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: '10px', fontSize: '0.785rem', color: '#be123c' }}>
+            <div style={{ padding: '0.65rem 0.85rem', background: 'var(--ttd-rose-soft)', border: '1px solid var(--ttd-rose-soft)', borderRadius: '10px', fontSize: '0.785rem', color: 'var(--ttd-rose)' }}>
               {error}
             </div>
           )}
@@ -378,6 +376,18 @@ function CompleteStageModal({ stage, onClose, onSuccess }) {
             <label className="rpm-label">Visit Date *</label>
             <input className="rpm-input" type="date" value={visitDate} onChange={e => setVisitDate(e.target.value)} required />
           </div>
+          {isMissed && (
+            <div className="rpm-field">
+              <label className="rpm-label">Correction Reason *</label>
+              <input
+                className="rpm-input"
+                value={correctionReason}
+                onChange={e => setCorrectionReason(e.target.value)}
+                placeholder="e.g. Patient attended late; visit documented after review"
+                required
+              />
+            </div>
+          )}
           <div className="rpm-field">
             <label className="rpm-label">Instructions for Next Stage (Optional)</label>
             <textarea
@@ -392,7 +402,7 @@ function CompleteStageModal({ stage, onClose, onSuccess }) {
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', marginTop: '0.5rem' }}>
             <button type="button" className="pd-btn-secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="pd-btn-primary" disabled={loading}>
+            <button type="submit" className="pd-btn-primary" disabled={loading || (isMissed && !correctionReason.trim())}>
               {loading ? <span className="spinner" style={{ width: 13, height: 13, borderWidth: 2 }} /> : <><CheckCircle size={14} /> Confirm Visit</>}
             </button>
           </div>
@@ -434,12 +444,12 @@ function RescheduleModal({ stage, onClose, onSuccess }) {
       <div className="notif-modal-card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <div className="pd-card-icon-box" style={{ background: '#e0f2fe', color: '#0284c7' }}>
+            <div className="pd-card-icon-box" style={{ background: 'var(--ttd-blue-soft)', color: 'var(--ttd-blue)' }}>
               <Calendar size={18} />
             </div>
             <div>
-              <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>Reschedule Stage</div>
-              <div style={{ fontSize: '0.765rem', color: '#64748b' }}>{stage.template?.stage_name}</div>
+              <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--ttd-ink)' }}>Reschedule Stage</div>
+              <div style={{ fontSize: '0.765rem', color: 'var(--ttd-muted)' }}>{stage.template?.stage_name}</div>
             </div>
           </div>
           <button className="rpm-close-btn" onClick={onClose} title="Close" style={{ width: 30, height: 30 }}>
@@ -449,13 +459,13 @@ function RescheduleModal({ stage, onClose, onSuccess }) {
 
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
           {error && (
-            <div style={{ padding: '0.65rem 0.85rem', background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: '10px', fontSize: '0.785rem', color: '#be123c' }}>
+            <div style={{ padding: '0.65rem 0.85rem', background: 'var(--ttd-rose-soft)', border: '1px solid var(--ttd-rose-soft)', borderRadius: '10px', fontSize: '0.785rem', color: 'var(--ttd-rose)' }}>
               {error}
             </div>
           )}
 
-          <div style={{ padding: '0.75rem 0.95rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', fontSize: '0.785rem', color: '#334155' }}>
-            Currently scheduled for: <span style={{ fontWeight: 700, color: '#0f172a' }}>{fmt(stage.scheduled_date)}</span>
+          <div style={{ padding: '0.75rem 0.95rem', background: 'var(--ttd-surface-soft)', border: '1px solid var(--ttd-line-strong)', borderRadius: '12px', fontSize: '0.785rem', color: 'var(--ttd-ink-2)' }}>
+            Currently scheduled for: <span style={{ fontWeight: 700, color: 'var(--ttd-ink)' }}>{fmt(stage.scheduled_date)}</span>
           </div>
 
           <div className="rpm-field">
@@ -471,22 +481,22 @@ function RescheduleModal({ stage, onClose, onSuccess }) {
           <div style={{
             padding: '0.75rem 0.85rem',
             borderRadius: '12px',
-            background: '#f8fafc',
-            border: '1px solid #e2e8f0',
+            background: 'var(--ttd-surface-soft)',
+            border: '1px solid var(--ttd-line-strong)',
             display: 'flex',
             flexDirection: 'column',
             gap: '0.25rem'
           }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', cursor: 'pointer', fontSize: '0.8125rem', fontWeight: 600, color: '#0f172a' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', cursor: 'pointer', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--ttd-ink)' }}>
               <input
                 type="checkbox"
                 checked={cascade}
                 onChange={e => setCascade(e.target.checked)}
-                style={{ width: 16, height: 16, accentColor: '#00857c' }}
+                style={{ width: 16, height: 16, accentColor: 'var(--ttd-accent-ink)' }}
               />
               Reschedule subsequent stages accordingly
             </label>
-            <div style={{ fontSize: '0.72rem', color: '#64748b', marginLeft: '1.6rem' }}>
+            <div style={{ fontSize: '0.72rem', color: 'var(--ttd-muted)', marginLeft: '1.6rem' }}>
               Automatically shifts all future visits in this timeline by the same duration.
             </div>
           </div>
@@ -531,12 +541,12 @@ function SkipModal({ stage, onClose, onSuccess }) {
       <div className="notif-modal-card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <div className="pd-card-icon-box" style={{ background: '#fff1f2', color: '#e11d48' }}>
+            <div className="pd-card-icon-box" style={{ background: 'var(--ttd-rose-soft)', color: 'var(--ttd-rose)' }}>
               <SkipForward size={18} />
             </div>
             <div>
-              <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>Skip Stage</div>
-              <div style={{ fontSize: '0.765rem', color: '#64748b' }}>{stage.template?.stage_name}</div>
+              <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--ttd-ink)' }}>Skip Stage</div>
+              <div style={{ fontSize: '0.765rem', color: 'var(--ttd-muted)' }}>{stage.template?.stage_name}</div>
             </div>
           </div>
           <button className="rpm-close-btn" onClick={onClose} title="Close" style={{ width: 30, height: 30 }}>
@@ -548,17 +558,17 @@ function SkipModal({ stage, onClose, onSuccess }) {
           <div style={{
             padding: '0.75rem 0.95rem',
             borderRadius: '12px',
-            background: '#fffbeb',
-            border: '1px solid #fde68a',
+            background: 'var(--ttd-amber-soft)',
+            border: '1px solid transparent',
             fontSize: '0.785rem',
-            color: '#92400e',
+            color: 'var(--ttd-amber)',
             lineHeight: 1.4,
           }}>
             ⚠️ Skipping this stage will mark it as skipped in the patient history. A mandatory clinical or administrative reason is required for compliance.
           </div>
 
           {error && (
-            <div style={{ padding: '0.65rem 0.85rem', background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: '10px', fontSize: '0.785rem', color: '#be123c' }}>
+            <div style={{ padding: '0.65rem 0.85rem', background: 'var(--ttd-rose-soft)', border: '1px solid var(--ttd-rose-soft)', borderRadius: '10px', fontSize: '0.785rem', color: 'var(--ttd-rose)' }}>
               {error}
             </div>
           )}
@@ -581,7 +591,7 @@ function SkipModal({ stage, onClose, onSuccess }) {
             <button
               type="submit"
               className="pd-btn-primary"
-              style={{ background: '#e11d48', borderColor: '#e11d48' }}
+              style={{ background: 'var(--ttd-rose)', borderColor: 'var(--ttd-rose)' }}
               disabled={loading || !reason.trim()}
             >
               {loading ? <span className="spinner" style={{ width: 13, height: 13, borderWidth: 2 }} /> : 'Confirm Skip'}
@@ -594,12 +604,12 @@ function SkipModal({ stage, onClose, onSuccess }) {
 }
 
 /* ─── Stage Details Popup Modal ─────────────────────── */
-function StageDetailsModal({ stage, onClose, onOpenReschedule, onOpenSkip, onOpenVisit }) {
+function StageDetailsModal({ stage, onClose, onOpenReschedule, onOpenSkip, onOpenVisit, canReschedule, canSkip, canMarkVisit, canRecordDelivery }) {
   if (!stage) return null;
   const cfg = STATUS_CONFIG[stage.status] || STATUS_CONFIG.pending;
   const isSkipped = stage.status === 'skipped';
   const isVisited = stage.status === 'visited';
-  const isActionable = ['pending', 'notified'].includes(stage.status);
+  const isActionable = ['pending', 'notified', 'missed'].includes(stage.status);
 
   const descriptionLines = (stage.template?.description || '')
     .split('\n')
@@ -618,13 +628,13 @@ function StageDetailsModal({ stage, onClose, onOpenReschedule, onOpenSkip, onOpe
               <div style={{
                 fontSize: '1.05rem',
                 fontWeight: 700,
-                color: '#0f172a',
+                color: 'var(--ttd-ink)',
                 textDecoration: isSkipped ? 'line-through' : 'none',
                 opacity: isSkipped ? 0.7 : 1,
               }}>
                 {stage.template?.stage_name}
               </div>
-              <div style={{ fontSize: '0.745rem', color: '#64748b', display: 'flex', gap: '0.45rem', alignItems: 'center' }}>
+              <div style={{ fontSize: '0.745rem', color: 'var(--ttd-muted)', display: 'flex', gap: '0.45rem', alignItems: 'center' }}>
                 <span>Code: {stage.template?.stage_code}</span>
                 <span>•</span>
                 <span style={{ textTransform: 'capitalize' }}>{stage.template?.type} Care</span>
@@ -642,36 +652,23 @@ function StageDetailsModal({ stage, onClose, onOpenReschedule, onOpenSkip, onOpe
             display: 'grid',
             gridTemplateColumns: '1fr 1fr',
             gap: '0.75rem',
-            background: '#f8fafc',
+            background: 'var(--ttd-surface-soft)',
             padding: '0.85rem 1rem',
             borderRadius: '14px',
-            border: '1px solid #e2e8f0',
+            border: '1px solid var(--ttd-line-strong)',
           }}>
             <div>
-              <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 500 }}>Status</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--ttd-muted)', fontWeight: 500 }}>Status</div>
               <div style={{ marginTop: '0.2rem' }}>
-                <span style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                  padding: '0.2rem 0.65rem',
-                  borderRadius: '999px',
-                  background: cfg.bg,
-                  color: cfg.color,
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
-                }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: cfg.dot }} />
-                  {cfg.label}
-                </span>
+                <span className={`pd-tl-status ${cfg.badge}`}>{cfg.label}</span>
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 500 }}>Scheduled Date</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--ttd-muted)', fontWeight: 500 }}>Scheduled Date</div>
               <div style={{
                 fontSize: '0.84rem',
                 fontWeight: 700,
-                color: '#0f172a',
+                color: 'var(--ttd-ink)',
                 marginTop: '0.2rem',
                 textDecoration: isSkipped ? 'line-through' : 'none'
               }}>
@@ -680,16 +677,16 @@ function StageDetailsModal({ stage, onClose, onOpenReschedule, onOpenSkip, onOpe
             </div>
             {stage.actual_visit_date && (
               <div>
-                <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 500 }}>Actual Visit Date</div>
-                <div style={{ fontSize: '0.84rem', fontWeight: 700, color: '#10b981', marginTop: '0.2rem' }}>
+                <div style={{ fontSize: '0.72rem', color: 'var(--ttd-muted)', fontWeight: 500 }}>Actual Visit Date</div>
+                <div style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--ttd-accent-ink)', marginTop: '0.2rem' }}>
                   {fmt(stage.actual_visit_date)}
                 </div>
               </div>
             )}
             {stage.date_overridden && (
               <div>
-                <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 500 }}>Reschedule Notice</div>
-                <div style={{ fontSize: '0.765rem', fontWeight: 600, color: '#0284c7', marginTop: '0.2rem' }}>
+                <div style={{ fontSize: '0.72rem', color: 'var(--ttd-muted)', fontWeight: 500 }}>Reschedule Notice</div>
+                <div style={{ fontSize: '0.765rem', fontWeight: 600, color: 'var(--ttd-blue)', marginTop: '0.2rem' }}>
                   📅 Overridden Date
                 </div>
               </div>
@@ -701,10 +698,10 @@ function StageDetailsModal({ stage, onClose, onOpenReschedule, onOpenSkip, onOpe
             <div style={{
               padding: '0.75rem 0.95rem',
               borderRadius: '12px',
-              background: '#f0f9ff',
-              border: '1px solid #bae6fd',
+              background: 'var(--ttd-blue-soft)',
+              border: '1px solid transparent',
               fontSize: '0.785rem',
-              color: '#0369a1'
+              color: 'var(--ttd-blue)'
             }}>
               <div style={{ fontWeight: 700, marginBottom: '2px' }}>📅 Reschedule Reason:</div>
               {stage.override_reason}
@@ -716,13 +713,13 @@ function StageDetailsModal({ stage, onClose, onOpenReschedule, onOpenSkip, onOpe
             <div style={{
               padding: '0.75rem 0.95rem',
               borderRadius: '12px',
-              background: '#fff1f2',
-              border: '1px solid #fecdd3',
+              background: 'var(--ttd-rose-soft)',
+              border: '1px solid var(--ttd-rose-soft)',
               fontSize: '0.785rem',
-              color: '#be123c'
+              color: 'var(--ttd-rose)'
             }}>
-              <div style={{ fontWeight: 700, marginBottom: '2px' }}>⏭️ Medically Skipped Reason:</div>
-              {stage.skip_reason || 'Staff Decision'}
+              <div style={{ fontWeight: 700, marginBottom: '2px' }}>⏭️ Skip Reason:</div>
+              {formatSkipReason(stage.skip_reason)}
             </div>
           )}
 
@@ -731,10 +728,10 @@ function StageDetailsModal({ stage, onClose, onOpenReschedule, onOpenSkip, onOpe
             <div style={{
               padding: '0.75rem 0.95rem',
               borderRadius: '12px',
-              background: '#ecfdf5',
-              border: '1px solid #a7f3d0',
+              background: 'var(--ttd-accent-soft)',
+              border: '1px solid transparent',
               fontSize: '0.785rem',
-              color: '#065f46'
+              color: 'var(--ttd-accent-ink)'
             }}>
               <div style={{ fontWeight: 700, marginBottom: '2px' }}>📝 Clinical Visit Notes:</div>
               {stage.notes}
@@ -746,13 +743,13 @@ function StageDetailsModal({ stage, onClose, onOpenReschedule, onOpenSkip, onOpe
             <div style={{
               fontSize: '0.785rem',
               fontWeight: 700,
-              color: '#0f172a',
+              color: 'var(--ttd-ink)',
               marginBottom: '0.45rem',
               display: 'flex',
               alignItems: 'center',
               gap: '0.4rem',
             }}>
-              <FileText size={14} style={{ color: '#00857c' }} />
+              <FileText size={14} style={{ color: 'var(--ttd-accent-ink)' }} />
               Clinical Protocol & Required Tests:
             </div>
             {descriptionLines.length > 0 ? (
@@ -762,68 +759,74 @@ function StageDetailsModal({ stage, onClose, onOpenReschedule, onOpenSkip, onOpe
                 gap: '0.4rem',
                 padding: '0.85rem 1rem',
                 borderRadius: '14px',
-                background: '#f8fafc',
-                border: '1px solid #e2e8f0',
+                background: 'var(--ttd-surface-soft)',
+                border: '1px solid var(--ttd-line-strong)',
                 fontSize: '0.785rem',
               }}>
                 {descriptionLines.map((line, idx) => {
                   const isHeader = line.toUpperCase() === line && line.endsWith(':');
                   if (isHeader) {
                     return (
-                      <div key={idx} style={{ fontWeight: 700, color: '#00857c', marginTop: idx > 0 ? '0.35rem' : 0 }}>
+                      <div key={idx} style={{ fontWeight: 700, color: 'var(--ttd-accent-ink)', marginTop: idx > 0 ? '0.35rem' : 0 }}>
                         {line}
                       </div>
                     );
                   }
                   return (
-                    <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', color: '#475569' }}>
-                      <span style={{ color: '#00857c', flexShrink: 0, marginTop: '2px', fontWeight: 700 }}>•</span>
+                    <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', color: 'var(--ttd-ink-2)' }}>
+                      <span style={{ color: 'var(--ttd-accent-ink)', flexShrink: 0, marginTop: '2px', fontWeight: 700 }}>•</span>
                       <span>{line.replace(/^[•\-*]\s*/, '')}</span>
                     </div>
                   );
                 })}
               </div>
             ) : (
-              <div style={{ fontSize: '0.765rem', color: '#94a3b8', fontStyle: 'italic' }}>
+              <div style={{ fontSize: '0.765rem', color: 'var(--ttd-muted)', fontStyle: 'italic' }}>
                 Standard clinical guidelines apply for this stage.
               </div>
             )}
           </div>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.75rem', borderTop: '1px solid #f1f5f9', paddingTop: '0.85rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.75rem', borderTop: '1px solid var(--ttd-line)', paddingTop: '0.85rem' }}>
           <div>
             {isActionable && (
               <div style={{ display: 'flex', gap: '0.45rem' }}>
-                <button
-                  type="button"
-                  className="pd-action-btn-secondary"
-                  onClick={() => { onClose(); onOpenReschedule(stage); }}
-                >
-                  <Calendar size={13} /> Reschedule
-                </button>
-                <button
-                  type="button"
-                  className="pd-action-btn-secondary"
-                  onClick={() => { onClose(); onOpenSkip(stage); }}
-                  style={{ color: '#e11d48' }}
-                >
-                  <SkipForward size={13} /> Skip
-                </button>
+                {canReschedule && stage.template?.stage_code !== 'DELIVERY' && (
+                  <button
+                    type="button"
+                    className="pd-action-btn-secondary"
+                    onClick={() => { onClose(); onOpenReschedule(stage); }}
+                  >
+                    <Calendar size={13} /> Reschedule
+                  </button>
+                )}
+                {canSkip && (
+                  <button
+                    type="button"
+                    className="pd-action-btn-secondary"
+                    onClick={() => { onClose(); onOpenSkip(stage); }}
+                    style={{ color: 'var(--ttd-rose)' }}
+                  >
+                    <SkipForward size={13} /> Skip
+                  </button>
+                )}
               </div>
             )}
           </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button type="button" className="pd-btn-secondary" onClick={onClose}>Close</button>
             {isActionable && (
-              <button
-                type="button"
-                className="pd-btn-primary"
-                onClick={() => { onClose(); onOpenVisit(stage); }}
-              >
-                <CheckCircle size={14} />
-                {stage.template?.stage_code === 'DELIVERY' ? 'Record Delivery' : 'Mark Visited'}
-              </button>
+              (stage.template?.stage_code === 'DELIVERY' ? canRecordDelivery : canMarkVisit) && (
+                <button
+                  type="button"
+                  className="pd-btn-primary"
+                  onClick={() => { onClose(); onOpenVisit(stage); }}
+                >
+                  <CheckCircle size={14} />
+                  {stage.template?.stage_code === 'DELIVERY' ? 'Record Delivery' : 'Mark Visited'}
+                </button>
+              )
             )}
           </div>
         </div>
@@ -834,7 +837,13 @@ function StageDetailsModal({ stage, onClose, onOpenReschedule, onOpenSkip, onOpe
 
 export default function PatientDetail() {
   const { id } = useParams();
-  const { user } = useAuthStore();
+  const { user, sessionChecked } = useAuthStore();
+  const canView = hasUserPermission(user, 'patients.view');
+  const canEdit = hasUserPermission(user, 'patients.edit');
+  const canMarkVisit = hasUserPermission(user, 'stages.mark_visit');
+  const canSkip = hasUserPermission(user, 'stages.skip');
+  const canReschedule = hasUserPermission(user, 'stages.reschedule');
+  const canRecordDelivery = hasUserPermission(user, 'stages.record_delivery') || canEdit;
   const isDrPreg = user?.role === 'doctor_pregnancy';
   const isDrImm  = user?.role === 'doctor_immunization';
   const isDoctor = isDrPreg || isDrImm;
@@ -846,21 +855,36 @@ export default function PatientDetail() {
   const [showEdd, setShowEdd]     = useState(false);
   const [showDelivery, setShowDelivery] = useState(false);
   const [stageTab, setStageTab]   = useState('pregnancy');
+  const [trackFilter, setTrackFilter] = useState('all');
   const [mainTab,  setMainTab]    = useState('stages');   // 'stages' | 'history'
   const [historyLog, setHistoryLog] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyTotal, setHistoryTotal] = useState(0);
   const [showCompleteStage, setShowCompleteStage] = useState(null);
   const [showReschedule,    setShowReschedule]    = useState(null);
   const [showSkip,          setShowSkip]          = useState(null);
   const [selectedStage,     setSelectedStage]     = useState(null);
+  const requestSeq = useRef(0);
+  const historySeq = useRef(0);
+  const historyTotalPages = Math.max(1, Math.ceil(historyTotal / HISTORY_PAGE_SIZE));
 
   async function load() {
+    if (!canView) {
+      setLoading(false);
+      return;
+    }
+    const seq = ++requestSeq.current;
     setLoading(true);
+    setHistoryLog([]);
+    setHistoryTotal(0);
+    setHistoryPage(1);
     try {
       const [pRes, sRes] = await Promise.all([
         api.get(`/patients/${id}`),
         api.get(`/patients/${id}/stages`),
       ]);
+      if (seq !== requestSeq.current) return;
       setPatient(pRes.data);
       setStages(sRes.data);
       if (isDrPreg) {
@@ -874,24 +898,72 @@ export default function PatientDetail() {
             : 'pregnancy'
         );
       }
-    } catch { /* ignore */ }
-    finally { setLoading(false); }
+    } catch {
+      if (seq === requestSeq.current) {
+        setPatient(null);
+        setStages([]);
+      }
+    } finally {
+      if (seq === requestSeq.current) {
+        setLoading(false);
+        // Keep the audit log in sync with any patient/stage mutations.
+        loadHistory(seq, 1);
+      }
+    }
   }
 
   useEffect(() => { load(); }, [id]);
 
-  async function loadHistory() {
+  async function loadHistory(seq = requestSeq.current, page = historyPage) {
+    const hseq = ++historySeq.current;
     setHistoryLoading(true);
     try {
-      const res = await api.get(`/patients/${id}/history`);
+      const res = await api.get(`/patients/${id}/history`, {
+        params: { page, limit: HISTORY_PAGE_SIZE },
+      });
+      if (seq !== requestSeq.current || hseq !== historySeq.current) return;
       setHistoryLog(res.data.history || []);
-    } catch { /* ignore */ }
-    finally { setHistoryLoading(false); }
+      setHistoryTotal(res.data.total ?? (res.data.history?.length || 0));
+      setHistoryPage(res.data.page ?? page);
+    } catch {
+      if (seq === requestSeq.current && hseq === historySeq.current) {
+        setHistoryLog([]);
+        setHistoryTotal(0);
+      }
+    } finally {
+      if (seq === requestSeq.current && hseq === historySeq.current) setHistoryLoading(false);
+    }
   }
 
   function switchMainTab(tab) {
     setMainTab(tab);
-    if (tab === 'history' && historyLog.length === 0) loadHistory();
+    if (tab === 'history') loadHistory(requestSeq.current, historyPage);
+  }
+
+  function changeHistoryPage(next) {
+    if (historyLoading) return;
+    const target = Math.min(Math.max(1, next), historyTotalPages);
+    if (target === historyPage) return;
+    setHistoryPage(target);
+    loadHistory(requestSeq.current, target);
+  }
+
+  if (sessionChecked && !canView) {
+    return (
+      <div className="patients-detail-v2" style={{ padding: '3rem 1.5rem', textAlign: 'center' }}>
+        <div style={{ maxWidth: 520, margin: '0 auto', background: 'var(--ttd-card-bg, #1a1e29)', border: '1px solid var(--ttd-border, #2d3748)', borderRadius: 12, padding: '2.5rem' }}>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--ttd-ink, #fff)', marginBottom: '0.75rem' }}>Access Restricted</h2>
+          <p style={{ color: 'var(--ttd-muted, #94a3b8)', fontSize: '0.9rem', lineHeight: 1.5 }}>
+            You do not have permission to view patient records. Please contact your hospital administrator.
+          </p>
+          <div style={{ marginTop: '1.25rem' }}>
+            <Link href="/dashboard" className="pd-btn-secondary" style={{ display: 'inline-flex', padding: '0.5rem 1rem' }}>
+              Return to Dashboard
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (loading) return (
@@ -947,685 +1019,632 @@ export default function PatientDetail() {
   // Next actionable appointment (pending or notified)
   const nextAppointment = isBothForPreg ? null : relevantStages.find(s => ['pending', 'notified'].includes(s.status));
 
-  // Previous completed stage (last visited stage) and its notes
+  // Determine avatar tone based on care type
+  const avatarTone = isBothForPreg || isPregnant ? 'is-anc' : 'is-imm';
+  const careTone = isBothForPreg ? 'is-completed' : isBoth ? 'is-both' : isPregnant ? 'is-anc' : 'is-imm';
+  const statusTone = isBothForPreg || patient.status === 'completed'
+    ? 'is-completed'
+    : patient.status === 'active'
+      ? 'is-active'
+      : 'is-inactive';
+  const initials = getPatientInitials(patient.name);
+
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const dateKey = (value) => (value ? String(value).slice(0, 10) : '');
+  const daysFromToday = (value) => {
+    const d = parseDate(value);
+    if (!d) return null;
+    d.setHours(0, 0, 0, 0);
+    return Math.round((d.getTime() - todayStart.getTime()) / 86400000);
+  };
+  const isOverdueStage = (s) => ['pending', 'notified'].includes(s.status) && daysFromToday(s.scheduled_date) < 0;
+  const stageStatus = (s) => {
+    if (s.status === 'visited') return { key: 'completed', label: 'Completed' };
+    if (s.status === 'skipped') return { key: 'skipped', label: 'Skipped' };
+    if (s.status === 'missed') return { key: 'overdue', label: 'Missed' };
+    const d = daysFromToday(s.scheduled_date);
+    if (d == null) return { key: 'upcoming', label: 'No date' };
+    if (d < 0) return { key: 'overdue', label: `Overdue · ${Math.abs(d)}d` };
+    if (d === 0) return { key: 'due', label: 'Due today' };
+    if (d <= 21) return { key: 'due', label: `Due in ${d}d` };
+    return { key: 'upcoming', label: `In ${d}d` };
+  };
+
+  const allStages = [...pregnancyStages, ...immunizationStages];
+
+  // Previous completed stage (most recent by actual visit date) and its notes
   const visitedStages = relevantStages.filter(s => s.status === 'visited');
-  const previousCompletedStage = visitedStages.length > 0 ? visitedStages[visitedStages.length - 1] : null;
+  const previousCompletedStage = visitedStages.length > 0
+    ? [...visitedStages].sort((a, b) =>
+        dateKey(b.actual_visit_date || b.scheduled_date).localeCompare(dateKey(a.actual_visit_date || a.scheduled_date))
+      )[0]
+    : null;
   const previousStageNote = previousCompletedStage?.notes?.trim();
 
-  // Determine avatar colors deterministically
-  const avatarPalette = AVATAR_PALETTES[(patient.id || 0) % AVATAR_PALETTES.length];
-  const initials = getPatientInitials(patient.name);
+  const byTemplateOrder = (a, b) => (a.template?.order_index ?? 0) - (b.template?.order_index ?? 0);
+  const displayStages = hasBothTabs && trackFilter === 'all'
+    ? [
+        ...pregnancyStages.slice().sort(byTemplateOrder),
+        ...immunizationStages.slice().sort(byTemplateOrder),
+      ]
+    : activeStages;
+
+  const missedStages = allStages.filter((s) => s.status === 'missed');
+  const overdueStages = allStages
+    .filter(isOverdueStage)
+    .sort((a, b) => dateKey(a.scheduled_date).localeCompare(dateKey(b.scheduled_date)));
+  // System-flagged missed visits also need staff attention.
+  const attentionStages = [...overdueStages, ...missedStages]
+    .sort((a, b) => dateKey(a.scheduled_date).localeCompare(dateKey(b.scheduled_date)));
+  const overdueCount = attentionStages.length;
+
+  const nearestNext = allStages
+    .filter((s) => ['pending', 'notified'].includes(s.status))
+    .sort((a, b) => dateKey(a.scheduled_date).localeCompare(dateKey(b.scheduled_date)))[0] || null;
+  const primaryNextIsOverdue = nearestNext ? isOverdueStage(nearestNext) : false;
+  const otherOverdueStages = attentionStages.filter((s) => !nearestNext || s.id !== nearestNext.id);
+
+  const visitedPreg = pregnancyStages.filter((s) => s.status === 'visited').length;
+  const visitedImm = immunizationStages.filter((s) => s.status === 'visited').length;
+
+  const ga = (() => {
+    if (!patient.edd && !patient.lmp_date) return null;
+    const edd = parseDate(patient.edd);
+    const lmp = patient.lmp_date
+      ? parseDate(patient.lmp_date)
+      : edd
+        ? new Date(edd.getTime() - 280 * 86400000)
+        : null;
+    if (!lmp) return null;
+    lmp.setHours(0, 0, 0, 0);
+    const daysPregnant = Math.max(0, Math.floor((todayStart.getTime() - lmp.getTime()) / 86400000));
+    const toGo = edd ? Math.round((new Date(new Date(edd).setHours(0, 0, 0, 0)).getTime() - todayStart.getTime()) / 86400000) : null;
+    let trimester = 'First trimester';
+    const weeks = Math.floor(daysPregnant / 7);
+    if (weeks >= 28) trimester = 'Third trimester';
+    else if (weeks >= 13) trimester = 'Second trimester';
+    return { weeks, days: daysPregnant % 7, daysPregnant, toGo, trimester };
+  })();
+
+  const childAgeText = (() => {
+    const dob = parseDate(patient.child_dob);
+    if (!dob) return null;
+    const months = Math.max(0, (todayStart.getFullYear() - dob.getFullYear()) * 12 + (todayStart.getMonth() - dob.getMonth()));
+    if (months >= 24) {
+      const years = Math.floor(months / 12);
+      return `${years} yr${years > 1 ? 's' : ''} old`;
+    }
+    if (months >= 1) return `${months} mo old`;
+    const weeks = Math.floor((todayStart.getTime() - dob.getTime()) / (7 * 86400000));
+    return weeks > 0 ? `${weeks} wk old` : 'Newborn';
+  })();
+
+  const pregUpcoming = pregnancyStages.filter((s) => ['pending', 'notified'].includes(s.status)).length;
+  const pregMissed   = pregnancyStages.filter((s) => s.status === 'missed').length;
+  const immUpcoming  = immunizationStages.filter((s) => ['pending', 'notified'].includes(s.status)).length;
+  const immMissed    = immunizationStages.filter((s) => s.status === 'missed').length;
+
+  const statCards = [];
+  if (pregnancyStages.length > 0) {
+    statCards.push({
+      label: 'Antenatal contacts',
+      icon: <HeartPulse size={16} />,
+      value: visitedPreg,
+      small: `of ${pregnancyStages.length} contacts`,
+      pct: pregnancyStages.length ? Math.round((visitedPreg / pregnancyStages.length) * 100) : 0,
+      sub: `${pregUpcoming} upcoming${pregMissed ? ` · ${pregMissed} missed` : ''}`,
+    });
+  }
+  if (immunizationStages.length > 0) {
+    statCards.push({
+      label: 'Immunizations',
+      icon: <Syringe size={16} />,
+      value: visitedImm,
+      small: `of ${immunizationStages.length} doses`,
+      pct: immunizationStages.length ? Math.round((visitedImm / immunizationStages.length) * 100) : 0,
+      imm: true,
+      sub: `${immUpcoming} upcoming${immMissed ? ` · ${immMissed} missed` : ''}`,
+    });
+  }
+  if (pregnancyStages.length > 0 && immunizationStages.length === 0) {
+    statCards.push({
+      label: 'Gestational age',
+      icon: <Clock size={16} />,
+      value: ga ? `${ga.weeks}w ${ga.days}d` : '—',
+      sub: ga ? ga.trimester : 'No EDD recorded',
+    });
+  }
+  if (immunizationStages.length > 0 && pregnancyStages.length === 0) {
+    statCards.push({
+      label: 'Child age',
+      icon: <Baby size={16} />,
+      value: childAgeText || '—',
+      sub: patient.child_dob ? `DOB ${fmt(patient.child_dob)}` : 'No date of birth recorded',
+    });
+  }
+  statCards.push({
+    label: 'Next milestone',
+    icon: <Calendar size={16} />,
+    value: nearestNext ? fmt(nearestNext.scheduled_date) : '—',
+    sub: nearestNext ? `${nearestNext.template?.stage_name} · ${getDaysUntil(nearestNext.scheduled_date)}` : 'No upcoming stage',
+  });
+  statCards.push({
+    label: 'Overdue items',
+    icon: <AlertTriangle size={16} />,
+    value: overdueCount,
+    warn: overdueCount > 0,
+    sub: overdueCount ? 'Need outreach or rescheduling' : 'Nothing overdue',
+  });
+
+  // Once pregnancy care is complete (delivery recorded) or the patient is an
+  // immunization patient, the header should show the child's DOB, not the EDD.
+  const showChildHero = Boolean(patient.child_dob) && (
+    patient.patient_type === 'both' ||
+    patient.patient_type === 'immunization' ||
+    Boolean(patient.delivery_date)
+  );
+
+  let heroWidget = null;
+  if (!showChildHero && pregnancyStages.length > 0 && patient.edd) {
+    heroWidget = {
+      eyebrow: 'Expected due date',
+      value: fmt(patient.edd),
+      sub: ga ? `${ga.weeks}w ${ga.days}d · ${ga.toGo >= 0 ? `${ga.toGo} days to go` : `${Math.abs(ga.toGo)} days past due`}` : '',
+      pct: ga ? Math.max(0, Math.min(100, Math.round((ga.daysPregnant / 280) * 100))) : null,
+      foot: patient.lmp_date ? `LMP ${fmt(patient.lmp_date)}` : '',
+    };
+  } else if (patient.child_dob) {
+    heroWidget = {
+      eyebrow: 'Child date of birth',
+      value: fmt(patient.child_dob),
+      sub: childAgeText || '',
+      pct: immunizationStages.length ? Math.round((visitedImm / immunizationStages.length) * 100) : null,
+      foot: patient.child_name ? `Child: ${patient.child_name}` : '',
+    };
+  }
+
 
   return (
     <div className="pd-container">
-      {/* ── 1. Top Header Bar ──────────────────────────── */}
-      <div className="pd-header">
-        <div className="pd-header-left">
+
+      {/* ── 1. Patient header ───────────────────────────── */}
+      <section className="pd-hero">
+        <div className="pd-hero-id">
           <Link href="/patients" className="pd-back-btn" title="Back to Patients">
             <ArrowLeft size={17} />
           </Link>
-
-          <div className="pd-avatar-box" style={{ background: avatarPalette.bg, color: avatarPalette.color }}>
-            {initials}
-          </div>
-
-          <div className="pd-patient-title-group">
-            <div className="pd-patient-name-row">
-              <span className="pd-patient-name">{patient.name}</span>
-
-              <span className="pd-stage-pill">
-                {getGestationalOrAgeTag(patient, isDrPreg)}
+          <div className={`pd-avatar-box ${avatarTone}`}>{initials}</div>
+          <div className="pd-hero-copy">
+            <h1 className="pd-patient-name">{patient.name}</h1>
+            <div className="pd-hero-chips">
+              <span className={`pd-care-badge ${careTone}`}>
+                {isBoth ? 'Pregnancy + Immunization' : isPregnant ? 'Pregnant Mother' : 'Child Immunization'}
               </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="pd-header-actions">
-          {!isBoth && patient.patient_type === 'pregnant' && patient.status !== 'completed' && !isDrImm && (
-            <>
-              <button className="pd-btn-secondary" onClick={() => setShowEdd(true)}>
-                <Calendar size={14} style={{ color: '#00857c' }} /> Update EDD
-              </button>
-              <button className="pd-btn-primary" onClick={() => setShowDelivery(true)}>
-                <Baby size={14} /> Record Delivery
-              </button>
-            </>
-          )}
-          <span style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.35rem',
-            padding: '0.3rem 0.75rem',
-            borderRadius: '999px',
-            fontSize: '0.785rem',
-            fontWeight: 700,
-            textTransform: 'capitalize',
-            background: isBothForPreg || patient.status === 'completed' ? '#f0fdf4' : patient.status === 'active' ? '#ecfdf5' : '#f1f5f9',
-            color: isBothForPreg || patient.status === 'completed' ? '#166534' : patient.status === 'active' ? '#059669' : '#64748b',
-            border: `1px solid ${isBothForPreg || patient.status === 'completed' ? '#bbf7d0' : patient.status === 'active' ? '#a7f3d0' : '#cbd5e1'}`,
-          }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: isBothForPreg || patient.status === 'completed' ? '#22c55e' : patient.status === 'active' ? '#10b981' : '#94a3b8' }} />
-            {isBothForPreg || patient.status === 'completed' ? 'Completed' : patient.status}
-          </span>
-        </div>
-      </div>
-
-      {/* ── 2. Top Info & Progress Grid ────────────────── */}
-      <div className="pd-top-grid">
-        {/* Left: Patient Information */}
-        <div className="pd-card">
-          <div className="pd-card-header">
-            <div className="pd-card-header-title">
-              <div className="pd-card-icon-box">
-                <User size={16} />
-              </div>
-              <span>Patient Information</span>
-            </div>
-            <span style={{
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              padding: '0.2rem 0.65rem',
-              borderRadius: '999px',
-              background: isBothForPreg ? '#f0fdf4' : isBoth ? '#fef3c7' : isPregnant ? '#ffe4e6' : '#e0f2fe',
-              color: isBothForPreg ? '#166534' : isBoth ? '#b45309' : isPregnant ? '#be185d' : '#0369a1',
-            }}>
-              {isBothForPreg ? 'Pregnancy Care (Completed)' : isBoth ? 'Pregnancy + Immunization' : isPregnant ? 'Pregnant Mother' : 'Child Immunization'}
-            </span>
-          </div>
-
-          <div className="pd-card-body">
-            <div className="pd-info-grid">
-              <div className="pd-info-item">
-                <span className="pd-info-label">Age</span>
-                <span className="pd-info-value">{patient.age ? `${patient.age} yrs` : '—'}</span>
-              </div>
-
-              <div className="pd-info-item">
-                <span className="pd-info-label">EDD Source / Mode</span>
-                <span className="pd-info-value">
-                  {patient.edd_source
-                    ? patient.edd_source.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-                    : isPregnant
-                      ? 'Ultrasound Scan'
-                      : '—'}
-                </span>
-              </div>
-
-              <div className="pd-info-item">
-                <span className="pd-info-label">Address</span>
-                <span className="pd-info-value">{patient.address || '—'}</span>
-              </div>
-
-              <div className="pd-info-item">
-                <span className="pd-info-label">Care Category</span>
-                <span className="pd-info-value">
-                  <span style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.35rem',
-                    padding: '0.15rem 0.55rem',
-                    borderRadius: '999px',
-                    background: '#ecfdf5',
-                    color: '#059669',
-                    fontSize: '0.72rem',
-                    fontWeight: 700,
-                  }}>
-                    <ShieldCheck size={11} /> Normal / Low Risk
-                  </span>
-                </span>
-              </div>
-
-              <div className="pd-info-item">
-                <span className="pd-info-label">{isPregnant ? 'Expected Due Date (EDD)' : 'Child Date of Birth'}</span>
-                <span className="pd-info-value" style={{ color: '#00857c', fontWeight: 700 }}>
-                  {isBoth
-                    ? <>{fmt(patient.edd)} <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 500 }}>(EDD)</span></>  
-                    : fmt(isPregnant ? patient.edd : patient.child_dob)}
-                </span>
-              </div>
-
-              <div className="pd-info-item">
-                <span className="pd-info-label">{isPregnant ? 'LMP Date' : 'Child Name / Gender'}</span>
-                <span className="pd-info-value">
-                  {isPregnant
-                    ? fmt(patient.lmp_date)
-                    : `${patient.child_name || 'Baby'} · ${patient.child_gender || '—'}`}
-                </span>
-              </div>
-
-              {isBoth && (
-                <div className="pd-info-item">
-                  <span className="pd-info-label">Child Date of Birth</span>
-                  <span className="pd-info-value" style={{ color: '#0369a1', fontWeight: 700 }}>
-                    {fmt(patient.child_dob)}{patient.child_name ? ` — ${patient.child_name}` : ''}
-                  </span>
-                </div>
+              <span className={`pd-status-pill ${statusTone}`}>
+                <span className="pd-status-dot" />
+                {isBothForPreg || patient.status === 'completed' ? 'Completed' : patient.status}
+              </span>
+              {overdueCount > 0 && (
+                <span className="pd-chip pd-chip-danger">{overdueCount} overdue</span>
               )}
             </div>
+            <p className="pd-hero-meta">
+              ID <b>#{patient.id}</b>
+              {patient.age ? <> · <b>{patient.age} yrs</b></> : null}
+              {patient.createdAt ? <> · Registered <b>{fmt(patient.createdAt)}</b></> : null}
+            </p>
+            <div className="pd-hero-contact">
+              {patient.whatsapp_number && (
+                <span>
+                  <WhatsAppIcon size={14} />
+                  {formatPhoneDisplay(patient.whatsapp_number)}
+                </span>
+              )}
+              {patient.address && (
+                <span>
+                  <MapPin size={14} />
+                  <span className="pd-truncate" title={patient.address}>{patient.address}</span>
+                </span>
+              )}
+              {nearestNext && (
+                <span>
+                  <Calendar size={14} />
+                  Next visit {fmt(nearestNext.scheduled_date)}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
 
-            {/* Clinical Note Callout — Only show previous completed stage's note if present */}
-            {previousStageNote && (
-              <div className="pd-clinical-note-banner">
-                <FileText size={15} style={{ flexShrink: 0, marginTop: '2px', color: '#00857c' }} />
-                <div>
-                  <span style={{ fontWeight: 700 }}>
-                    Clinical Note ({previousCompletedStage?.template?.stage_name || 'Previous Stage'}):{' '}
+        <div className="pd-hero-right">
+          {heroWidget && (
+            <div className="pd-edd-widget">
+              <span className="pd-eyebrow">{heroWidget.eyebrow}</span>
+              <span className="pd-edd-date">{heroWidget.value}</span>
+              <span className="pd-edd-sub">{heroWidget.sub}</span>
+              {heroWidget.pct != null && (
+                <div className="pd-mini-bar"><i style={{ width: `${heroWidget.pct}%` }} /></div>
+              )}
+              {heroWidget.foot && <span className="pd-edd-foot">{heroWidget.foot}</span>}
+            </div>
+          )}
+          {!isBoth && patient.patient_type === 'pregnant' && patient.status !== 'completed' && !isDrImm && (canEdit || canRecordDelivery) && (
+            <div className="pd-hero-actions">
+              {canEdit && (
+                <button className="pd-btn-secondary" onClick={() => setShowEdd(true)}>
+                  <Calendar size={14} /> Update EDD
+                </button>
+              )}
+              {canRecordDelivery && (
+                <button className="pd-btn-primary" onClick={() => setShowDelivery(true)}>
+                  <Baby size={14} /> Record delivery
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ── 2. Progress stat cards (care-aware) ─────────── */}
+      <section className="pd-stats" aria-label="Care progress">
+        {statCards.map((card) => (
+          <article key={card.label} className={`pd-stat${card.warn ? ' is-warn' : ''}`}>
+            <div className="pd-stat-top">
+              <span className="pd-stat-label">{card.label}</span>
+              <span className="pd-stat-icon">{card.icon}</span>
+            </div>
+            <div className="pd-stat-value">
+              {card.value}
+              {card.small && <small>{card.small}</small>}
+            </div>
+            {card.pct != null && (
+              <div className={`pd-bar${card.imm ? ' is-imm' : ''}`}>
+                <i style={{ width: `${card.pct}%` }} />
+              </div>
+            )}
+            <div className="pd-stat-sub">{card.sub}</div>
+          </article>
+        ))}
+      </section>
+
+      {/* ── 3. Next steps & handover ────────────────────── */}
+      <section className="pd-panel">
+        <div className="pd-panel-head">
+          <h2 className="pd-panel-title">
+            <Sparkles size={16} /> Next steps &amp; handover
+          </h2>
+          <span className="pd-panel-note">
+            {overdueCount > 0
+              ? `${overdueCount} item${overdueCount > 1 ? 's' : ''} need attention`
+              : nearestNext
+                ? 'Care on track'
+                : 'No pending items'}
+          </span>
+        </div>
+
+        <div className="pd-next-list">
+          {nearestNext && (
+            <div className={`pd-next-item ${primaryNextIsOverdue ? 'is-danger' : 'is-info'}`}>
+              <div className="pd-next-badge">
+                {primaryNextIsOverdue ? <AlertTriangle size={16} /> : <Calendar size={16} />}
+              </div>
+              <div className="pd-next-main">
+                <div className="pd-next-title">
+                  {nearestNext.template?.stage_name}
+                  <span className={`pd-chip ${nearestNext.template?.type === 'immunization' ? 'pd-chip-imm' : 'pd-chip-anc'}`}>
+                    {nearestNext.template?.type === 'immunization' ? 'Immunization' : 'Antenatal'}
                   </span>
-                  <span>{previousStageNote}</span>
+                  {primaryNextIsOverdue && <span className="pd-chip pd-chip-danger">Overdue</span>}
                 </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Right: Care Journey Progress */}
-        <div className="pd-card">
-          <div className="pd-card-header">
-            <div className="pd-card-header-title">
-              <div className="pd-card-icon-box">
-                <TrendingUp size={16} />
-              </div>
-              <span>Care Journey Progress</span>
-            </div>
-            <span style={{
-              fontSize: '0.785rem',
-              fontWeight: 700,
-              color: '#00857c',
-              background: '#e6f7f5',
-              padding: '0.2rem 0.65rem',
-              borderRadius: '999px',
-            }}>
-              {progressPercent}% Done
-            </span>
-          </div>
-
-          <div className="pd-card-body">
-            <div>
-              <div className="pd-progress-headline">
-                <span>{visitedCount} of {totalCount} Checkups Completed</span>
-                <span style={{ color: '#64748b', fontSize: '0.8125rem', fontWeight: 600 }}>{progressPercent}%</span>
-              </div>
-
-              <div className="pd-progress-track">
-                <div className="pd-progress-fill" style={{ width: `${progressPercent}%` }} />
-              </div>
-
-              <div className="pd-breakdown-row">
-                <div className="pd-breakdown-item">
-                  <div className="pd-dot" style={{ background: '#10b981' }} />
-                  <span><strong style={{ color: '#0f172a' }}>{visitedCount}</strong> Visited</span>
+                <div className="pd-next-sub">
+                  Scheduled {fmt(nearestNext.scheduled_date)} · {getDaysUntil(nearestNext.scheduled_date)}
                 </div>
-                <div className="pd-breakdown-item">
-                  <div className="pd-dot" style={{ background: '#0284c7' }} />
-                  <span><strong style={{ color: '#0f172a' }}>{upcomingCount}</strong> Upcoming</span>
-                </div>
-                <div className="pd-breakdown-item">
-                  <div className="pd-dot" style={{ background: '#e11d48' }} />
-                  <span><strong style={{ color: '#0f172a' }}>{missedOrSkippedCount}</strong> Missed / Skipped</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Next Appointment Spotlight Banner */}
-            {nextAppointment ? (() => {
-              const fullName = nextAppointment.template?.stage_name || '';
-              // Split "10 Weeks — DTwP-2, OPV-2, ..." into bracket + vaccines
-              const dashIdx = fullName.indexOf('—');
-              const bracket  = dashIdx > -1 ? fullName.slice(0, dashIdx).trim() : fullName;
-              const vaccineStr = dashIdx > -1 ? fullName.slice(dashIdx + 1).trim() : '';
-              const vaccines = vaccineStr ? vaccineStr.split(',').map(v => v.trim()).filter(Boolean) : [];
-              const showVaccines = vaccines.slice(0, 3);
-              const extraCount  = vaccines.length - showVaccines.length;
-
-              return (
-                <div
-                  className="pd-next-appointment-spotlight"
-                  onClick={() => setSelectedStage(nextAppointment)}
-                  title="Click to view stage details"
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
-                    <div style={{
-                      width: 38, height: 38, borderRadius: '10px',
-                      background: '#e6f7f5', color: '#00857c',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
-                    }}>
-                      <Calendar size={18} />
-                    </div>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontSize: '0.68rem', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                        Next Appointment
-                      </div>
-                      <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a' }}>
-                        {bracket || fullName}
-                      </div>
-                      {showVaccines.length > 0 && (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', marginTop: '0.3rem' }}>
-                          {showVaccines.map((v, i) => (
-                            <span key={i} style={{
-                              fontSize: '0.65rem', fontWeight: 600,
-                              padding: '0.1rem 0.45rem', borderRadius: '999px',
-                              background: '#f0fdf9', color: '#0d9488',
-                              border: '1px solid #99f6e4',
-                            }}>{v}</span>
-                          ))}
-                          {extraCount > 0 && (
-                            <span style={{
-                              fontSize: '0.65rem', fontWeight: 600,
-                              padding: '0.1rem 0.45rem', borderRadius: '999px',
-                              background: '#f1f5f9', color: '#64748b',
-                              border: '1px solid #e2e8f0',
-                            }}>+{extraCount} more</span>
-                          )}
-                        </div>
-                      )}
-                      <div style={{ fontSize: '0.735rem', color: '#00857c', fontWeight: 600, marginTop: '0.3rem' }}>
-                        {fmt(nextAppointment.scheduled_date)} · {getDaysUntil(nextAppointment.scheduled_date)}
-                      </div>
-                    </div>
+                {previousStageNote && (
+                  <div className="pd-note-quote">
+                    <span className="pd-note-k">
+                      Note from {previousCompletedStage?.template?.stage_name || 'previous stage'}
+                    </span>
+                    {previousStageNote}
                   </div>
-                  <ChevronRight size={18} style={{ color: '#94a3b8', flexShrink: 0 }} />
+                )}
+              </div>
+            </div>
+          )}
+
+          {otherOverdueStages.slice(0, 2).map((stage) => {
+            const isMissed = stage.status === 'missed';
+            return (
+              <div key={stage.id} className="pd-next-item is-danger">
+                <div className="pd-next-badge"><AlertTriangle size={16} /></div>
+                <div className="pd-next-main">
+                  <div className="pd-next-title">
+                    {stage.template?.stage_name}
+                    <span className="pd-chip pd-chip-danger">{isMissed ? 'Missed' : 'Overdue'}</span>
+                  </div>
+                  <div className="pd-next-sub">
+                    Scheduled {fmt(stage.scheduled_date)} · {isMissed ? 'Visit missed' : getDaysUntil(stage.scheduled_date)}
+                  </div>
                 </div>
-              );
-            })() : (
-              <div style={{
-                marginTop: 'auto',
-                padding: '0.85rem 1rem',
-                borderRadius: '14px',
-                background: '#f8fafc',
-                border: '1px solid #e2e8f0',
-                fontSize: '0.8125rem',
-                color: '#64748b',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem'
-              }}>
-                <CheckCircle size={16} style={{ color: '#10b981' }} />
-                <span>All scheduled care visits are up to date.</span>
               </div>
-            )}
-          </div>
+            );
+          })}
+
+          {isBoth && patient.delivery_date && (
+            <div className="pd-next-item is-info">
+              <div className="pd-next-badge"><Baby size={16} /></div>
+              <div className="pd-next-main">
+                <div className="pd-next-title">Postnatal handover</div>
+                <div className="pd-next-sub">
+                  Delivery recorded {fmt(patient.delivery_date)}
+                  {patient.child_name ? ` · ${patient.child_name}` : ''}. Continue the child immunization schedule.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!nearestNext && !attentionStages.length && !(isBoth && patient.delivery_date) && (
+            <div className="pd-empty-inline">
+              <CheckCircle size={16} />
+              <span>All scheduled care visits are up to date.</span>
+            </div>
+          )}
         </div>
-      </div>
+      </section>
 
-      {/* ── 3. Care Stages & Appointment Timeline ─────────── */}
-      <div className="pd-card">
-        <div className="pd-timeline-header">
-          <div className="pd-card-header-title">
-            <div className="pd-card-icon-box">
-              <Calendar size={16} />
-            </div>
-            <span>Care Stages & Appointment Timeline</span>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-            {/* Main tab: Stages | Audit Log */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', background: '#f1f5f9', borderRadius: '10px', padding: '0.2rem' }}>
-              <button
-                onClick={() => switchMainTab('stages')}
-                style={{
-                  padding: '0.28rem 0.75rem', borderRadius: '8px', fontSize: '0.76rem', fontWeight: 600,
-                  border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem',
-                  background: mainTab === 'stages' ? '#fff' : 'transparent',
-                  color:      mainTab === 'stages' ? '#0f172a' : '#64748b',
-                  boxShadow:  mainTab === 'stages' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-                  transition: 'all 0.15s',
-                }}
-              >
-                <Calendar size={12} /> Stages
-              </button>
-              <button
-                onClick={() => switchMainTab('history')}
-                style={{
-                  padding: '0.28rem 0.75rem', borderRadius: '8px', fontSize: '0.76rem', fontWeight: 600,
-                  border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem',
-                  background: mainTab === 'history' ? '#fff' : 'transparent',
-                  color:      mainTab === 'history' ? '#0f172a' : '#64748b',
-                  boxShadow:  mainTab === 'history' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-                  transition: 'all 0.15s',
-                }}
-              >
-                <History size={12} /> Audit Log
-              </button>
-            </div>
-
-            {/* Tabs for Pregnancy vs Child Immunization — show whenever patient has both */}
-            {hasBothTabs && (
-              <div className="pd-tabs">
-                <button
-                  className={`pd-tab-btn ${stageTab === 'pregnancy' ? 'active' : ''}`}
-                  onClick={() => setStageTab('pregnancy')}
-                >
-                  <span>Pregnancy History</span>
-                  <span className="pd-tab-count">{pregnancyStages.length}</span>
-                </button>
-                <button
-                  className={`pd-tab-btn ${stageTab === 'immunization' ? 'active' : ''}`}
-                  onClick={() => setStageTab('immunization')}
-                >
-                  <span>Child Immunization</span>
-                  <span className="pd-tab-count">{immunizationStages.length}</span>
-                </button>
-              </div>
-            )}
-
-            {/* Read-only banner when viewing pregnancy history of a completed patient */}
-            {isPregHistoryTab && (
-              <span style={{
-                display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
-                fontSize: '0.72rem', fontWeight: 600,
-                padding: '0.2rem 0.65rem', borderRadius: '999px',
-                background: '#f0fdf4', color: '#166534',
-                border: '1px solid #bbf7d0',
-              }}>
-                <CheckCircle size={11} /> Pregnancy care completed · Read-only
-              </span>
-            )}
-
-            <button className="pd-action-icon-btn" onClick={load} title="Refresh Stages">
-              <RefreshCw size={14} />
+      {/* ── 4. Care timeline & audit log ────────────────── */}
+      <section className="pd-panel">
+        <div className="pd-panel-head pd-records-head">
+          <div className="pd-main-tabs" role="tablist" aria-label="Patient records">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mainTab === 'stages'}
+              className={`pd-main-tab${mainTab === 'stages' ? ' is-active' : ''}`}
+              onClick={() => switchMainTab('stages')}
+            >
+              <Calendar size={12} /> Care timeline
+              <span className="pd-tab-count">{displayStages.length}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mainTab === 'history'}
+              className={`pd-main-tab${mainTab === 'history' ? ' is-active' : ''}`}
+              onClick={() => switchMainTab('history')}
+            >
+              <History size={12} /> Audit log
+              <span className="pd-tab-count">{historyTotal}</span>
             </button>
           </div>
+          <button className="pd-action-icon-btn" onClick={load} title="Refresh stages">
+            <RefreshCw size={14} />
+          </button>
         </div>
 
-        {/* Timeline Table — only visible on Stages tab */}
-        {mainTab === 'stages' && (activeStages.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '3.5rem 1rem', color: '#94a3b8', fontSize: '0.84rem' }}>
-            No care stages found for this profile.
-          </div>
-        ) : (
-          <div className="pd-tl-table">
-            {/* Column Header Row */}
-            <div className="pd-tl-header-row">
-              <div className="pd-tl-col-num">#</div>
-              <div className="pd-tl-col-stage">Stage / Visit</div>
-              <div className="pd-tl-col-date">Scheduled Date</div>
-              <div className="pd-tl-col-status">Status</div>
-              <div className="pd-tl-col-visit">Visit Date</div>
-              <div className="pd-tl-col-actions">Actions</div>
-            </div>
-
-            {/* Data Rows */}
-            {activeStages.map((stage, i) => {
-              const cfg = STATUS_CONFIG[stage.status] || STATUS_CONFIG.pending;
-              const isVisited = stage.status === 'visited';
-              const isSkipped = stage.status === 'skipped';
-              const isActionable = ['pending', 'notified'].includes(stage.status);
-              const isNextActive = nextAppointment && nextAppointment.id === stage.id;
-              const isDeliveryMilestone = stage.template?.stage_code === 'DELIVERY';
-
-              return (
-                <div
-                  key={stage.id}
-                  className={`pd-tl-row ${isNextActive ? 'pd-tl-row-active' : ''}`}
-                >
-                  {/* # — Step Circle */}
-                  <div className="pd-tl-col-num">
-                    <div
-                      className={`pd-step-circle ${
-                        isVisited
-                          ? 'visited'
-                          : isNextActive
-                          ? 'active'
-                          : isDeliveryMilestone
-                          ? 'milestone'
-                          : isSkipped
-                          ? 'skipped'
-                          : 'scheduled'
-                      }`}
-                    >
-                      {isVisited ? (
-                        <CheckCircle size={15} />
-                      ) : isDeliveryMilestone ? (
-                        <Star size={15} />
-                      ) : isSkipped ? (
-                        <SkipForward size={13} />
-                      ) : (
-                        i + 1
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Stage / Visit Name */}
-                  <div className="pd-tl-col-stage">
-                    <span
-                      style={{
-                        fontWeight: isNextActive ? 700 : 500,
-                        color: isSkipped ? '#94a3b8' : isNextActive ? '#00857c' : '#0f172a',
-                        textDecoration: isSkipped ? 'line-through' : 'none',
-                        fontSize: '0.875rem',
+        {mainTab === 'stages' ? (
+          <>
+            <div className="pd-filter-row">
+              {hasBothTabs && (
+                <>
+                  <span className="pd-filter-label">Track</span>
+                  {[
+                    { value: 'all', label: 'All stages' },
+                    { value: 'pregnancy', label: 'Pregnancy' },
+                    { value: 'immunization', label: 'Immunization' },
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className={`pd-chipfilter${trackFilter === option.value ? ' is-active' : ''}`}
+                      aria-pressed={trackFilter === option.value}
+                      onClick={() => {
+                        setTrackFilter(option.value);
+                        if (option.value !== 'all') setStageTab(option.value);
                       }}
                     >
-                      {stage.template?.stage_name}
-                    </span>
-                    {stage.date_overridden && !isSkipped && (
-                      <span className="pd-tl-reschedule-tag">Rescheduled</span>
-                    )}
-                  </div>
+                      {option.label}
+                    </button>
+                  ))}
+                </>
+              )}
+              <span className="pd-result-count">{displayStages.length} stages</span>
+            </div>
 
-                  {/* Scheduled Date */}
-                  <div className="pd-tl-col-date">
-                    <span style={{ fontSize: '0.84rem', color: isNextActive ? '#0f172a' : '#475569', fontWeight: isNextActive ? 600 : 400 }}>
-                      {fmt(stage.scheduled_date)}
-                    </span>
-                  </div>
-
-                  {/* Status */}
-                  <div className="pd-tl-col-status">
-                    {stage.status && stage.status !== 'pending' || isNextActive ? (
-                      <span style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.3rem',
-                        padding: '0.2rem 0.65rem',
-                        borderRadius: '999px',
-                        background: cfg.bg,
-                        color: cfg.color,
-                        fontSize: '0.73rem',
-                        fontWeight: 600,
-                      }}>
-                        {cfg.label}
-                      </span>
-                    ) : (
-                      <span style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.3rem',
-                        padding: '0.2rem 0.65rem',
-                        borderRadius: '999px',
-                        background: cfg.bg,
-                        color: cfg.color,
-                        fontSize: '0.73rem',
-                        fontWeight: 600,
-                      }}>
-                        {cfg.label}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Visit Date */}
-                  <div className="pd-tl-col-visit">
-                    {stage.actual_visit_date ? (
-                      <span style={{ fontSize: '0.84rem', color: '#0f172a', fontWeight: 500 }}>
-                        {fmt(stage.actual_visit_date)}
-                      </span>
-                    ) : (
-                      <span className="pd-tl-dash">—</span>
-                    )}
-                  </div>
-
-                  {/* Actions */}
-                  <div className="pd-tl-col-actions" onClick={e => e.stopPropagation()}>
-                    {/* Pregnancy History tab is always read-only for 'both' patients */}
-                    {isPregHistoryTab ? (
-                      <div className="pd-stage-actions">
-                        <span style={{
-                          fontSize: '0.72rem', color: '#94a3b8', fontStyle: 'italic', paddingLeft: '0.25rem'
-                        }}>History</span>
-                        <button
-                          className="pd-action-icon-btn"
-                          title="View Stage Details"
-                          onClick={() => setSelectedStage(stage)}
-                        >
-                          <Eye size={14} />
-                        </button>
-                      </div>
-                    ) : isActionable ? (
-                      <div className="pd-stage-actions">
-                        <button
-                          className="pd-action-btn-primary"
-                          title={isDeliveryMilestone ? 'Record Delivery' : 'Mark Visited'}
-                          onClick={() => {
-                            if (isDeliveryMilestone) {
-                              setShowDelivery(true);
-                            } else {
-                              setShowCompleteStage(stage);
-                            }
-                          }}
-                          disabled={marking === stage.id}
-                        >
-                          {marking === stage.id ? (
-                            <span className="spinner" style={{ width: 12, height: 12 }} />
-                          ) : (
-                            <CheckCircle size={13} />
-                          )}
-                          <span>{isDeliveryMilestone ? 'Record Delivery' : 'Mark Visited'}</span>
-                        </button>
-
-                        <button
-                          className="pd-action-icon-btn"
-                          title="Reschedule Stage"
-                          onClick={() => setShowReschedule(stage)}
-                        >
-                          <Calendar size={14} style={{ color: '#0284c7' }} />
-                        </button>
-
-                        <button
-                          className="pd-action-icon-btn danger"
-                          title="Skip Stage"
-                          onClick={() => setShowSkip(stage)}
-                        >
-                          <SkipForward size={14} />
-                        </button>
-
-                        <button
-                          className="pd-action-icon-btn"
-                          title="View Stage Details"
-                          onClick={() => setSelectedStage(stage)}
-                        >
-                          <Eye size={14} />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="pd-stage-actions">
-                        <span className="pd-tl-dash">—</span>
-                        <button
-                          className="pd-action-icon-btn"
-                          title="View Stage Details"
-                          onClick={() => setSelectedStage(stage)}
-                        >
-                          <Eye size={14} />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ))}
-
-        {/* ── History / Audit Log Panel ── */}
-        {mainTab === 'history' && (
-          <div style={{ padding: '0.5rem 0' }}>
-            {historyLoading ? (
-              <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
-                <div className="spinner" />
-              </div>
-            ) : historyLog.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#94a3b8' }}>
-                <History size={36} style={{ marginBottom: '0.65rem', opacity: 0.4 }} />
-                <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#64748b' }}>No audit events yet</div>
-                <div style={{ fontSize: '0.775rem', marginTop: '0.25rem' }}>Events are recorded when stages are visited, skipped, EDD is updated, delivery is recorded, or patient details are edited.</div>
+            {displayStages.length === 0 ? (
+              <div className="pd-empty-inline">
+                <History size={18} />
+                <span>No care stages found for this profile.</span>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                {historyLog.map((evt, idx) => {
-                  const EVENT_META = {
-                    stage_visited:       { label: 'Stage Visited',       icon: CheckCircle,     color: '#10b981', bg: '#ecfdf5' },
-                    stage_skipped:       { label: 'Stage Skipped',       icon: SkipForward,     color: '#64748b', bg: '#f1f5f9' },
-                    stage_rescheduled:   { label: 'Stage Rescheduled',   icon: Calendar,        color: '#0284c7', bg: '#eff6ff' },
-                    edd_updated:         { label: 'EDD Updated',         icon: RefreshCw,       color: '#7e22ce', bg: '#f3e8ff' },
-                    delivery_recorded:   { label: 'Delivery Recorded',   icon: Baby,            color: '#be185d', bg: '#ffe4e6' },
-                    hospital_transferred:{ label: 'Hospital Transfer',   icon: ArrowRightLeft,  color: '#b45309', bg: '#fef3c7' },
-                    patient_edited:      { label: 'Patient Details Edited',icon: Pencil,         color: '#475569', bg: '#f8fafc' },
-                    note_added:          { label: 'Note Added',          icon: StickyNote,      color: '#0891b2', bg: '#ecfeff' },
-                  };
-                  const meta = EVENT_META[evt.event_type] || { label: evt.event_type, icon: FileText, color: '#64748b', bg: '#f1f5f9' };
-                  const IconComp = meta.icon;
-                  const d = new Date(evt.createdAt);
-                  const dateStr = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-                  const timeStr = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
-                  const data = evt.event_data || {};
-
-                  // Build a human-readable description from event_data
-                  let description = '';
-                  if (evt.event_type === 'stage_visited')     description = data.stage_name ? `${data.stage_name}${data.visit_date ? ` on ${new Date(data.visit_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}` : ''}` : '';
-                  if (evt.event_type === 'stage_skipped')     description = data.stage_name ? `${data.stage_name} — reason: "${data.reason || '—'}"` : '';
-                  if (evt.event_type === 'stage_rescheduled') description = data.stage_name ? `${data.stage_name} → ${data.new_date || ''}${data.cascaded ? ` (+${data.cascaded} cascaded)` : ''}` : '';
-                  if (evt.event_type === 'edd_updated')       description = `${data.old_edd || '?'} → ${data.new_edd || '?'} (${data.source || ''})`;
-                  if (evt.event_type === 'delivery_recorded') description = `${data.child_name || 'Baby'} · DOB ${data.child_dob || '—'}`;
-                  if (evt.event_type === 'hospital_transferred') description = `From hospital #${data.from_hospital_id} → #${data.to_hospital_id}`;
-                  if (evt.event_type === 'patient_edited')    description = data.fields_changed?.length ? `Fields updated: ${data.fields_changed.join(', ')}` : '';
+              <div className="pd-tl2">
+                {displayStages.map((stage) => {
+                  const statusInfo = stageStatus(stage);
+                  const isVisited = stage.status === 'visited';
+                  const isSkipped = stage.status === 'skipped';
+                  const isActionable = ['pending', 'notified', 'missed'].includes(stage.status);
+                  const isOverdue = isActionable && daysFromToday(stage.scheduled_date) < 0;
+                  const isNextActive = nearestNext && nearestNext.id === stage.id;
+                  const isDeliveryMilestone = stage.template?.stage_code === 'DELIVERY';
+                  const isPregRow = stage.template?.type === 'pregnancy';
+                  const readOnlyRow = isBoth && isPregRow;
 
                   return (
-                    <div key={evt.id} style={{
-                      display: 'flex', gap: '0.85rem', alignItems: 'flex-start',
-                      padding: '0.9rem 0.5rem',
-                      borderBottom: idx < historyLog.length - 1 ? '1px solid #f1f5f9' : 'none',
-                    }}>
-                      {/* Icon */}
-                      <div style={{
-                        width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
-                        background: meta.bg, color: meta.color,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      }}>
-                        <IconComp size={16} />
+                    <article
+                      key={stage.id}
+                      className={`pd-tl2-row${isSkipped ? ' is-skipped' : ''}${isOverdue ? ' is-overdue' : ''}${isNextActive ? ' is-next' : ''}${stage.date_overridden && !isSkipped ? ' is-rescheduled' : ''}`}
+                    >
+                      <div className="pd-tl2-marker">
+                        <span className={`pd-tl2-dot is-${statusInfo.key}`}>
+                          {isVisited ? <CheckCircle size={14} /> : isSkipped ? <SkipForward size={12} /> : isDeliveryMilestone ? <Star size={13} /> : null}
+                        </span>
                       </div>
 
-                      {/* Content */}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: '0.84rem', fontWeight: 700, color: '#0f172a' }}>{meta.label}</span>
-                          {evt.performed_by_role && (
-                            <span style={{
-                              fontSize: '0.675rem', fontWeight: 600, padding: '0.1rem 0.5rem',
-                              borderRadius: '999px', background: '#f1f5f9', color: '#475569',
-                            }}>{evt.performed_by_role}</span>
-                          )}
+                      <div className="pd-tl2-main">
+                        <div className="pd-tl2-title-row">
+                          <span className="pd-tl2-title">{stage.template?.stage_name}</span>
                         </div>
-                        {description && (
-                          <div style={{ fontSize: '0.775rem', color: '#475569', marginTop: '0.15rem', wordBreak: 'break-word' }}>
-                            {description}
-                          </div>
+                      </div>
+
+                      <div className="pd-tl2-meta">
+                        <span className="pd-tl2-k">{stage.date_overridden && !isSkipped ? 'Rescheduled date' : 'Scheduled'}</span>
+                        <span className={`pd-tl2-v${isOverdue ? ' is-overdue' : ''}`}>
+                          {fmt(stage.scheduled_date)}
+                        </span>
+                      </div>
+
+                      <div className="pd-tl2-meta">
+                        <span className="pd-tl2-k">Visit date</span>
+                        <span className={`pd-tl2-v${stage.actual_visit_date ? '' : ' is-muted'}`}>
+                          {stage.actual_visit_date ? fmt(stage.actual_visit_date) : isSkipped ? 'Skipped' : 'Not yet'}
+                        </span>
+                      </div>
+
+                      <div className="pd-tl2-status">
+                        <span className={`pd-tl2-status-pill is-${statusInfo.key}`}>
+                          <i /> {statusInfo.label}
+                        </span>
+                      </div>
+
+                      <div className="pd-tl2-actions">
+                        <button className="pd-linkbtn" onClick={() => setSelectedStage(stage)}>
+                          View
+                        </button>
+                        {!readOnlyRow && isActionable && (
+                          <>
+                            {!isDeliveryMilestone && canReschedule && (
+                              <button className="pd-linkbtn" onClick={() => setShowReschedule(stage)}>
+                                Reschedule
+                              </button>
+                            )}
+                            {canSkip && (
+                              <button className="pd-linkbtn" onClick={() => setShowSkip(stage)}>
+                                Skip
+                              </button>
+                            )}
+                            {((isDeliveryMilestone && canRecordDelivery) || (!isDeliveryMilestone && canMarkVisit)) && (
+                              <button
+                                className="pd-linkbtn act-primary"
+                                onClick={() => (isDeliveryMilestone ? setShowDelivery(true) : setShowCompleteStage(stage))}
+                              >
+                                {isDeliveryMilestone ? 'Record delivery' : 'Mark as visit'}
+                              </button>
+                            )}
+                          </>
+                        )}
+                        {!readOnlyRow && isSkipped && canMarkVisit && (
+                          <button className="pd-linkbtn act-primary" onClick={() => setShowCompleteStage(stage)}>
+                            Record visit
+                          </button>
                         )}
                       </div>
-
-                      {/* Timestamp */}
-                      <div style={{ flexShrink: 0, textAlign: 'right' }}>
-                        <div style={{ fontSize: '0.725rem', color: '#64748b', fontWeight: 500 }}>{dateStr}</div>
-                        <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>{timeStr}</div>
-                      </div>
-                    </div>
+                    </article>
                   );
                 })}
               </div>
             )}
+          </>
+        ) : (
+          <div className="pd-audit2">
+            {historyLoading ? (
+              <div className="pd-loading"><span className="spinner" /></div>
+            ) : historyLog.length === 0 ? (
+              <div className="pd-empty-inline">
+                <History size={20} />
+                <span>No audit events recorded for this patient yet.</span>
+              </div>
+            ) : (
+              historyLog.map((evt) => {
+                const EVENT_META = {
+                  stage_visited:        { label: 'Visit completed',        cat: 'visit',  catLabel: 'Visit' },
+                  stage_skipped:        { label: 'Stage skipped',          cat: 'system', catLabel: 'System' },
+                  stage_rescheduled:    { label: 'Stage rescheduled',      cat: 'system', catLabel: 'System' },
+                  edd_updated:          { label: 'EDD updated',            cat: 'record', catLabel: 'Record' },
+                  delivery_recorded:    { label: 'Delivery recorded',      cat: 'record', catLabel: 'Record' },
+                  hospital_transferred: { label: 'Hospital transfer',      cat: 'system', catLabel: 'System' },
+                  patient_edited:       { label: 'Patient details edited', cat: 'system', catLabel: 'System' },
+                  note_added:           { label: 'Note added',             cat: 'record', catLabel: 'Record' },
+                };
+                const meta = EVENT_META[evt.event_type] || { label: evt.event_type, cat: 'system', catLabel: 'System' };
+                const d = new Date(evt.createdAt);
+                const dateStr = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+                const timeStr = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+                const data = evt.event_data || {};
+
+                let description = '';
+                if (evt.event_type === 'stage_visited')     description = data.stage_name ? `${data.stage_name}${data.visit_date ? ` on ${fmt(data.visit_date)}` : ''}` : '';
+                if (evt.event_type === 'stage_skipped')     description = data.stage_name ? `${data.stage_name} — reason: "${data.reason || '—'}"` : '';
+                if (evt.event_type === 'stage_rescheduled') {
+                  const from = data.old_date ? `${fmt(data.old_date)} → ` : '';
+                  const reason = data.reason ? ` · reason: "${data.reason}"` : '';
+                  description = data.stage_name
+                    ? `${data.stage_name} — ${from}${fmt(data.new_date)}${data.cascaded ? ` (+${data.cascaded} cascaded)` : ''}${reason}`
+                    : '';
+                }
+                if (evt.event_type === 'edd_updated')       description = `${fmt(data.old_edd)} → ${fmt(data.new_edd)}${data.source ? ` (${data.source})` : ''}`;
+                if (evt.event_type === 'delivery_recorded') description = `${data.child_name || 'Baby'} · DOB ${fmt(data.child_dob)}`;
+                if (evt.event_type === 'hospital_transferred') description = `From hospital #${data.from_hospital_id} → #${data.to_hospital_id}`;
+                if (evt.event_type === 'patient_edited')    description = data.fields_changed?.length ? `Fields updated: ${data.fields_changed.join(', ')}` : '';
+
+                return (
+                  <div key={evt.id} className="pd-audit2-row">
+                    <div className="pd-audit2-when">
+                      <span>{dateStr}</span>
+                      <small>{timeStr}</small>
+                    </div>
+                    <div className="pd-audit2-main">
+                      <div className="pd-audit2-action">
+                        {meta.label}
+                        <span className={`pd-audit2-cat cat-${meta.cat}`}>{meta.catLabel}</span>
+                      </div>
+                      {description && <p className="pd-audit2-detail">{description}</p>}
+                      <div className="pd-audit2-meta">
+                        {evt.performed_by_role && (
+                          <>
+                            <span>{evt.performed_by_role}</span>
+                            <span className="sep">·</span>
+                          </>
+                        )}
+                        <span>Patient ID #{patient.id}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+            {historyTotalPages > 1 && (
+              <div className="ttd-pager pd-audit-pager">
+                <span className="ttd-pager-status" style={{ marginRight: 'auto' }}>
+                  Showing {(historyPage - 1) * HISTORY_PAGE_SIZE + 1}–{Math.min(historyPage * HISTORY_PAGE_SIZE, historyTotal)} of {historyTotal}
+                </span>
+                <button
+                  type="button"
+                  className="ttd-pager-btn"
+                  onClick={() => changeHistoryPage(historyPage - 1)}
+                  disabled={historyLoading || historyPage <= 1}
+                  aria-label="Previous page"
+                >
+                  <ChevronLeft size={14} />
+                </button>
+                <span className="ttd-pager-status">Page {historyPage} of {historyTotalPages}</span>
+                <button
+                  type="button"
+                  className="ttd-pager-btn"
+                  onClick={() => changeHistoryPage(historyPage + 1)}
+                  disabled={historyLoading || historyPage >= historyTotalPages}
+                  aria-label="Next page"
+                >
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            )}
           </div>
         )}
-      </div>
+      </section>
+
 
       {/* ── 4. Modals ────────────────────────────────────── */}
-      {showEdd && (
+      {showEdd && canEdit && (
         <EddModal
           patient={patient}
           onClose={() => setShowEdd(false)}
@@ -1633,7 +1652,7 @@ export default function PatientDetail() {
         />
       )}
 
-      {showDelivery && (
+      {showDelivery && canRecordDelivery && (
         <DeliveryModal
           patient={patient}
           onClose={() => setShowDelivery(false)}
@@ -1645,7 +1664,7 @@ export default function PatientDetail() {
         />
       )}
 
-      {showCompleteStage && (
+      {showCompleteStage && canMarkVisit && (
         <CompleteStageModal
           stage={showCompleteStage}
           onClose={() => setShowCompleteStage(null)}
@@ -1653,7 +1672,7 @@ export default function PatientDetail() {
         />
       )}
 
-      {showReschedule && (
+      {showReschedule && canReschedule && (
         <RescheduleModal
           stage={showReschedule}
           onClose={() => setShowReschedule(null)}
@@ -1661,7 +1680,7 @@ export default function PatientDetail() {
         />
       )}
 
-      {showSkip && (
+      {showSkip && canSkip && (
         <SkipModal
           stage={showSkip}
           onClose={() => setShowSkip(null)}
@@ -1682,6 +1701,10 @@ export default function PatientDetail() {
               setShowCompleteStage(s);
             }
           }}
+          canReschedule={canReschedule}
+          canSkip={canSkip}
+          canMarkVisit={canMarkVisit}
+          canRecordDelivery={canRecordDelivery}
         />
       )}
     </div>

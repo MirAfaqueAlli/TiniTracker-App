@@ -53,9 +53,18 @@ export default function SetupPage() {
 
     setLoading(true);
     try {
+      // Optional one-time setup token, supplied as /setup?token=<SETUP_TOKEN>.
+      // Required by the API in production; ignored in development when unset.
+      const setupToken = typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('token')
+        : null;
+
       const res = await fetch('/api/setup/init', {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(setupToken ? { 'X-Setup-Token': setupToken } : {}),
+        },
         body: JSON.stringify({
           hospital_name:    form.hospital_name.trim(),
           hospital_address: form.hospital_address.trim() || undefined,

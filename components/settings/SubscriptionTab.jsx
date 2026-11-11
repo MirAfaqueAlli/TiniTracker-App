@@ -1,11 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useRef, useState } from 'react';
 import {
-  CreditCard, Check, Sparkles, AlertCircle, Clock, CheckCircle2,
-  Zap, ArrowRight, ShieldCheck, HelpCircle, Phone, Calendar,
-  Building2, ChevronRight, X, Send, Award, RefreshCw, MessageSquare, Info
+  CreditCard, Check, Clock, CheckCircle2,
+  ArrowRight, X, Send, RefreshCw, Info,
+  Users, MessageSquare, ShieldCheck,
 } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
@@ -14,29 +13,19 @@ export default function SubscriptionTab() {
   const { user } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [subData, setSubData] = useState(null);
-  const [billingCycle, setBillingCycle] = useState('monthly'); // 'monthly' | 'annual'
+  const [billingCycle, setBillingCycle] = useState('monthly');
   const [modalPlan, setModalPlan] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [notes, setNotes] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [toast, setToast] = useState(null);
-  const [portalRoot, setPortalRoot] = useState(null);
   const toastTimerRef = useRef(null);
+  const plansRef = useRef(null);
 
   useEffect(() => {
-    setPortalRoot(document.body);
-  }, []);
-
-  // Prevent background scrolling when modal is open so modal never scrolls up
-  useEffect(() => {
-    if (modalPlan) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => {
-      document.body.style.overflow = '';
-    };
+    if (modalPlan) document.body.style.overflow = 'hidden';
+    else document.body.style.overflow = '';
+    return () => { document.body.style.overflow = ''; };
   }, [modalPlan]);
 
   function showToast(type, title, message) {
@@ -45,7 +34,7 @@ export default function SubscriptionTab() {
     toastTimerRef.current = setTimeout(() => setToast(null), 6000);
   }
 
-  const fetchSubscription = async () => {
+  async function fetchSubscription() {
     try {
       const res = await api.get('/hospitals/subscription');
       setSubData(res.data);
@@ -55,24 +44,26 @@ export default function SubscriptionTab() {
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   useEffect(() => {
-    fetchSubscription();
+    const timer = setTimeout(fetchSubscription, 0);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const openUpgradeModal = (plan) => {
+  function openUpgradeModal(plan) {
     setModalPlan(plan);
     setNotes('');
     setContactPhone(user?.hospital_phone || user?.Hospital?.phone || '');
-  };
+  }
 
-  const closeUpgradeModal = () => {
+  function closeUpgradeModal() {
     if (submitting) return;
     setModalPlan(null);
-  };
+  }
 
-  const handleSubmitUpgrade = async (e) => {
+  async function handleSubmitUpgrade(e) {
     e.preventDefault();
     if (!modalPlan) return;
     setSubmitting(true);
@@ -84,7 +75,6 @@ export default function SubscriptionTab() {
         notes,
         contact_phone: contactPhone,
       });
-
       showToast('success', 'Request Submitted!', res.data.message || 'Upgrade request has been dispatched to provider administrators.');
       closeUpgradeModal();
       await fetchSubscription();
@@ -94,14 +84,16 @@ export default function SubscriptionTab() {
     } finally {
       setSubmitting(false);
     }
-  };
+  }
 
   if (loading) {
     return (
-      <div className="sub-loading-wrap">
-        <RefreshCw className="settings-spin" size={28} />
-        <p>Loading subscription details...</p>
-      </div>
+      <section className="setting-panel">
+        <div className="loading-block">
+          <RefreshCw size={26} style={{ animation: 'spin 1s linear infinite' }} />
+          <p>Loading subscription details...</p>
+        </div>
+      </section>
     );
   }
 
@@ -109,10 +101,10 @@ export default function SubscriptionTab() {
   const pendingReq = subData?.pending_request;
   const plans = subData?.available_plans || [];
   const isTrial = currentSub?.is_trial ?? true;
-  const daysLeft = currentSub?.days_remaining ?? 14;
+  const daysLeft = currentSub?.days_remaining ?? 0;
 
   const planDisplayName = () => {
-    if (!currentSub) return 'Free Trial (14-Day)';
+    if (!currentSub) return 'Free Trial';
     if (currentSub.plan === 'free_trial') return '14-Day Clinical Free Trial';
     if (currentSub.plan === 'starter') return 'Starter Clinic Plan';
     if (currentSub.plan === 'professional') return 'Professional Hospital Plan';
@@ -120,417 +112,311 @@ export default function SubscriptionTab() {
     return currentSub.plan?.toUpperCase();
   };
 
+  const usage = subData?.usage || {
+    patients: 0,
+    reminders_sent: 0,
+    staff_count: 0,
+  };
+
+  const planKey = currentSub?.plan || 'free_trial';
+  const patientLimit = planKey === 'starter' ? '250' : 'Unlimited';
+  const staffLimit = planKey === 'starter' ? '3' : 'Unlimited';
+
+  const dateLabel = (value) => {
+    if (!value) return '—';
+    return new Date(value).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
   return (
-    <div className="subscription-tab-container">
-      {/* Toast Alert */}
+    <>
       {toast && (
-        <div className={`settings-toast ${toast.type}`}>
-          {toast.type === 'success' ? (
-            <CheckCircle2 size={20} className="toast-icon success" />
-          ) : (
-            <AlertCircle size={20} className="toast-icon error" />
-          )}
-          <div className="toast-content">
-            <div className="toast-title">{toast.title}</div>
-            <div className="toast-msg">{toast.message}</div>
+        <div className="toasts" role="status" aria-live="polite">
+          <div className={`toast ${toast.type === 'error' ? 'err' : ''}`}>
+            <div>
+              <span className="toast-k">{toast.type === 'error' ? 'Not saved' : 'TiniTracker'}</span>
+              <span>{toast.message}</span>
+            </div>
           </div>
-          <button className="toast-close" onClick={() => setToast(null)}>
-            <X size={16} />
-          </button>
         </div>
       )}
 
-      {/* ── 1. Current Plan Status Hero ───────────────────────────────────── */}
-      <div className="sub-status-card">
-        <div className="sub-status-header">
-          <div className="sub-status-badge-wrap">
-            <div className={`sub-status-pill ${isTrial ? 'trial' : 'active'}`}>
-              <Sparkles size={14} />
-              <span>{isTrial ? 'FREE TRIAL' : 'ACTIVE SUBSCRIBER'}</span>
-            </div>
-            {currentSub?.is_expired ? (
-              <span className="sub-pill-danger">Expired</span>
-            ) : isTrial ? (
-              <span className="sub-pill-warning">{daysLeft} Days Remaining</span>
-            ) : (
-              <span className="sub-pill-success">Active & Healthy</span>
-            )}
-          </div>
-
-          <div className="sub-hospital-tag">
-            <Building2 size={15} />
-            <span>{user?.hospital_name || user?.hospital || 'Hospital'}</span>
-          </div>
-        </div>
-
-        <div className="sub-status-main">
-          <div className="sub-status-info">
-            <h2 className="sub-status-title">{planDisplayName()}</h2>
-            <p className="sub-status-desc">
-              {isTrial
-                ? 'Your hospital has full trial access to core clinical workflows, patient schedules, and automated WhatsApp reminders.'
-                : 'Your facility is powered by official TiniTracker clinical communication and maternity care protocols.'}
-            </p>
-
-            <div className="sub-meta-grid">
-              <div className="sub-meta-item">
-                <span className="sub-meta-label">Plan Tier</span>
-                <span className="sub-meta-val">{currentSub?.plan ? currentSub.plan.replace('_', ' ').toUpperCase() : 'FREE TRIAL'}</span>
-              </div>
-              <div className="sub-meta-item">
-                <span className="sub-meta-label">Validity Period</span>
-                <span className="sub-meta-val">
-                  {currentSub?.starts_at ? new Date(currentSub.starts_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
-                  {' → '}
-                  {currentSub?.ends_at ? new Date(currentSub.ends_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
-                </span>
-              </div>
-              <div className="sub-meta-item">
-                <span className="sub-meta-label">Admin Contact</span>
-                <span className="sub-meta-val">{user?.email || 'Administrator'}</span>
-              </div>
-              <div className="sub-meta-item">
-                <span className="sub-meta-label">Automation Status</span>
-                <span className="sub-meta-val text-emerald">Active & Running</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Countdown indicator */}
-          <div className="sub-countdown-box">
-            <div className="countdown-ring">
-              <span className="countdown-num">{daysLeft}</span>
-              <span className="countdown-lbl">Days Left</span>
-            </div>
-            {isTrial && (
-              <div className="countdown-subtext">
-                Free trial period ends soon. Upgrade now to avoid service interruptions.
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Pending Request Banner */}
-        {pendingReq && (
-          <div className="sub-pending-banner">
-            <div className="pending-banner-icon">
-              <Clock size={18} />
-            </div>
-            <div className="pending-banner-text">
-              <div className="pending-banner-title">
-                Upgrade Request Pending Review ({pendingReq.requested_plan?.toUpperCase()} - {pendingReq.billing_cycle?.toUpperCase()})
-              </div>
-              <div className="pending-banner-sub">
-                Submitted on {new Date(pendingReq.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}.
-                Our provider team has received your request and will activate your subscription shortly.
-              </div>
-            </div>
-            <div className="pending-banner-badge">
-              Provider Notified 🔔
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── 2. Plans Comparison Section ───────────────────────────────────── */}
-      <div className="sub-plans-section">
-        <div className="plans-section-header">
+      <section className="setting-panel" aria-labelledby="billing-title">
+        <div className="panel-head">
           <div>
-            <div className="plans-pretitle">
-              <Zap size={15} />
-              <span>CHOOSE YOUR EXPANSION PLAN</span>
-            </div>
-            <h2 className="plans-title">Upgrade Your Healthcare Facility</h2>
-            <p className="plans-subtitle">
-              Scale your maternity and pediatric patient management with unlimited registrations and automated multi-touchpoint WhatsApp communications.
-            </p>
+            <h2 className="setting-title" id="billing-title">Subscription &amp; billing</h2>
+           
           </div>
-
-          {/* Billing Cycle Toggle */}
-          <div className="billing-cycle-switch">
-            <button
-              type="button"
-              className={`cycle-btn ${billingCycle === 'monthly' ? 'active' : ''}`}
-              onClick={() => setBillingCycle('monthly')}
-            >
-              Monthly Billing
-            </button>
-            <button
-              type="button"
-              className={`cycle-btn ${billingCycle === 'annual' ? 'active' : ''}`}
-              onClick={() => setBillingCycle('annual')}
-            >
-              Annual Billing
-              <span className="cycle-discount-pill">Save 17% (2 Mo Free)</span>
-            </button>
+          <div className="panel-actions">
+            <span className="chip chip-line">
+              <CreditCard size={13} />
+              {isTrial ? `Free trial · ${daysLeft} days left` : planDisplayName()}
+            </span>
           </div>
         </div>
 
-        {/* Plans Grid */}
-        <div className="plans-cards-grid">
-          {plans.map((p) => {
-            const isPopular = p.popular;
-            const isCurrent = currentSub?.plan === p.key;
-            const isPendingThisPlan = pendingReq && pendingReq.requested_plan === p.key;
-            const price = billingCycle === 'annual' ? Math.round(p.annualPrice / 12) : p.monthlyPrice;
-            const billedAnnuallyText = billingCycle === 'annual' ? `₹${p.annualPrice.toLocaleString('en-IN')}/year billed annually` : 'Billed monthly';
-
-            return (
-              <div
-                key={p.key}
-                className={`plan-tier-card ${isPopular ? 'popular' : ''} ${isCurrent ? 'current' : ''}`}
-              >
-                {isPopular && (
-                  <div className="plan-popular-ribbon">
-                    <Sparkles size={12} />
-                    <span>RECOMMENDED BY HOSPITALS</span>
-                  </div>
-                )}
-
-                <div className="plan-card-header">
-                  <div className="plan-badge-row">
-                    <span className="plan-tag-badge">{p.badge}</span>
-                    {isCurrent && <span className="current-plan-pill">Current Plan</span>}
-                  </div>
-                  <h3 className="plan-name">{p.name}</h3>
-                  <p className="plan-tagline">{p.tagline}</p>
+        <div className="billing-body">
+          <div className="billing-hero">
+            <div>
+              <span className="trial-tag">{isTrial ? 'Free Clinical Trial' : 'Active Subscriber'}</span>
+              <div className="billing-days">
+                {daysLeft} days<small>{currentSub?.is_expired ? 'expired' : 'left'}</small>
+              </div>
+              <p className="billing-note">
+                {isTrial
+                  ? `Your full feature set is free until ${dateLabel(currentSub?.ends_at)}. Upgrade before the trial ends to keep automated reminders running.`
+                  : `Your ${planDisplayName()} is active until ${dateLabel(currentSub?.ends_at)}.`}
+              </p>
+              <div className="billing-meta">
+                <span>Plan · {currentSub?.plan ? currentSub.plan.replace('_', ' ').toUpperCase() : 'FREE TRIAL'}</span>
+                <span>{dateLabel(currentSub?.starts_at)} → {dateLabel(currentSub?.ends_at)}</span>
+                <span>Admin · {user?.email || 'Administrator'}</span>
+              </div>
+            </div>
+            <div className="billing-usage-widget" aria-label="Current plan usage and quotas">
+              <div className="usage-item">
+                <div className="usage-icon" aria-hidden="true">
+                  <Users size={16} />
                 </div>
-
-                <div className="plan-pricing">
-                  <div className="pricing-num-wrap">
-                    <span className="pricing-curr">₹</span>
-                    <span className="pricing-amount">{price.toLocaleString('en-IN')}</span>
-                    <span className="pricing-period">/ month</span>
+                <div className="usage-details">
+                  <div className="usage-value">
+                    {usage.patients} <small>/ {patientLimit}</small>
                   </div>
-                  <div className="pricing-subtext">{billedAnnuallyText}</div>
+                  <div className="usage-label">Tracked Patients</div>
                 </div>
+              </div>
 
-                <div className="plan-features-list">
-                  <div className="features-head">INCLUDED CAPABILITIES:</div>
-                  {p.features.map((feat, idx) => (
-                    <div key={idx} className="feature-item">
-                      <div className="feature-check">
-                        <Check size={14} />
-                      </div>
-                      <span className="feature-text">{feat}</span>
-                    </div>
-                  ))}
+              <div className="usage-divider" aria-hidden="true" />
+
+              <div className="usage-item">
+                <div className="usage-icon" aria-hidden="true">
+                  <MessageSquare size={16} />
                 </div>
+                <div className="usage-details">
+                  <div className="usage-value">
+                    {usage.reminders_sent} <small>sent</small>
+                  </div>
+                  <div className="usage-label">WhatsApp Reminders</div>
+                </div>
+              </div>
 
-                <div className="plan-action-area">
+              <div className="usage-divider" aria-hidden="true" />
+
+              <div className="usage-item">
+                <div className="usage-icon" aria-hidden="true">
+                  <ShieldCheck size={16} />
+                </div>
+                <div className="usage-details">
+                  <div className="usage-value">
+                    {usage.staff_count} <small>/ {staffLimit}</small>
+                  </div>
+                  <div className="usage-label">Active Team Members</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {pendingReq && (
+            <div className="request-banner">
+              <div className="banner-main">
+                <Clock size={18} />
+                <div>
+                  <div>
+                    Upgrade request pending review · {pendingReq.requested_plan?.toUpperCase()} ({pendingReq.billing_cycle?.toUpperCase()})
+                  </div>
+                  <div style={{ font: '500 11.5px/1.5 var(--s-font)', marginTop: 2 }}>
+                    Submitted {dateLabel(pendingReq.createdAt)}. Our provider team has received your request and will activate your subscription shortly.
+                  </div>
+                </div>
+              </div>
+              <span className="chip chip-live">Provider notified</span>
+            </div>
+          )}
+
+          <div className="section-subhead" ref={plansRef}>
+            <div>
+              <h3>Plans for the next chapter</h3>
+              
+            </div>
+            <div className="radio-row" role="group" aria-label="Billing cycle">
+              <label className="radio-option">
+                <input
+                  type="radio"
+                  name="billing-cycle"
+                  value="monthly"
+                  checked={billingCycle === 'monthly'}
+                  onChange={() => setBillingCycle('monthly')}
+                />
+                Monthly
+              </label>
+              <label className="radio-option">
+                <input
+                  type="radio"
+                  name="billing-cycle"
+                  value="annual"
+                  checked={billingCycle === 'annual'}
+                  onChange={() => setBillingCycle('annual')}
+                />
+                Annual · save 17%
+              </label>
+            </div>
+          </div>
+
+          <div className="plan-grid">
+            {plans.map((plan) => {
+              const isPopular = plan.popular;
+              const isCurrent = currentSub?.plan === plan.key;
+              const isPendingThisPlan = pendingReq && pendingReq.requested_plan === plan.key;
+              const price = billingCycle === 'annual' ? Math.round(plan.annualPrice / 12) : plan.monthlyPrice;
+              const billedText = billingCycle === 'annual'
+                ? `₹${plan.annualPrice.toLocaleString('en-IN')} billed annually`
+                : 'Billed monthly';
+
+              return (
+                <div
+                  key={plan.key}
+                  className={`plan-card${isPopular ? ' recommended' : ''}${isCurrent ? ' current' : ''}`}
+                >
+                  {isPopular && <span className="plan-rec">Recommended</span>}
+                  <div>
+                    <div className="plan-name">{plan.name}</div>
+                    <div className="plan-tagline">{plan.tagline}</div>
+                  </div>
+                  <div className="plan-price">
+                    ₹{price.toLocaleString('en-IN')}<small>/ month</small>
+                  </div>
+                  <div className="plan-blurb">{billedText}</div>
+                  <ul className="plan-features">
+                    {plan.features.map((feature, index) => (
+                      <li key={index}>
+                        <Check size={13} />
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+
                   {isCurrent ? (
-                    <button className="btn-plan-action current" disabled>
+                    <button type="button" className="btn btn-primary" disabled>
                       <CheckCircle2 size={16} />
-                      <span>Current Active Plan</span>
+                      Current plan
                     </button>
                   ) : isPendingThisPlan ? (
-                    <button className="btn-plan-action pending" disabled>
+                    <button type="button" className="btn btn-outline" disabled>
                       <Clock size={16} />
-                      <span>Upgrade Requested (Pending)</span>
+                      Requested
                     </button>
                   ) : (
                     <button
-                      className={`btn-plan-action ${isPopular ? 'btn-popular' : 'btn-regular'}`}
-                      onClick={() => openUpgradeModal(p)}
+                      type="button"
+                      className={`btn ${isPopular ? 'btn-primary' : 'btn-outline'}`}
+                      onClick={() => openUpgradeModal(plan)}
                     >
-                      <span>Request Upgrade</span>
+                      Request upgrade
                       <ArrowRight size={16} />
                     </button>
                   )}
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* ── 3. Upgrade Guarantee & FAQ Cards ───────────────────────────────── */}
-      <div className="sub-guarantee-grid">
-        <div className="guarantee-card">
-          <div className="guarantee-icon">
-            <ShieldCheck size={22} />
-          </div>
-          <div>
-            <h4 className="guarantee-title">Zero Clinical Downtime</h4>
-            <p className="guarantee-desc">
-              Your patient database, WhatsApp schedules, and vaccination records remain 100% active during and after the upgrade.
-            </p>
+              );
+            })}
           </div>
         </div>
+      </section>
 
-        <div className="guarantee-card">
-          <div className="guarantee-icon">
-            <MessageSquare size={22} />
-          </div>
-          <div>
-            <h4 className="guarantee-title">Official WhatsApp Provider Route</h4>
-            <p className="guarantee-desc">
-              High-throughput Meta cloud API connection ensures maternal and newborn immunization reminders never fail.
-            </p>
-          </div>
-        </div>
-
-        <div className="guarantee-card">
-          <div className="guarantee-icon">
-            <Phone size={22} />
-          </div>
-          <div>
-            <h4 className="guarantee-title">Dedicated Onboarding Support</h4>
-            <p className="guarantee-desc">
-              Our provider team coordinates directly with your hospital admin for seamless subscription activation.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* ── 4. Upgrade Request Modal ───────────────────────────────────────── */}
-      {modalPlan && portalRoot && createPortal(
-        <div className="sub-modal-overlay" onClick={closeUpgradeModal}>
-          <div className="sub-modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="sub-modal-header">
-              <div className="sub-modal-title-group">
-                <div className="sub-modal-icon-badge">
-                  <Zap size={20} />
-                </div>
+      {modalPlan && (
+        <div className="sv-modal-overlay" onClick={closeUpgradeModal}>
+          <div className="dlg" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dlg-upgrade-title">
+            <div className="dlg-form">
+              <div className="dlg-head">
                 <div>
-                  <h3 className="sub-modal-title">Request Plan Upgrade</h3>
-                  <p className="sub-modal-sub">
-                    Dispatch an upgrade request to the TiniTracker provider administration team.
-                  </p>
+                  <h2 className="dlg-title" id="dlg-upgrade-title">Request an upgrade</h2>
+                  <p className="dlg-sub">Our team will confirm availability and final pricing with you.</p>
                 </div>
+                <button type="button" className="close-x" onClick={closeUpgradeModal} disabled={submitting} aria-label="Close upgrade request">
+                  <X size={16} />
+                </button>
               </div>
-              <button
-                type="button"
-                className="sub-modal-close"
-                onClick={closeUpgradeModal}
-                disabled={submitting}
-              >
-                <X size={18} />
-              </button>
+
+              <form onSubmit={handleSubmitUpgrade} className="dlg-form" style={{ maxHeight: 'none' }}>
+                <div className="dlg-body">
+                  <div className="dlg-plan">
+                    <div className="dlg-plan-name">{modalPlan.name}</div>
+                    <div className="dlg-plan-note">
+                      ₹{(billingCycle === 'annual' ? Math.round(modalPlan.annualPrice / 12) : modalPlan.monthlyPrice).toLocaleString('en-IN')} / month
+                      {' · '}
+                      {billingCycle === 'annual' ? `₹${modalPlan.annualPrice.toLocaleString('en-IN')} billed annually` : 'billed monthly'}
+                    </div>
+                  </div>
+
+                  <div className="field">
+                    <label>Billing cycle</label>
+                    <div className="radio-row">
+                      <label className="radio-option">
+                        <input type="radio" name="modal-billing-cycle" value="monthly" checked={billingCycle === 'monthly'} onChange={() => setBillingCycle('monthly')} />
+                        Monthly
+                      </label>
+                      <label className="radio-option">
+                        <input type="radio" name="modal-billing-cycle" value="annual" checked={billingCycle === 'annual'} onChange={() => setBillingCycle('annual')} />
+                        Annual · save 17%
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="field">
+                    <label htmlFor="upgrade-phone">Primary contact phone <span className="req">*</span></label>
+                    <input
+                      id="upgrade-phone"
+                      type="text"
+                      required
+                      placeholder="e.g. +91 9876543210"
+                      value={contactPhone}
+                      onChange={(e) => setContactPhone(e.target.value)}
+                    />
+                    <span className="hint">Provider administrators will use this number if verification or invoice coordination is needed.</span>
+                  </div>
+
+                  <div className="field">
+                    <label htmlFor="upgrade-note">Note for the TiniTracker team <span className="hint">(optional)</span></label>
+                    <textarea
+                      id="upgrade-note"
+                      rows={3}
+                      placeholder="e.g. Number of branches, preferred GST invoice details, or requested activation date..."
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="request-banner">
+                    <div className="banner-main">
+                      <Info size={16} />
+                      <span>
+                        Once submitted, the provider administration dashboard will instantly receive your request. A confirmation notification will appear in your hospital portal upon approval.
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="dlg-foot">
+                  <button type="button" className="btn btn-outline" onClick={closeUpgradeModal} disabled={submitting}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn btn-primary" disabled={submitting}>
+                    {submitting ? (
+                      <>
+                        <RefreshCw size={15} style={{ animation: 'spin 1s linear infinite' }} />
+                        Sending request...
+                      </>
+                    ) : (
+                      <>
+                        <Send size={15} />
+                        Send request
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
             </div>
-
-            <form onSubmit={handleSubmitUpgrade} className="sub-modal-form">
-              {/* Selected Plan Summary Banner */}
-              <div className="sub-modal-plan-summary">
-                <div className="summary-left">
-                  <div className="summary-plan-badge">{modalPlan.badge}</div>
-                  <div className="summary-plan-name">{modalPlan.name}</div>
-                  <div className="summary-plan-tagline">{modalPlan.tagline}</div>
-                </div>
-                <div className="summary-right">
-                  <div className="summary-price-amt">
-                    ₹{(billingCycle === 'annual' ? Math.round(modalPlan.annualPrice / 12) : modalPlan.monthlyPrice).toLocaleString('en-IN')}
-                    <span className="summary-price-unit">/mo</span>
-                  </div>
-                  <div className="summary-cycle-pill">
-                    {billingCycle === 'annual' ? 'Billed annually (₹' + modalPlan.annualPrice.toLocaleString('en-IN') + ')' : 'Billed monthly'}
-                  </div>
-                </div>
-              </div>
-
-              {/* Form fields */}
-              <div className="sub-form-group">
-                <label className="sub-form-label">Selected Billing Cycle</label>
-                <div className="sub-cycle-options">
-                  <label className={`cycle-option ${billingCycle === 'monthly' ? 'selected' : ''}`}>
-                    <input
-                      type="radio"
-                      name="modalBillingCycle"
-                      value="monthly"
-                      checked={billingCycle === 'monthly'}
-                      onChange={() => setBillingCycle('monthly')}
-                    />
-                    <div className="cycle-option-text">
-                      <div className="cycle-option-title">Monthly Billing</div>
-                      <div className="cycle-option-sub">₹{modalPlan.monthlyPrice.toLocaleString('en-IN')} per month</div>
-                    </div>
-                  </label>
-
-                  <label className={`cycle-option ${billingCycle === 'annual' ? 'selected' : ''}`}>
-                    <input
-                      type="radio"
-                      name="modalBillingCycle"
-                      value="annual"
-                      checked={billingCycle === 'annual'}
-                      onChange={() => setBillingCycle('annual')}
-                    />
-                    <div className="cycle-option-text">
-                      <div className="cycle-option-title">
-                        Annual Billing <span className="discount-tag">Save 17%</span>
-                      </div>
-                      <div className="cycle-option-sub">₹{modalPlan.annualPrice.toLocaleString('en-IN')} / year</div>
-                    </div>
-                  </label>
-                </div>
-              </div>
-
-              <div className="sub-form-group">
-                <label className="sub-form-label">
-                  Primary Contact Phone <span className="req-star">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. +91 9876543210"
-                  className="sub-form-input"
-                  value={contactPhone}
-                  onChange={(e) => setContactPhone(e.target.value)}
-                />
-                <span className="sub-form-hint">
-                  Provider administrators will use this number if verification or invoice coordination is needed.
-                </span>
-              </div>
-
-              <div className="sub-form-group">
-                <label className="sub-form-label">Additional Notes or Custom Requirements (Optional)</label>
-                <textarea
-                  rows={3}
-                  placeholder="e.g., Number of branches, preferred GST invoice details, or requested activation date..."
-                  className="sub-form-textarea"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                />
-              </div>
-
-              <div className="sub-modal-alert">
-                <Info size={16} />
-                <span>
-                  Once submitted, the provider administration dashboard will instantly receive your request. A confirmation notification will appear in your hospital portal upon approval.
-                </span>
-              </div>
-
-              <div className="sub-modal-actions">
-                <button
-                  type="button"
-                  className="btn-cancel"
-                  onClick={closeUpgradeModal}
-                  disabled={submitting}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn-submit-upgrade"
-                  disabled={submitting}
-                >
-                  {submitting ? (
-                    <>
-                      <RefreshCw className="settings-spin" size={16} />
-                      <span>Sending Request...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Send size={16} />
-                      <span>Submit Upgrade Request to Provider</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
           </div>
-        </div>,
-        portalRoot
+        </div>
       )}
-    </div>
+    </>
   );
 }

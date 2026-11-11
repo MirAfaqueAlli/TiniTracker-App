@@ -1,11 +1,16 @@
 import { NextResponse } from 'next/server';
 import { withAuth } from '@/lib/middleware/withAuth';
 import { testConnection } from '@/lib/services/whatsapp.service';
+import { hasPermission } from '@/lib/utils/rbac';
 
 // POST /api/notifications/test-whatsapp
 export async function POST(request) {
   const { user, errorResponse } = await withAuth(request);
   if (errorResponse) return errorResponse;
+
+  if (!(await hasPermission(user, 'notifications.send_manual'))) {
+    return NextResponse.json({ error: 'Access denied: you do not have permission to send manual messages' }, { status: 403 });
+  }
 
   try {
     const { test_number } = await request.json();
