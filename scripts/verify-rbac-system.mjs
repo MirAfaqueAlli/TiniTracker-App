@@ -244,7 +244,7 @@ async function runTests() {
 
   const [insertUser] = await conn.execute(
     'INSERT INTO users (hospital_id, name, email, password_hash, role, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, NOW(), NOW())',
-    [1, 'Nurse Sarah', 'nurse.sarah.test@tinitracker.in', 'dummy_hash', customRole.key]
+    [1, 'Nurse Sarah', 'nurse.sarah.test@tinitraker.in', 'dummy_hash', customRole.key]
   );
   const customUserId = insertUser.insertId;
   const customUserToken = signToken(customUserId);

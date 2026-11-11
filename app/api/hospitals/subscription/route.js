@@ -151,7 +151,7 @@ export async function POST(request) {
     console.log(`⭐ Upgrade request dispatched: Hospital "${hospital?.name}" -> ${validPlan.name}`);
 
     return NextResponse.json({
-      message: `Your request to upgrade to ${validPlan.name} has been sent to the TiniTracker provider team. Our team will review and activate your subscription shortly.`,
+      message: `Your request to upgrade to ${validPlan.name} has been sent to the TiniTraker provider team. Our team will review and activate your subscription shortly.`,
       request: newRequest,
     }, { status: 201 });
 

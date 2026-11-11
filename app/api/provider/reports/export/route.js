@@ -53,7 +53,7 @@ export async function GET(request) {
 
     let headers = [];
     let rows = [];
-    let filename = `tinitracker_${type}_export_${Date.now()}`;
+    let filename = `tinitraker_${type}_export_${Date.now()}`;
     const today = new Date().toISOString().slice(0, 10);
 
     // ───────────────────────────────────────────────────────────────────────────

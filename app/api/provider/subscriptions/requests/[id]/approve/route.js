@@ -101,7 +101,7 @@ export async function POST(request, { params }) {
       await AppNotification.create({
         hospital_id: req.hospital_id,
         title: '🎉 Subscription Plan Activated!',
-        body: `Your hospital has been upgraded to the ${requestedPlan.toUpperCase()} plan (${billingCycle} billing). Thank you for subscribing to TiniTracker!`,
+        body: `Your hospital has been upgraded to the ${requestedPlan.toUpperCase()} plan (${billingCycle} billing). Thank you for subscribing to TiniTraker!`,
         event_type: 'subscription_upgraded',
         is_read: false,
       });

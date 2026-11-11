@@ -1,7 +1,7 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════
  *  migrate-wellnest-hospital.mjs
- *  WellNest -> TiniTracker Next  |  One-Hospital Migration Script
+ *  Legacy System -> TiniTraker Next  |  One-Hospital Migration Script
  * ═══════════════════════════════════════════════════════════════════════════
  *
  *  USAGE:
@@ -11,7 +11,7 @@
  *    node scripts/migrate-wellnest-hospital.mjs --demo --dry-run
  *
  *  FLAGS:
- *    --file=<path>   Path to exported MySQL dump from old WellNest server
+ *    --file=<path>   Path to exported MySQL dump from old legacy server
  *    --demo          Creates a DEMO hospital with fake credentials for testing
  *    --dry-run       Parse + report only, write nothing to DB
  *
@@ -64,7 +64,7 @@ if (!sqlFilePath && !isDemo) {
   process.exit(1);
 }
 
-// Allowed notification types in the new TiniTracker schema
+// Allowed notification types in the new TiniTraker schema
 const VALID_NOTIF_TYPES = new Set(['reminder_7d','reminder_1d','reminder_today','missed','manual','stage_complete','edd_updated','delivery_recorded']);
 function sanitizeNotifType(t) {
   return VALID_NOTIF_TYPES.has(t) ? t : 'manual';
@@ -326,7 +326,7 @@ async function seedRbac(conn, hospitalId) {
 
 async function migrate() {
   console.log('='.repeat(65));
-  console.log(' WellNest -> TiniTracker Next  |  Hospital Migration Script');
+  console.log(' Legacy System -> TiniTraker Next  |  Hospital Migration Script');
   console.log('='.repeat(65));
   if (isDryRun) console.log('\nDRY RUN MODE - no data will be written\n');
   if (isDemo)   console.log('\nDEMO MODE - using synthetic demo hospital data\n');
@@ -462,7 +462,7 @@ async function migrate() {
   }
 
   // Connect
-  console.log('\nConnecting to TiniTracker Next DB...');
+  console.log('\nConnecting to TiniTraker Next DB...');
   let conn;
   try {
     conn = await getConnection();
@@ -497,7 +497,7 @@ async function migrate() {
         process.exit(1);
       }
       if (code === 'IMM_2Y') {
-        console.warn('  WARNING: IMM_2Y (old ID ' + oldId + ') has no equivalent in new TiniTracker schema. These patient stages will be SKIPPED.');
+        console.warn('  WARNING: IMM_2Y (old ID ' + oldId + ') has no equivalent in new TiniTraker schema. These patient stages will be SKIPPED.');
         stageTemplateIdMap[oldId] = null; // null = skip during import
         continue;
       }
@@ -559,7 +559,7 @@ async function migrate() {
           // Create Subscription (plan mapped to canonical 'enterprise' with yearly billing cycle)
           const endsAt = new Date(Date.now() + 365*24*60*60*1000).toISOString().slice(0,10);
           await conn.execute(
-            "INSERT INTO subscriptions (hospital_id, plan, billing_cycle, starts_at, ends_at, is_active, notes, createdAt, updatedAt) VALUES (?, 'enterprise', 'yearly', ?, ?, 1, 'Migrated from WellNest legacy system', ?, ?)",
+            "INSERT INTO subscriptions (hospital_id, plan, billing_cycle, starts_at, ends_at, is_active, notes, createdAt, updatedAt) VALUES (?, 'enterprise', 'yearly', ?, ?, 1, 'Migrated from legacy system', ?, ?)",
             [newHospitalId, now.slice(0,10), endsAt, now, now]
           );
           console.log('  Subscription: created (active until ' + endsAt + ')');

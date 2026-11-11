@@ -133,7 +133,7 @@ export default function SubscriptionTab() {
         <div className="toasts" role="status" aria-live="polite">
           <div className={`toast ${toast.type === 'error' ? 'err' : ''}`}>
             <div>
-              <span className="toast-k">{toast.type === 'error' ? 'Not saved' : 'TiniTracker'}</span>
+              <span className="toast-k">{toast.type === 'error' ? 'Not saved' : 'TiniTraker'}</span>
               <span>{toast.message}</span>
             </div>
           </div>
@@ -374,7 +374,7 @@ export default function SubscriptionTab() {
                   </div>
 
                   <div className="field">
-                    <label htmlFor="upgrade-note">Note for the TiniTracker team <span className="hint">(optional)</span></label>
+                    <label htmlFor="upgrade-note">Note for the TiniTraker team <span className="hint">(optional)</span></label>
                     <textarea
                       id="upgrade-note"
                       rows={3}

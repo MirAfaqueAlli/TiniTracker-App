@@ -130,7 +130,7 @@ export async function POST(request) {
       { status: 201 }
     );
 
-    res.cookies.set('tinitracker_token', token, {
+    res.cookies.set('tinitraker_token', token, {
       path: '/',
       maxAge: 30 * 24 * 60 * 60,
       sameSite: 'lax',

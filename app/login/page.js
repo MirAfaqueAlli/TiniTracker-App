@@ -386,8 +386,8 @@ function LoginForm() {
   // Restore remembered identifier
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const savedPref       = localStorage.getItem('tinitracker_remember_me_pref');
-      const savedIdentifier = localStorage.getItem('tinitracker_remembered_identifier');
+      const savedPref       = localStorage.getItem('tinitraker_remember_me_pref');
+      const savedIdentifier = localStorage.getItem('tinitraker_remembered_identifier');
       if (savedPref !== null) setRememberMe(savedPref === 'true');
       else if (!savedIdentifier) setRememberMe(false);
       if (savedIdentifier && !prefilled) setIdentifier(savedIdentifier);
@@ -398,8 +398,8 @@ function LoginForm() {
     const isChecked = e.target.checked;
     setRememberMe(isChecked);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('tinitracker_remember_me_pref', isChecked ? 'true' : 'false');
-      if (!isChecked) localStorage.removeItem('tinitracker_remembered_identifier');
+      localStorage.setItem('tinitraker_remember_me_pref', isChecked ? 'true' : 'false');
+      if (!isChecked) localStorage.removeItem('tinitraker_remembered_identifier');
     }
   }
 
@@ -418,11 +418,11 @@ function LoginForm() {
       const res = await api.post('/auth/login', { email: identifier.trim(), password });
       if (typeof window !== 'undefined') {
         if (rememberMe) {
-          localStorage.setItem('tinitracker_remembered_identifier', identifier.trim());
-          localStorage.setItem('tinitracker_remember_me_pref', 'true');
+          localStorage.setItem('tinitraker_remembered_identifier', identifier.trim());
+          localStorage.setItem('tinitraker_remember_me_pref', 'true');
         } else {
-          localStorage.removeItem('tinitracker_remembered_identifier');
-          localStorage.setItem('tinitracker_remember_me_pref', 'false');
+          localStorage.removeItem('tinitraker_remembered_identifier');
+          localStorage.setItem('tinitraker_remember_me_pref', 'false');
         }
       }
       setAuth(res.data.token, res.data.user, rememberMe);

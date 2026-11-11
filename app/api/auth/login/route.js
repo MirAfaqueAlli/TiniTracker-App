@@ -66,7 +66,7 @@ export async function POST(request) {
     if (!activeSub) {
       return NextResponse.json({
         error:        'subscription_expired',
-        message:      'Your hospital\'s subscription has expired or is inactive. Please contact TiniTracker support to renew.',
+        message:      'Your hospital\'s subscription has expired or is inactive. Please contact TiniTraker support to renew.',
       }, { status: 403 });
     }
     // ─────────────────────────────────────────────────────────────────────────
@@ -97,7 +97,7 @@ export async function POST(request) {
       }
     });
 
-    res.cookies.set('tinitracker_token', token, {
+    res.cookies.set('tinitraker_token', token, {
       path: '/',
       maxAge: 30 * 24 * 60 * 60,
       sameSite: 'lax',

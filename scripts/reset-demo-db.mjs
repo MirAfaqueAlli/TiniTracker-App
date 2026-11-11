@@ -44,18 +44,18 @@ const DB_PASS = process.env.DB_PASS || '';
 const DB_NAME = process.env.DB_NAME || 'tinitracker';
 
 // ── Demo credentials (what the user will use) ─────────────────────────────
-const PROVIDER_EMAIL    = process.env.PROVIDER_ADMIN_EMAIL    || 'admin@tinitracker.in';
+const PROVIDER_EMAIL    = process.env.PROVIDER_ADMIN_EMAIL    || 'admin@tinitraker.in';
 const PROVIDER_PASSWORD = process.env.PROVIDER_ADMIN_PASSWORD || 'TiniTrack@Admin2025';
-const PROVIDER_NAME     = process.env.PROVIDER_ADMIN_NAME     || 'TiniTracker Superadmin';
+const PROVIDER_NAME     = process.env.PROVIDER_ADMIN_NAME     || 'TiniTraker Superadmin';
 
-const DEMO_HOSPITAL_NAME  = 'TiniTracker Demo Hospital';
-const DEMO_HOSPITAL_EMAIL = 'demo@tinitracker.in';
+const DEMO_HOSPITAL_NAME  = 'TiniTraker Demo Hospital';
+const DEMO_HOSPITAL_EMAIL = 'demo@tinitraker.in';
 const DEMO_HOSPITAL_CITY  = 'Mumbai';
 const DEMO_HOSPITAL_PHONE = '+91 9876543210';
 
 // Demo credentials — intentionally public, for seeding the demo environment only.
 const DEMO_ADMIN_NAME     = 'Demo Admin';
-const DEMO_ADMIN_EMAIL    = 'demo.admin@tinitracker.in';
+const DEMO_ADMIN_EMAIL    = 'demo.admin@tinitraker.in';
 const DEMO_ADMIN_PASSWORD = 'DemoAdmin@2025';
 
 const conn = await createConnection({
@@ -177,7 +177,7 @@ console.log(`  ↳ Hospital admin: ${DEMO_ADMIN_EMAIL}`);
 await conn.end();
 
 console.log('\n' + '═'.repeat(60));
-console.log('✅  DATABASE RESET COMPLETE — TiniTracker Demo Ready');
+console.log('✅  DATABASE RESET COMPLETE — TiniTraker Demo Ready');
 console.log('═'.repeat(60));
 console.log('\n📋 DEMO CREDENTIALS:\n');
 console.log('  🛡️  PROVIDER ADMIN (tinitracker-admin dashboard):');

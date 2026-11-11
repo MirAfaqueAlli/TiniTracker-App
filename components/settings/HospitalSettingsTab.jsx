@@ -276,7 +276,7 @@ export default function HospitalSettingsTab() {
                 <input
                   id="w-url"
                   type="url"
-                  placeholder="https://api.tinitracker.in/v1/send"
+                  placeholder="https://api.tinitraker.in/v1/send"
                   value={form.whatsapp_api_url}
                   onChange={(e) => set('whatsapp_api_url', e.target.value)}
                   disabled={!canEditHospital || saving}

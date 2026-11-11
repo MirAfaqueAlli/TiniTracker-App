@@ -11364,7 +11364,7 @@ select.rpm-input::-ms-expand {
 }
 
 /* ======================================================
-   TINITRACKER DASHBOARD REDESIGN (scoped)
+   TINITRAKER DASHBOARD REDESIGN (scoped)
 ====================================================== */
 @keyframes ttdFadeUp {
   from { opacity: 0; transform: translateY(14px); }
@@ -13021,7 +13021,7 @@ select.rpm-input::-ms-expand {
 
 /* ======================================================
    PATIENTS PAGE — DASHBOARD-ALIGNED THEME
-   Reuses the TiniTracker dashboard design tokens so the
+   Reuses the TiniTraker dashboard design tokens so the
    patient list shares the same look, feel and motion.
 ====================================================== */
 .patients-page-container {
@@ -15073,7 +15073,7 @@ select.rpm-input::-ms-expand {
 
 /* ======================================================
    PATIENT DETAIL — PATIENTVIEW.HTML-INSPIRED REDESIGN
-   Uses the TiniTracker dashboard tokens (fonts + colours).
+   Uses the TiniTraker dashboard tokens (fonts + colours).
 ====================================================== */
 .pd-hero {
   display: grid;

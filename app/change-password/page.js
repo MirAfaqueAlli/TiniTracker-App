@@ -114,7 +114,7 @@ export default function ChangePasswordPage() {
             {/* Current password */}
             <div>
               <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#64748b', display: 'block', marginBottom: '0.35rem' }}>
-                Current Password {isForced && '(the one provided by TiniTracker)'}
+                Current Password {isForced && '(the one provided by TiniTraker)'}
               </label>
               <div style={{ position: 'relative' }}>
                 <input

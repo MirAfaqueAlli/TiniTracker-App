@@ -88,14 +88,14 @@ export async function POST(request) {
         priority,
         target_type,
         target_hospital_id: target_type === 'hospital' ? target_hospital_id : null,
-        sender_name: admin.name || 'TiniTracker Superadmin',
+        sender_name: admin.name || 'TiniTraker Superadmin',
         is_pinned: Boolean(is_pinned),
       }, { transaction: t });
 
       const baseNotification = {
         patient_id: null,
         actor_id: admin.id,
-        actor_name: admin.name || 'TiniTracker Superadmin',
+        actor_name: admin.name || 'TiniTraker Superadmin',
         event_type: 'platform_announcement',
         title: notifTitle,
         body: message.trim(),

@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server';
  */
 export async function POST() {
   const res = NextResponse.json({ success: true });
-  res.cookies.set('tinitracker_token', '', {
+  res.cookies.set('tinitraker_token', '', {
     path: '/',
     maxAge: 0,
     sameSite: 'lax',

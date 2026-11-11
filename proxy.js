@@ -126,7 +126,7 @@ function applyApiCacheHeaders(response) {
  * Returns payload on valid signature, null otherwise.
  */
 async function verifyAppToken(request) {
-  let token = request.cookies.get('tinitracker_token')?.value;
+  let token = request.cookies.get('tinitraker_token')?.value;
 
   if (!token) {
     const authHeader = request.headers.get('authorization') || '';
@@ -392,8 +392,8 @@ export async function proxy(request) {
     if (!appPayload) {
       const res = redirect(request, '/login', { next: pathname });
       // Clear stale cookie if present so browser state stays clean
-      if (request.cookies.has('tinitracker_token')) {
-        res.cookies.delete('tinitracker_token');
+      if (request.cookies.has('tinitraker_token')) {
+        res.cookies.delete('tinitraker_token');
       }
       return res;
     }

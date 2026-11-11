@@ -96,7 +96,7 @@ export default function AppLayout({ children }) {
         <div style={{ maxWidth: 520 }}>
           <div style={{ fontSize: '2rem', marginBottom: '0.75rem' }}>🛠️</div>
           <h1 style={{ fontSize: '1.4rem', fontWeight: 800, margin: '0 0 0.75rem' }}>
-            {platformStatus.platform_name || 'TiniTracker'} is under maintenance
+            {platformStatus.platform_name || 'TiniTraker'} is under maintenance
           </h1>
           <p style={{ fontSize: '0.95rem', lineHeight: 1.6, color: 'var(--color-text-muted, #64748b)' }}>
             {platformStatus.maintenance_notice || 'We are performing scheduled maintenance. Please try again shortly.'}

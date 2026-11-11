@@ -1,6 +1,6 @@
-# TiniTracker — Main App (`tinitracker-next`)
+# TiniTraker — Main App (`tinitracker-next`)
 
-> The hospital-facing Next.js application for the TiniTracker maternal & child health tracking platform.
+> The hospital-facing Next.js application for the TiniTraker maternal & child health tracking platform.
 
 ---
 
@@ -18,7 +18,7 @@ It also exposes the full **Provider API** (`/api/provider/*`) consumed by the `t
 |---|---|
 | Framework | Next.js 15 (App Router, Turbopack) |
 | Database | MySQL via Sequelize ORM |
-| Auth (hospital users) | httpOnly Cookie (`tinitracker_token`) |
+| Auth (hospital users) | httpOnly Cookie (`tinitraker_token`) |
 | Auth (provider/admin) | Bearer JWT (issued at `/api/provider/auth/login`, consumed by admin's session bridge) |
 | State | Zustand (persisted to `localStorage` for UI state only — no token stored there) |
 | Notifications | WhatsApp API + in-app notifications |
@@ -97,7 +97,7 @@ tinitracker-next/
 ├── scripts/
 │   ├── reset-demo-db.mjs         # ⚠️  DB wipe & demo seed script
 │   ├── migrate-schema.mjs        # One-time DDL migration (run once, not on boot)
-│   ├── migrate-wellnest-hospital.mjs  # WellNest → TiniTracker patient import
+│   ├── migrate-wellnest-hospital.mjs  # WellNest → TiniTraker patient import
 │   └── data/
 │       └── wellnest.sql          # ⛔ PII export (gitignored — do not commit)
 ├── docs/
@@ -205,7 +205,7 @@ node scripts/migrate-wellnest-hospital.mjs --file=scripts/data/wellnest.sql --dr
 
 ## API Summary
 
-All hospital-scoped routes are under `/api/` and require a valid `Authorization: Bearer <token>` header or `tinitracker_token` httpOnly cookie.
+All hospital-scoped routes are under `/api/` and require a valid `Authorization: Bearer <token>` header or `tinitraker_token` httpOnly cookie.
 
 Provider routes (`/api/provider/*`) require a separate provider JWT with `type: 'provider'`. The `tinitracker-admin` app accesses these through its server-side proxy (`/api/provider/[...path]`), which reads an httpOnly `provider_token` cookie and adds the `Authorization` header server-side.
 
@@ -221,7 +221,7 @@ Provider routes (`/api/provider/*`) require a separate provider JWT with `type: 
 
 ## Security Notes
 
-- Hospital user tokens stored as `tinitracker_token` httpOnly cookie (never `localStorage`)
+- Hospital user tokens stored as `tinitraker_token` httpOnly cookie (never `localStorage`)
 - Provider tokens issued as Bearer JWT, consumed server-side by `tinitracker-admin`'s proxy; never stored in browser storage
 - All `console.error` calls log only `.message` strings — never raw Axios objects
 - `.env.local` is gitignored; no secrets in committed code

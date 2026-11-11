@@ -399,7 +399,7 @@ export default function ProviderDashboard() {
             background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem',
           }}>🛡️</div>
-          <div style={{ color: '#f8fafc', fontWeight: 700, fontSize: '1rem' }}>TiniTracker Provider</div>
+          <div style={{ color: '#f8fafc', fontWeight: 700, fontSize: '1rem' }}>TiniTraker Provider</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           {admin && (

@@ -109,7 +109,7 @@ export const useAuthStore = create(
       },
     }),
     {
-      name: 'tinitracker-auth',
+      name: 'tinitraker-auth',
       storage: createJSONStorage(() => authStorageProvider),
       partialize: (state) => ({
         user: state.user,

@@ -49,7 +49,7 @@ export default function ProviderLoginPage() {
             fontSize: '1.5rem', boxShadow: '0 8px 20px rgba(99,102,241,0.4)',
           }}>🛡️</div>
           <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#f8fafc', letterSpacing: '-0.02em' }}>
-            TiniTracker Provider
+            TiniTraker Provider
           </div>
           <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.25rem' }}>
             Internal admin portal
@@ -73,7 +73,7 @@ export default function ProviderLoginPage() {
             </label>
             <input
               type="email" value={email} onChange={e => setEmail(e.target.value)}
-              placeholder="admin@tinitracker.in" required
+              placeholder="admin@tinitraker.in" required
               style={{
                 width: '100%', padding: '0.7rem 0.9rem', borderRadius: '10px',
                 background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)',
