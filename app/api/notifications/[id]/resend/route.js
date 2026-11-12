@@ -42,7 +42,7 @@ export async function POST(request, { params }) {
 
     const phone = notification.whatsapp_number.replace(/[^0-9]/g, '');
     const hosp = hospitalName || 'your hospital';
-    const body  = notification.message_body || `Hello ${notification.Patient.name}, this is a follow-up from *${hosp}*.\n\n— *${hosp}*`;
+    const body  = notification.message_body || `Dear ${notification.Patient.name},\n\nThis is a follow-up message from *${hosp}*. Please contact us if you require any assistance.\n\nRegards,\n*${hosp}*`;
 
     let newStatus = 'failed';
     let providerMessageId = null;
